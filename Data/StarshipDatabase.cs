@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace NMSE.Data;
 
 /// <summary>
@@ -2376,4 +2378,233 @@ internal static class StarshipDatabase
         { "^W_WALL_Q_H", "Short Wooden Wall" },
         { "^W_WALL_WINDOW", "Wooden Window Panel" }
     };
+}
+/// <summary>
+/// Represents one slot within a ship customisation config, holding the slot identifier,
+/// a human-readable label, and the list of available part items.
+/// </summary>
+public sealed class ShipCustomisationSlot
+{
+    /// <summary>The game slot ID, e.g. "SAIL_BODY".</summary>
+    public string SlotID { get; init; } = "";
+    /// <summary>Human-readable label for the slot, e.g. "FUSELAGE".</summary>
+    public string Label { get; init; } = "";
+    /// <summary>Items that can be placed in this slot.</summary>
+    public IReadOnlyList<ShipCustomisationItem> Items { get; init; } = Array.Empty<ShipCustomisationItem>();
+}
+
+/// <summary>
+/// Represents a single part/item that can be placed in a customisation slot.
+/// </summary>
+public sealed class ShipCustomisationItem
+{
+    /// <summary>The game item ID, e.g. "SAIL_BODYA".</summary>
+    public string ItemID { get; init; } = "";
+    /// <summary>
+    /// The descriptor group IDs activated when this item is selected.
+    /// In the save file these appear with a leading "^" prefix.
+    /// </summary>
+    public IReadOnlyList<string> DescriptorGroupIDs { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Represents a texture option group for a ship, with all available texture option names.
+/// </summary>
+public sealed class ShipCustomisationTextureGroup
+{
+    /// <summary>The texture option group ID, e.g. "SHIP_SAIL".</summary>
+    public string GroupID { get; init; } = "";
+    /// <summary>Available texture option names, e.g. ["COATING", "PANELS", "METALBOLT"].</summary>
+    public IReadOnlyList<string> Options { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Holds the full customisation configuration for one ship type as parsed from
+/// the game's modularcustomisationdatatable.MBIN via the extractor.
+/// </summary>
+public sealed class ShipCustomisationConfig
+{
+    /// <summary>The config key as it appears in the MXML, e.g. "Sail", "Fighter".</summary>
+    public string ConfigKey { get; init; } = "";
+    /// <summary>
+    /// The base resource scene path that identifies this ship type,
+    /// e.g. "MODELS/COMMON/SPACECRAFT/SAILSHIP/SAILSHIP_PROC.SCENE.MBIN".
+    /// </summary>
+    public string BaseResource { get; init; } = "";
+    /// <summary>The available customisation slots and their parts.</summary>
+    public IReadOnlyList<ShipCustomisationSlot> Slots { get; init; } = Array.Empty<ShipCustomisationSlot>();
+    /// <summary>Texture option groups and their available options.</summary>
+    public IReadOnlyList<ShipCustomisationTextureGroup> TextureGroups { get; init; } = Array.Empty<ShipCustomisationTextureGroup>();
+    /// <summary>
+    /// Available paint palette IDs (without "^" prefix).
+    /// Empty string represents "no specific palette".
+    /// </summary>
+    public IReadOnlyList<string> PaletteIDs { get; init; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Loads and provides access to ship customisation data parsed from
+/// the game's modularcustomisationdatatable.MXML.
+/// </summary>
+public static class ShipCustomisationDatabase
+{
+    /// <summary>All loaded ship customisation configs.</summary>
+    public static IReadOnlyList<ShipCustomisationConfig> AllConfigs { get; private set; } =
+        Array.Empty<ShipCustomisationConfig>();
+
+    /// <summary>Lookup by BaseResource path (case-insensitive).</summary>
+    private static readonly Dictionary<string, ShipCustomisationConfig> ByResource =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Loads ship customisation configs from the given JSON file path.
+    /// Returns false if the file does not exist or cannot be parsed.
+    /// </summary>
+    public static bool LoadFromFile(string jsonPath)
+    {
+        if (!File.Exists(jsonPath)) return false;
+
+        try
+        {
+            var content = File.ReadAllBytes(jsonPath);
+            using var doc = JsonDocument.Parse(content);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return false;
+
+            var loaded = new List<ShipCustomisationConfig>();
+            foreach (var elem in doc.RootElement.EnumerateArray())
+            {
+                string configKey = elem.TryGetProperty("ConfigKey", out var ckP)
+                    ? ckP.GetString() ?? "" : "";
+                string baseResource = elem.TryGetProperty("BaseResource", out var brP)
+                    ? brP.GetString() ?? "" : "";
+                if (string.IsNullOrEmpty(baseResource)) continue;
+
+                var slots = ParseSlots(elem);
+                var textureGroups = ParseTextureGroups(elem);
+                var paletteIds = ParseStringArray(elem, "PaletteIDs");
+
+                loaded.Add(new ShipCustomisationConfig
+                {
+                    ConfigKey = configKey,
+                    BaseResource = baseResource,
+                    Slots = slots,
+                    TextureGroups = textureGroups,
+                    PaletteIDs = paletteIds,
+                });
+            }
+
+            AllConfigs = loaded;
+            ByResource.Clear();
+            foreach (var cfg in loaded)
+                ByResource[cfg.BaseResource] = cfg;
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns the customisation config for the given ship scene resource path,
+    /// or null if the ship has no customisation data.
+    /// </summary>
+    public static ShipCustomisationConfig? GetConfigByResource(string resourceFilename)
+    {
+        if (string.IsNullOrEmpty(resourceFilename)) return null;
+        ByResource.TryGetValue(resourceFilename, out var config);
+        return config;
+    }
+
+    /// <summary>
+    /// Returns all known ship scene resource paths (from loaded configs) in the order
+    /// they appear in the config list.
+    /// </summary>
+    public static IReadOnlyList<string> AllResourcePaths =>
+        AllConfigs.Select(c => c.BaseResource).ToList();
+
+    // -- Private helpers --
+
+    private static IReadOnlyList<ShipCustomisationSlot> ParseSlots(JsonElement elem)
+    {
+        if (!elem.TryGetProperty("Slots", out var slotsArr) ||
+            slotsArr.ValueKind != JsonValueKind.Array)
+            return Array.Empty<ShipCustomisationSlot>();
+
+        var slots = new List<ShipCustomisationSlot>();
+        foreach (var slotElem in slotsArr.EnumerateArray())
+        {
+            string slotId = slotElem.TryGetProperty("SlotID", out var sidP)
+                ? sidP.GetString() ?? "" : "";
+            string label = slotElem.TryGetProperty("Label", out var lblP)
+                ? lblP.GetString() ?? "" : slotId;
+
+            var items = new List<ShipCustomisationItem>();
+            if (slotElem.TryGetProperty("Items", out var itemsArr) &&
+                itemsArr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var itemElem in itemsArr.EnumerateArray())
+                {
+                    string itemId = itemElem.TryGetProperty("ItemID", out var iidP)
+                        ? iidP.GetString() ?? "" : "";
+                    if (string.IsNullOrEmpty(itemId)) continue;
+
+                    var dgIds = ParseStringArray(itemElem, "DescriptorGroupIDs");
+                    items.Add(new ShipCustomisationItem
+                    {
+                        ItemID = itemId,
+                        DescriptorGroupIDs = dgIds,
+                    });
+                }
+            }
+
+            slots.Add(new ShipCustomisationSlot
+            {
+                SlotID = slotId,
+                Label = string.IsNullOrEmpty(label) ? slotId : label,
+                Items = items,
+            });
+        }
+        return slots;
+    }
+
+    private static IReadOnlyList<ShipCustomisationTextureGroup> ParseTextureGroups(JsonElement elem)
+    {
+        if (!elem.TryGetProperty("TextureGroups", out var tgArr) ||
+            tgArr.ValueKind != JsonValueKind.Array)
+            return Array.Empty<ShipCustomisationTextureGroup>();
+
+        var groups = new List<ShipCustomisationTextureGroup>();
+        foreach (var tgElem in tgArr.EnumerateArray())
+        {
+            string groupId = tgElem.TryGetProperty("GroupID", out var gidP)
+                ? gidP.GetString() ?? "" : "";
+            if (string.IsNullOrEmpty(groupId)) continue;
+
+            var options = ParseStringArray(tgElem, "Options");
+            groups.Add(new ShipCustomisationTextureGroup
+            {
+                GroupID = groupId,
+                Options = options,
+            });
+        }
+        return groups;
+    }
+
+    private static IReadOnlyList<string> ParseStringArray(JsonElement elem, string propertyName)
+    {
+        if (!elem.TryGetProperty(propertyName, out var arr) ||
+            arr.ValueKind != JsonValueKind.Array)
+            return Array.Empty<string>();
+
+        var result = new List<string>();
+        foreach (var item in arr.EnumerateArray())
+        {
+            string? val = item.ValueKind == JsonValueKind.String ? item.GetString() : null;
+            if (val != null)
+                result.Add(val);
+        }
+        return result;
+    }
 }

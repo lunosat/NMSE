@@ -4,6 +4,7 @@ using NMSE.Core;
 using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
+using NMSE.UI.Controls;
 using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
@@ -32,6 +33,32 @@ public partial class StarshipPanel : UserControl
 
     /// <summary>Class index loaded from the save for the current ship, used to detect user changes.</summary>
     private int _originalClassIndex = -1;
+
+    /// <summary>The data index of the ship currently loaded in the Customisation tab.</summary>
+    private int _currentCustomisationShipIndex = -1;
+
+    /// <summary>The customisation config for the ship currently loaded in the Customisation tab.</summary>
+    private ShipCustomisationConfig? _currentCustomisationConfig;
+
+    /// <summary>Per-slot combobox controls currently shown in the Customisation tab.</summary>
+    private readonly List<(Label Lbl, ComboBox Combo, ShipCustomisationSlot Slot)> _slotControls = new();
+
+    /// <summary>Per-texture-group combobox controls currently shown in the Customisation tab.</summary>
+    private readonly List<(Label Lbl, ComboBox Combo, string GroupID)> _textureControls = new();
+
+    /// <summary>Palette label and combobox shown in the Customisation tab (null when not present).</summary>
+    private Label? _paletteLabelCtrl;
+    private ComboBox? _paletteCombo;
+
+    /// <summary>
+    /// Colour channel swatch controls in the Customisation tab.
+    /// Each entry holds the channel name (e.g. "Paint"), the colour alt (e.g. "Primary"),
+    /// and the clickable Panel swatch.
+    /// </summary>
+    private readonly List<(string PaletteName, string ColourAlt, Panel Swatch)> _colourSwatches = new();
+
+    /// <summary>Active colour picker dropdown, disposed when a new one is opened.</summary>
+    private ToolStripDropDown? _activeColourMenu;
 
     private void SetStarshipMaxSupportedLabels(string filename)
     {
@@ -152,6 +179,9 @@ public partial class StarshipPanel : UserControl
         _corvetteWarningLabel.Text = UiStrings.Get("starship.corvette_warning");
         _cargoTabPage.Text = UiStrings.Get("starship.tab_cargo");
         _techTabPage.Text = UiStrings.Get("starship.tab_tech");
+        _shipDetailsTabPage.Text = UiStrings.Get("starship.tab_ship_details");
+        _customisationTabPage.Text = UiStrings.Get("starship.tab_customisation");
+        _sceneLabelCtrl.Text = UiStrings.Get("starship.customisation_scene_label");
 
         // Refresh ship type combo with localised display names
         RefreshShipTypeCombo();
@@ -301,6 +331,11 @@ public partial class StarshipPanel : UserControl
 
             _inventoryGrid.SaveInventory(ship.GetObject("Inventory"));
             _techGrid.SaveInventory(ship.GetObject("Inventory_TechOnly"));
+
+            // Save customisation tab data (scene resource and CCD fields) when
+            // the customisation tab is enabled and has been loaded for this ship.
+            if (_customisationTabEnabled && _currentCustomisationShipIndex == idx)
+                SaveCustomisationToCcd(playerState, idx);
         }
         catch { }
     }
@@ -396,6 +431,10 @@ public partial class StarshipPanel : UserControl
             // Update optimise indicator for corvettes
             if (isCorvette)
                 UpdateOptimiseIndicator(idx);
+
+            // Load customisation tab (enable/disable based on corvette status,
+            // populate scene combo and dynamic part controls from CCD).
+            LoadCustomisationTab(isCorvette, data.Filename, idx);
         }
         catch { }
         finally
@@ -1268,6 +1307,783 @@ public partial class StarshipPanel : UserControl
         if (_playerState == null) return;
         var bases = _playerState.GetArray("PersistentPlayerBases");
         StarshipLogic.InvalidateCorvetteBase(bases, shipIndex);
+    }
+
+    // -------------------
+    //  Customisation tab
+    // -------------------
+
+    /// <summary>
+    /// Loads and displays the Customisation tab for the given ship.
+    /// Disables the tab entirely for Corvette ships.
+    /// </summary>
+    private void LoadCustomisationTab(bool isCorvette, string resourceFilename, int shipIndex)
+    {
+        _currentCustomisationShipIndex = shipIndex;
+
+        // Populate the scene combo with all known resource paths (do it once,
+        // or whenever the database has been loaded after an initial empty state).
+        if (_sceneCombo.Items.Count == 0)
+            PopulateSceneCombo();
+
+        if (isCorvette)
+        {
+            // Disable tab: corvettes have a completely different customisation system.
+            SetCustomisationTabEnabled(false);
+            _sceneCombo.Text = resourceFilename;
+            RebuildCustomisationDynamicControls(null);
+            ShowCustomisationInfoLabel(UiStrings.Get("starship.customisation_corvette_disabled"));
+            return;
+        }
+
+        SetCustomisationTabEnabled(true);
+        _sceneCombo.Text = resourceFilename;
+
+        var config = ShipCustomisationDatabase.GetConfigByResource(resourceFilename);
+        _currentCustomisationConfig = config;
+
+        var ccdArray = _playerState?.GetArray("CharacterCustomisationData");
+        var ccd = StarshipLogic.GetShipCustomisation(ccdArray, shipIndex);
+
+        RebuildCustomisationDynamicControls(config);
+        LoadCustomisationFromCcd(ccd, config);
+
+        if (config == null)
+            ShowCustomisationInfoLabel(UiStrings.Get("starship.customisation_no_config"));
+        else
+            HideCustomisationInfoLabel();
+    }
+
+    /// <summary>
+    /// Enables or disables the Customisation tab page, switching back to
+    /// Ship Details when the tab is being disabled while selected.
+    /// </summary>
+    private void SetCustomisationTabEnabled(bool enabled)
+    {
+        _customisationTabEnabled = enabled;
+        if (!enabled && _outerTabs.SelectedTab == _customisationTabPage)
+            _outerTabs.SelectedTab = _shipDetailsTabPage;
+    }
+
+    /// <summary>
+    /// Populates the scene combo with all resource paths known to
+    /// ShipCustomisationDatabase plus those from StarshipLogic.ShipInfo.
+    /// </summary>
+    private void PopulateSceneCombo()
+    {
+        _sceneCombo.BeginUpdate();
+        _sceneCombo.Items.Clear();
+
+        // Add paths from the customisation database first (proc ships with part data)
+        foreach (var path in ShipCustomisationDatabase.AllResourcePaths)
+            _sceneCombo.Items.Add(path);
+
+        // Add remaining canonical paths from StarshipLogic that are not already listed
+        foreach (var path in StarshipLogic.ShipInfo.Keys)
+        {
+            if (!_sceneCombo.Items.Contains(path))
+                _sceneCombo.Items.Add(path);
+        }
+
+        _sceneCombo.EndUpdate();
+    }
+
+    /// <summary>
+    /// Removes all dynamically created controls from the customisation content panel
+    /// (all rows after row 0) and rebuilds them for the given config.
+    /// </summary>
+    private void RebuildCustomisationDynamicControls(ShipCustomisationConfig? config)
+    {
+        _customisationContent.SuspendLayout();
+
+        // Remove all rows after row 0 (the static scene row).
+        // Dispose controls from row 1 onwards to avoid resource leaks.
+        var toRemove = _customisationContent.Controls.Cast<Control>()
+            .Where(c =>
+            {
+                var pos = _customisationContent.GetPositionFromControl(c);
+                return pos.Row > 0;
+            })
+            .ToList();
+
+        foreach (var ctrl in toRemove)
+        {
+            _customisationContent.Controls.Remove(ctrl);
+            ctrl.Dispose();
+        }
+
+        // Shrink the row collection back to just row 0
+        while (_customisationContent.RowStyles.Count > 1)
+            _customisationContent.RowStyles.RemoveAt(_customisationContent.RowStyles.Count - 1);
+        _customisationContent.RowCount = 1;
+
+        _slotControls.Clear();
+        _textureControls.Clear();
+        _colourSwatches.Clear();
+        _paletteLabelCtrl = null;
+        _paletteCombo = null;
+
+        // Dispose any open colour picker menu from previous config
+        _activeColourMenu?.Dispose();
+        _activeColourMenu = null;
+
+        if (config == null)
+        {
+            // Show the info label in the panel (no dynamic controls to add)
+            if (_customisationInfoLabel.Parent == null)
+                _customisationContent.Controls.Add(_customisationInfoLabel);
+
+            _customisationContent.ResumeLayout(true);
+            return;
+        }
+
+        // Remove info label while showing real controls
+        if (_customisationInfoLabel.Parent != null)
+            _customisationContent.Controls.Remove(_customisationInfoLabel);
+
+        int nextRow = 1;
+
+        // Warning label - always shown at the top of the dynamic customisation area
+        var warningLabel = new ColorEmojiLabel
+        {
+            Text = UiStrings.Get("starship.customisation_combo_warning"),
+            AutoSize = true,
+            ForeColor = Color.DarkOrange,
+            Font = new Font("Segoe UI Emoji", 8.5f),
+            Padding = new Padding(0, 4, 0, 6),
+        };
+        _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _customisationContent.RowCount = nextRow + 1;
+        _customisationContent.Controls.Add(warningLabel, 0, nextRow);
+        _customisationContent.SetColumnSpan(warningLabel, 2);
+        nextRow++;
+
+        // Parts heading
+        if (config.Slots.Count > 0)
+        {
+            var partsHeading = new Label
+            {
+                Text = UiStrings.Get("starship.customisation_parts_heading"),
+                AutoSize = true,
+                Padding = new Padding(0, 8, 0, 2),
+            };
+            FontManager.ApplyHeadingFont(partsHeading, 10);
+            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _customisationContent.RowCount = nextRow + 1;
+            _customisationContent.Controls.Add(partsHeading, 0, nextRow);
+            _customisationContent.SetColumnSpan(partsHeading, 2);
+            nextRow++;
+
+            foreach (var slot in config.Slots)
+            {
+                var lbl = new Label
+                {
+                    Text = slot.Label + ":",
+                    AutoSize = true,
+                    Anchor = AnchorStyles.Left,
+                    Padding = new Padding(0, 5, 10, 0),
+                };
+                var combo = new ComboBox
+                {
+                    Dock = DockStyle.Fill,
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                };
+
+                // Populate with (None) + slot items
+                string noneLabel = UiStrings.Get("starship.customisation_none");
+                combo.Items.Add(new SlotItemEntry(noneLabel, null));
+                foreach (var item in slot.Items)
+                    combo.Items.Add(new SlotItemEntry(item.ItemID, item));
+
+                _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _customisationContent.RowCount = nextRow + 1;
+                _customisationContent.Controls.Add(lbl, 0, nextRow);
+                _customisationContent.Controls.Add(combo, 1, nextRow);
+                _slotControls.Add((lbl, combo, slot));
+                nextRow++;
+            }
+        }
+
+        // Paint palette
+        if (config.PaletteIDs.Count > 0)
+        {
+            var paletteLbl = new Label
+            {
+                Text = UiStrings.Get("starship.customisation_paint_palette"),
+                AutoSize = true,
+                Anchor = AnchorStyles.Left,
+                Padding = new Padding(0, 5, 10, 0),
+            };
+            var paletteCombo = new ComboBox
+            {
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+            };
+            string noneLabel = UiStrings.Get("starship.customisation_none");
+            paletteCombo.Items.Add(noneLabel);
+            foreach (var pid in config.PaletteIDs)
+                if (!string.IsNullOrEmpty(pid))
+                    paletteCombo.Items.Add(pid);
+
+            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _customisationContent.RowCount = nextRow + 1;
+            _customisationContent.Controls.Add(paletteLbl, 0, nextRow);
+            _customisationContent.Controls.Add(paletteCombo, 1, nextRow);
+            _paletteLabelCtrl = paletteLbl;
+            _paletteCombo = paletteCombo;
+            nextRow++;
+
+            // Colour channel swatches - shown after the palette selector, one per row with labels.
+            // The three main ship colours plus two decal colours span two game channels (Paint, Undercoat).
+            var coloursHeading = new Label
+            {
+                Text = UiStrings.Get("starship.customisation_colours_heading"),
+                AutoSize = true,
+                Padding = new Padding(0, 8, 0, 2),
+            };
+            FontManager.ApplyHeadingFont(coloursHeading, 10);
+            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _customisationContent.RowCount = nextRow + 1;
+            _customisationContent.Controls.Add(coloursHeading, 0, nextRow);
+            _customisationContent.SetColumnSpan(coloursHeading, 2);
+            nextRow++;
+
+            // Each entry: (channel, colourAlt, localisationKey).
+            // Colour 3 targets Undercoat/Alternative1 for dense saves (320-entry arrays);
+            // the read/write methods fall back to Undercoat/Primary for sparse saves.
+            (string Channel, string AltId, string LocKey)[] colourDefs =
+            [
+                ("Paint",     "Primary",      "starship.customisation_colour1"),
+                ("Paint",     "Alternative3", "starship.customisation_colour2"),
+                ("Undercoat", "Alternative1", "starship.customisation_colour3"),
+                ("Paint",     "Alternative1", "starship.customisation_decal1"),
+                ("Paint",     "Alternative2", "starship.customisation_decal2"),
+            ];
+            const int swatchSize = 28;
+
+            foreach (var (channel, altId, locKey) in colourDefs)
+            {
+                var swatchLbl = new Label
+                {
+                    Text = UiStrings.Get(locKey) + ":",
+                    AutoSize = true,
+                    Anchor = AnchorStyles.Left,
+                    Padding = new Padding(0, 5, 10, 0),
+                };
+                var swatch = new Panel
+                {
+                    Size = new Size(swatchSize, swatchSize),
+                    BackColor = SystemColors.Control,
+                    BorderStyle = BorderStyle.FixedSingle,
+                    Anchor = AnchorStyles.Left,
+                    Cursor = Cursors.Hand,
+                };
+                string capturedChannel = channel;
+                string capturedAlt = altId;
+                swatch.Click += (_, _) => OnShipColourSwatchClick(swatch, capturedChannel, capturedAlt);
+                _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _customisationContent.RowCount = nextRow + 1;
+                _customisationContent.Controls.Add(swatchLbl, 0, nextRow);
+                _customisationContent.Controls.Add(swatch, 1, nextRow);
+                _colourSwatches.Add((channel, altId, swatch));
+                nextRow++;
+            }
+        }
+
+        // Texture options
+        if (config.TextureGroups.Count > 0)
+        {
+            var texHeading = new Label
+            {
+                Text = UiStrings.Get("starship.customisation_texture_heading"),
+                AutoSize = true,
+                Padding = new Padding(0, 8, 0, 2),
+            };
+            FontManager.ApplyHeadingFont(texHeading, 10);
+            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _customisationContent.RowCount = nextRow + 1;
+            _customisationContent.Controls.Add(texHeading, 0, nextRow);
+            _customisationContent.SetColumnSpan(texHeading, 2);
+            nextRow++;
+
+            foreach (var tg in config.TextureGroups)
+            {
+                var lbl = new Label
+                {
+                    Text = tg.GroupID + ":",
+                    AutoSize = true,
+                    Anchor = AnchorStyles.Left,
+                    Padding = new Padding(0, 5, 10, 0),
+                };
+                var combo = new ComboBox
+                {
+                    Dock = DockStyle.Fill,
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                };
+                string noneLabel = UiStrings.Get("starship.customisation_none");
+                combo.Items.Add(noneLabel);
+                foreach (var opt in tg.Options)
+                    combo.Items.Add(opt);
+
+                _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _customisationContent.RowCount = nextRow + 1;
+                _customisationContent.Controls.Add(lbl, 0, nextRow);
+                _customisationContent.Controls.Add(combo, 1, nextRow);
+                _textureControls.Add((lbl, combo, tg.GroupID));
+                nextRow++;
+            }
+        }
+
+        _customisationContent.ResumeLayout(true);
+    }
+
+    /// <summary>
+    /// Populates the Customisation tab controls from the given CCD entry.
+    /// </summary>
+    private void LoadCustomisationFromCcd(JsonObject? ccd, ShipCustomisationConfig? config)
+    {
+        if (config == null) return;
+
+        // Build a set of current descriptor group IDs (without ^ prefix) for slot matching
+        var currentDgIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (ccd != null)
+        {
+            var customData = ccd.GetObject("CustomData");
+            var dg = customData?.GetArray("DescriptorGroups");
+            if (dg != null)
+            {
+                for (int i = 0; i < dg.Length; i++)
+                {
+                    string val = dg.Get(i)?.ToString() ?? "";
+                    if (val.StartsWith("^", StringComparison.Ordinal)) val = val[1..];
+                    if (!string.IsNullOrEmpty(val)) currentDgIds.Add(val);
+                }
+            }
+        }
+
+        // Set each slot combo to the matching item (or None)
+        foreach (var (_, combo, slot) in _slotControls)
+        {
+            int matchIdx = 0; // default: (None)
+            for (int i = 1; i < combo.Items.Count; i++)
+            {
+                if (combo.Items[i] is SlotItemEntry entry && entry.Item != null)
+                {
+                    bool anyMatch = entry.Item.DescriptorGroupIDs
+                        .Any(dgId => currentDgIds.Contains(dgId));
+                    if (anyMatch)
+                    {
+                        matchIdx = i;
+                        break;
+                    }
+                }
+            }
+            combo.SelectedIndex = matchIdx;
+        }
+
+        // Set palette combo
+        if (_paletteCombo != null && ccd != null)
+        {
+            var customData = ccd.GetObject("CustomData");
+            string paletteId = customData?.GetString("PaletteID") ?? "";
+            if (paletteId.StartsWith("^", StringComparison.Ordinal)) paletteId = paletteId[1..];
+
+            // An empty PaletteID in the save means the ship uses the default SHIP palette.
+            // Map empty -> "SHIP" so the combo shows the correct entry and the colour picker
+            // uses the right palette grid.
+            if (string.IsNullOrEmpty(paletteId))
+                paletteId = "SHIP";
+
+            int idx = _paletteCombo.FindStringExact(paletteId);
+            _paletteCombo.SelectedIndex = idx >= 0 ? idx : 0;
+        }
+
+        // Set texture option combos
+        if (ccd != null)
+        {
+            var customData = ccd.GetObject("CustomData");
+            var texOptions = customData?.GetArray("TextureOptions");
+            var texMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (texOptions != null)
+            {
+                for (int i = 0; i < texOptions.Length; i++)
+                {
+                    var entry = texOptions.GetObject(i);
+                    if (entry == null) continue;
+                    string grp = entry.GetString("TextureOptionGroupName") ?? "";
+                    string opt = entry.GetString("TextureOptionName") ?? "";
+                    if (grp.StartsWith("^", StringComparison.Ordinal)) grp = grp[1..];
+                    if (opt.StartsWith("^", StringComparison.Ordinal)) opt = opt[1..];
+                    if (!string.IsNullOrEmpty(grp))
+                        texMap[grp] = opt;
+                }
+            }
+
+            foreach (var (_, combo, groupId) in _textureControls)
+            {
+                string noneLabel = UiStrings.Get("starship.customisation_none");
+                if (texMap.TryGetValue(groupId, out string? optValue) && !string.IsNullOrEmpty(optValue))
+                {
+                    int idx = combo.FindStringExact(optValue);
+                    combo.SelectedIndex = idx >= 0 ? idx : 0;
+                }
+                else
+                {
+                    int noneIdx = combo.FindStringExact(noneLabel);
+                    combo.SelectedIndex = noneIdx >= 0 ? noneIdx : 0;
+                }
+            }
+        }
+
+        // Load colour channel swatches from the CCD Colours array
+        if (ccd != null && _colourSwatches.Count > 0)
+        {
+            var customData = ccd.GetObject("CustomData");
+            var coloursArr = customData?.GetArray("Colours");
+            foreach (var (paletteName, colourAlt, swatch) in _colourSwatches)
+            {
+                Color swatchColour = ReadShipColourFromCcd(coloursArr, paletteName, colourAlt);
+                // Colour 3 targets Undercoat/Alternative1 for dense saves but sparse saves use
+                // Undercoat/Primary. Fall back to Primary if Alternative1 was not found.
+                if (swatchColour == SystemColors.Control
+                    && string.Equals(paletteName, "Undercoat", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(colourAlt, "Alternative1", StringComparison.OrdinalIgnoreCase))
+                {
+                    swatchColour = ReadShipColourFromCcd(coloursArr, "Undercoat", "Primary");
+                }
+                swatch.BackColor = swatchColour;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes the current Customisation tab control values back to the CCD array
+    /// for the given ship index. Also updates the ship's resource filename if the
+    /// scene combo has been changed.
+    /// </summary>
+    private void SaveCustomisationToCcd(JsonObject playerState, int shipIndex)
+    {
+        try
+        {
+            var ccdArray = playerState.GetArray("CharacterCustomisationData");
+            if (ccdArray == null) return;
+
+            // Get the actual CCD index and entry (not a clone - modify in-place)
+            int ccdIdx = StarshipLogic.ShipIndexToCcdIndex(shipIndex);
+            if (ccdIdx < 0 || ccdIdx >= ccdArray.Length) return;
+
+            var ccd = ccdArray.GetObject(ccdIdx);
+            if (ccd == null) return;
+
+            var customData = ccd.GetObject("CustomData");
+            if (customData == null) return;
+
+            // Rebuild DescriptorGroups from slot selections
+            var dgArray = customData.GetArray("DescriptorGroups");
+            if (dgArray != null)
+            {
+                // Clear existing entries
+                for (int i = dgArray.Length - 1; i >= 0; i--)
+                    dgArray.RemoveAt(i);
+
+                foreach (var (_, combo, _) in _slotControls)
+                {
+                    if (combo.SelectedItem is SlotItemEntry entry && entry.Item != null)
+                    {
+                        foreach (var dgId in entry.Item.DescriptorGroupIDs)
+                            dgArray.Add("^" + dgId);
+                    }
+                }
+            }
+
+            // Write PaletteID
+            // "SHIP" is the game's default palette represented as an empty value (^).
+            if (_paletteCombo != null)
+            {
+                string palette = _paletteCombo.SelectedItem?.ToString() ?? "";
+                string noneLabel = UiStrings.Get("starship.customisation_none");
+                bool isDefault = palette == noneLabel
+                    || string.IsNullOrEmpty(palette)
+                    || palette.Equals("SHIP", StringComparison.OrdinalIgnoreCase);
+                customData.Set("PaletteID", isDefault ? "^" : "^" + palette);
+            }
+
+            // Rebuild TextureOptions array in-place
+            if (_textureControls.Count > 0)
+            {
+                var texOptions = customData.GetArray("TextureOptions");
+                if (texOptions != null)
+                {
+                    // Clear existing entries
+                    for (int i = texOptions.Length - 1; i >= 0; i--)
+                        texOptions.RemoveAt(i);
+
+                    string noneLabel = UiStrings.Get("starship.customisation_none");
+                    foreach (var (_, combo, groupId) in _textureControls)
+                    {
+                        string opt = combo.SelectedItem?.ToString() ?? "";
+                        if (opt == noneLabel || string.IsNullOrEmpty(opt)) continue;
+                        var texEntry = new JsonObject();
+                        texEntry.Set("TextureOptionGroupName", "^" + groupId);
+                        texEntry.Set("TextureOptionName", "^" + opt);
+                        texOptions.Add(texEntry);
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Called when the user leaves the scene combo (or presses Enter).
+    /// Updates the ship type selector to reflect the new resource path.
+    /// </summary>
+    private void OnSceneComboLeave(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_shipOwnership == null || _shipSelector.SelectedIndex < 0) return;
+
+            string newResource = _sceneCombo.Text.Trim();
+            if (string.IsNullOrEmpty(newResource)) return;
+
+            var item = (StarshipLogic.ShipListItem)_shipSelector.Items[_shipSelector.SelectedIndex]!;
+            int idx = item.DataIndex;
+            if (idx >= _shipOwnership.Length) return;
+
+            var ship = _shipOwnership.GetObject(idx);
+            var resource = ship.GetObject("Resource");
+            if (resource == null) return;
+
+            string currentFilename = resource.GetString("Filename") ?? "";
+            if (string.Equals(currentFilename, newResource, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            // Apply the new filename to the ship resource
+            resource.Set("Filename", newResource);
+
+            // Update the ship type combo to reflect the new path
+            var (displayName, _, _) = StarshipLogic.GetShipInfo(newResource);
+            bool isModified = StarshipLogic.IsFilenameModified(newResource);
+            SelectShipTypeByName(displayName, isModified, isModified ? newResource : null);
+            SetStarshipMaxSupportedLabels(newResource);
+
+            // Reload customisation tab for the new resource
+            bool isCorvette = StarshipLogic.IsCorvette(newResource);
+            LoadCustomisationTab(isCorvette, newResource, idx);
+
+            DataModified?.Invoke(this, EventArgs.Empty);
+        }
+        catch { }
+    }
+
+    /// <summary>Shows the info label with the given message, hiding dynamic controls.</summary>
+    private void ShowCustomisationInfoLabel(string message)
+    {
+        _customisationInfoLabel.Text = message;
+        _customisationInfoLabel.Visible = true;
+
+        if (_customisationInfoLabel.Parent == null)
+        {
+            // Add info label below the scene row (row 1)
+            int row = 1;
+            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _customisationContent.RowCount = row + 1;
+            _customisationContent.Controls.Add(_customisationInfoLabel, 0, row);
+            _customisationContent.SetColumnSpan(_customisationInfoLabel, 2);
+        }
+    }
+
+    /// <summary>Hides the info label.</summary>
+    private void HideCustomisationInfoLabel()
+    {
+        _customisationInfoLabel.Visible = false;
+    }
+
+    /// <summary>
+    /// Reads the RGBA colour for the given palette channel name and colour alt
+    /// from the ship CCD Colours array. Returns SystemColors.Control if not found.
+    /// </summary>
+    private static Color ReadShipColourFromCcd(JsonArray? coloursArr, string paletteName, string colourAlt)
+    {
+        if (coloursArr == null) return SystemColors.Control;
+
+        try
+        {
+            for (int i = 0; i < coloursArr.Length; i++)
+            {
+                var entry = coloursArr.GetObject(i);
+                if (entry == null) continue;
+
+                var paletteObj = entry.GetObject("Palette");
+                if (paletteObj == null) continue;
+
+                string entryPalette = paletteObj.GetString("Palette") ?? "";
+                string entryAlt = paletteObj.GetString("ColourAlt") ?? "";
+                if (!entryPalette.Equals(paletteName, StringComparison.OrdinalIgnoreCase) ||
+                    !entryAlt.Equals(colourAlt, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var colArr = entry.GetArray("Colour");
+                if (colArr == null || colArr.Length < 3) return SystemColors.Control;
+
+                double r = colArr.GetDouble(0);
+                double g = colArr.GetDouble(1);
+                double b = colArr.GetDouble(2);
+                return Color.FromArgb(
+                    (int)Math.Round(r * 255.0),
+                    (int)Math.Round(g * 255.0),
+                    (int)Math.Round(b * 255.0));
+            }
+        }
+        catch { }
+
+        return SystemColors.Control;
+    }
+
+    /// <summary>
+    /// Writes a colour to the CCD Colours array entry matching the given palette name
+    /// and colour alt. No-op if the entry does not exist.
+    /// </summary>
+    private void WriteShipColourToCcd(string paletteName, string colourAlt, Color colour)
+    {
+        if (_playerState == null || _shipSelector.SelectedIndex < 0) return;
+
+        var ccdArray = _playerState.GetArray("CharacterCustomisationData");
+        if (ccdArray == null) return;
+
+        var item = (StarshipLogic.ShipListItem)_shipSelector.Items[_shipSelector.SelectedIndex]!;
+        int ccdIdx = StarshipLogic.ShipIndexToCcdIndex(item.DataIndex);
+        if (ccdIdx < 0 || ccdIdx >= ccdArray.Length) return;
+
+        var ccd = ccdArray.GetObject(ccdIdx);
+        var customData = ccd?.GetObject("CustomData");
+        var coloursArr = customData?.GetArray("Colours");
+        if (coloursArr == null) return;
+
+        try
+        {
+            bool found = false;
+            for (int i = 0; i < coloursArr.Length; i++)
+            {
+                var entry = coloursArr.GetObject(i);
+                if (entry == null) continue;
+
+                var paletteObj = entry.GetObject("Palette");
+                if (paletteObj == null) continue;
+
+                string entryPalette = paletteObj.GetString("Palette") ?? "";
+                string entryAlt = paletteObj.GetString("ColourAlt") ?? "";
+                if (!entryPalette.Equals(paletteName, StringComparison.OrdinalIgnoreCase) ||
+                    !entryAlt.Equals(colourAlt, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var colArr = entry.GetArray("Colour");
+                if (colArr == null || colArr.Length < 4) return;
+
+                var rgba = NmsColourPalette.ToNormalisedRgba(colour);
+                colArr.Set(0, rgba[0]);
+                colArr.Set(1, rgba[1]);
+                colArr.Set(2, rgba[2]);
+                colArr.Set(3, rgba[3]);
+                DataModified?.Invoke(this, EventArgs.Empty);
+                found = true;
+                break;
+            }
+
+            // For Undercoat/Alternative1, also fall back to Undercoat/Primary for sparse saves
+            // (older format where only the three main colour entries exist).
+            if (!found
+                && string.Equals(paletteName, "Undercoat", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(colourAlt, "Alternative1", StringComparison.OrdinalIgnoreCase))
+            {
+                WriteShipColourToCcd("Undercoat", "Primary", colour);
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Handles a click on a ship paint colour swatch. Shows a popup grid of the
+    /// available colours from the currently selected ship palette (e.g. SHIP_METALLIC).
+    /// Selecting a colour updates the swatch and writes the value to the CCD.
+    /// </summary>
+    private void OnShipColourSwatchClick(Panel swatch, string paletteName, string colourAlt)
+    {
+        // Determine which palette colours to display
+        string paletteId = _paletteCombo?.SelectedItem?.ToString() ?? "";
+        var palette = NmsColourPalette.GetPaletteColours(paletteId)
+                      ?? NmsColourPalette.PaintPalette;
+        if (palette.Length == 0) return;
+
+        _activeColourMenu?.Dispose();
+        _activeColourMenu = null;
+
+        const int cols = 10;
+        const int cellSize = 24;
+        const int cellMargin = 1;
+        int rows = (palette.Length + cols - 1) / cols;
+
+        var grid = new TableLayoutPanel
+        {
+            ColumnCount = cols,
+            RowCount = rows,
+            AutoSize = true,
+            Padding = new Padding(2),
+            Margin = Padding.Empty,
+            BackColor = SystemColors.Control,
+        };
+
+        var tip = new ToolTip();
+        foreach (var pe in palette)
+        {
+            var cell = new Panel
+            {
+                Size = new Size(cellSize, cellSize),
+                BackColor = pe.Colour,
+                Margin = new Padding(cellMargin),
+                Cursor = Cursors.Hand,
+            };
+            tip.SetToolTip(cell, pe.Name);
+            var capturedColour = pe.Colour;
+            cell.Click += (_, _) =>
+            {
+                swatch.BackColor = capturedColour;
+                WriteShipColourToCcd(paletteName, colourAlt, capturedColour);
+                _activeColourMenu?.Close();
+            };
+            grid.Controls.Add(cell);
+        }
+
+        var host = new ToolStripControlHost(grid)
+        {
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+
+        var dropdown = new ToolStripDropDown { Padding = Padding.Empty };
+        dropdown.Items.Add(host);
+
+        _activeColourMenu = dropdown;
+        dropdown.Show(swatch, new Point(0, swatch.Height));
+    }
+
+    /// <summary>
+    /// Represents a selectable item in a slot combo box.
+    /// Displays the item ID; holds a reference to the full item data.
+    /// </summary>
+    private sealed class SlotItemEntry
+    {
+        private readonly string _display;
+        internal ShipCustomisationItem? Item { get; }
+
+        internal SlotItemEntry(string display, ShipCustomisationItem? item)
+        {
+            _display = display;
+            Item = item;
+        }
+
+        public override string ToString() => _display;
     }
 
 }

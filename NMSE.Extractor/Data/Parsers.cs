@@ -1362,7 +1362,7 @@ public static class Parsers
                     techCategories.TryGetValue(techId, out category);
 
                 // Resolve Chargeable/ChargeAmount/BuildFullyCharged from template
-                // (matching NomNom's DB and NMSSaveEditor.jar behaviour).
+                // (matching the expected game-data format).
                 bool chargeable = false;
                 object? chargeAmount = 0;
                 bool buildFullyCharged = true; // Default true; most templates are BuildFullyCharged=true
@@ -2338,6 +2338,353 @@ public static class Parsers
     }
 
     // ──────────────────────────────────────────────────────────────────
+    //  Ship Customisation
+    // ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses the modular customisation data table (modularcustomisationdatatable.MXML).
+    /// Produces one entry per ship type config containing its base resource path, slots
+    /// (with available parts and their descriptor group IDs), texture option groups,
+    /// and available paint palette IDs.
+    /// Only ship configs are included (entries whose BaseResource filename contains
+    /// "SPACECRAFT"). MultiTool and Exhibit entries are excluded.
+    /// </summary>
+    public static List<Dictionary<string, object?>> ParseShipCustomisation(string mxmlPath)
+    {
+        var root = MxmlParser.LoadXml(mxmlPath);
+        var localisation = MxmlParser.LoadLocalisation(Path.Combine(
+            Path.GetDirectoryName(Path.GetDirectoryName(mxmlPath))!, ExtractorConfig.JsonSubfolder));
+        var configs = new List<Dictionary<string, object?>>();
+
+        // Locate the ModularCustomisationConfigs parent element
+        var configsParent = root.Descendants("Property")
+            .FirstOrDefault(e => e.Attribute("name")?.Value == "ModularCustomisationConfigs"
+                               && e.Parent?.Name.LocalName == "Data");
+        if (configsParent == null)
+        {
+            Console.WriteLine("[WARN] ParseShipCustomisation: ModularCustomisationConfigs not found");
+            return configs;
+        }
+
+        // Each direct child of ModularCustomisationConfigs is a named ship/tool config
+        foreach (var configElem in configsParent.Elements("Property")
+            .Where(e => e.Attribute("value")?.Value == "GcModularCustomisationConfig"))
+        {
+            string configKey = configElem.Attribute("name")?.Value ?? "";
+            if (string.IsNullOrEmpty(configKey)) continue;
+
+            // Read BaseResource filename
+            string baseResource = "";
+            var baseResourceElem = configElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "BaseResource");
+            if (baseResourceElem != null)
+            {
+                baseResource = baseResourceElem.Elements("Property")
+                    .Where(e => e.Attribute("name")?.Value == "Filename")
+                    .Select(e => e.Attribute("value")?.Value ?? "")
+                    .FirstOrDefault() ?? "";
+            }
+
+            // Only include entries that are spacecraft (ship configs)
+            if (!baseResource.Contains("SPACECRAFT", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Parse slots
+            var slots = new List<Dictionary<string, object?>>();
+            var slotsParent = configElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "Slots");
+            if (slotsParent != null)
+            {
+                foreach (var slotElem in slotsParent.Elements("Property")
+                    .Where(e => e.Attribute("value")?.Value == "GcModularCustomisationSlotConfig"))
+                {
+                    string slotId = slotElem.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "SlotID")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+                    if (string.IsNullOrEmpty(slotId)) continue;
+
+                    // Skip REACTOR slots - these are managed via ship class, not user customisation
+                    string uiGraphicLayer = slotElem.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "UISlotGraphicLayer")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+                    if (uiGraphicLayer.Equals("REACTOR", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    string labelLocId = slotElem.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "LabelLocID")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+                    string label = !string.IsNullOrEmpty(labelLocId)
+                        ? MxmlParser.Translate(labelLocId, "")
+                        : slotId;
+                    if (string.IsNullOrEmpty(label)) label = slotId;
+
+                    // Parse slottable items from SlottableItems
+                    var items = new List<Dictionary<string, object?>>();
+                    var slottableParent = slotElem.Elements("Property")
+                        .FirstOrDefault(e => e.Attribute("name")?.Value == "SlottableItems");
+                    if (slottableParent != null)
+                    {
+                        foreach (var itemElem in slottableParent.Elements("Property")
+                            .Where(e => e.Attribute("value")?.Value == "GcModularCustomisationSlotItemData"))
+                        {
+                            string itemId = itemElem.Elements("Property")
+                                .Where(e => e.Attribute("name")?.Value == "ItemID")
+                                .Select(e => e.Attribute("value")?.Value ?? "")
+                                .FirstOrDefault() ?? "";
+                            if (string.IsNullOrEmpty(itemId)) continue;
+
+                            // Collect all ActivatedDescriptorGroupIDs for this item
+                            var descriptorIds = new List<string>();
+                            var dgDataParent = itemElem.Elements("Property")
+                                .FirstOrDefault(e => e.Attribute("name")?.Value == "DescriptorGroupData");
+                            if (dgDataParent != null)
+                            {
+                                foreach (var dgEntry in dgDataParent.Elements("Property")
+                                    .Where(e => e.Attribute("value")?.Value == "GcModularCustomisationDescriptorGroupData"))
+                                {
+                                    string dgId = dgEntry.Elements("Property")
+                                        .Where(e => e.Attribute("name")?.Value == "ActivatedDescriptorGroupID")
+                                        .Select(e => e.Attribute("value")?.Value ?? "")
+                                        .FirstOrDefault() ?? "";
+                                    if (!string.IsNullOrEmpty(dgId))
+                                        descriptorIds.Add(dgId);
+                                }
+                            }
+
+                            items.Add(new Dictionary<string, object?>
+                            {
+                                ["ItemID"] = itemId,
+                                ["DescriptorGroupIDs"] = descriptorIds,
+                            });
+                        }
+                    }
+
+                    slots.Add(new Dictionary<string, object?>
+                    {
+                        ["SlotID"] = slotId,
+                        ["Label"] = label,
+                        ["Items"] = items,
+                    });
+                }
+            }
+
+            // Parse texture groups from TextureData
+            var textureGroupIds = new List<string>();
+            var textureDataParent = configElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "TextureData");
+            if (textureDataParent != null)
+            {
+                foreach (var texEntry in textureDataParent.Elements("Property")
+                    .Where(e => e.Attribute("value")?.Value == "GcModularCustomisationTextureGroup"))
+                {
+                    string groupId = texEntry.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "TextureOptionGroup")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+                    if (!string.IsNullOrEmpty(groupId) && !textureGroupIds.Contains(groupId))
+                        textureGroupIds.Add(groupId);
+                }
+            }
+
+            // Parse texture options and palette IDs from ColourDataPriorityList
+            // Build a map from group ID to distinct options, and collect palette IDs
+            var textureOptionsMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var paletteIds = new List<string>();
+
+            var colourDataParent = configElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "ColourDataPriorityList");
+            if (colourDataParent != null)
+            {
+                foreach (var colourEntry in colourDataParent.Elements("Property")
+                    .Where(e => e.Attribute("value")?.Value == "GcModularCustomisationColourData"))
+                {
+                    string reqGroup = colourEntry.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "RequiredTextureGroup")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+                    string reqOption = colourEntry.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "RequiredTextureOption")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+                    string paletteId = colourEntry.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "PaletteID")
+                        .Select(e => e.Attribute("value")?.Value ?? "")
+                        .FirstOrDefault() ?? "";
+
+                    // Collect texture options per group
+                    if (!string.IsNullOrEmpty(reqGroup) && !string.IsNullOrEmpty(reqOption))
+                    {
+                        if (!textureOptionsMap.TryGetValue(reqGroup, out var optList))
+                        {
+                            optList = new List<string>();
+                            textureOptionsMap[reqGroup] = optList;
+                        }
+                        if (!optList.Contains(reqOption, StringComparer.OrdinalIgnoreCase))
+                            optList.Add(reqOption);
+                    }
+
+                    // Collect distinct palette IDs.
+                    // An empty paletteId means the ship uses the base "SHIP" palette.
+                    string resolvedPaletteId = string.IsNullOrEmpty(paletteId) ? "SHIP" : paletteId;
+                    if (!paletteIds.Contains(resolvedPaletteId, StringComparer.OrdinalIgnoreCase))
+                        paletteIds.Add(resolvedPaletteId);
+                }
+            }
+
+            // Build texture groups list combining group IDs with their options
+            var textureGroups = new List<Dictionary<string, object?>>();
+            // Use groups from TextureData first, then any from ColourDataPriorityList not yet listed
+            var allGroupIds = new List<string>(textureGroupIds);
+            foreach (var gid in textureOptionsMap.Keys)
+            {
+                if (!allGroupIds.Contains(gid, StringComparer.OrdinalIgnoreCase))
+                    allGroupIds.Add(gid);
+            }
+            foreach (string gid in allGroupIds)
+            {
+                textureOptionsMap.TryGetValue(gid, out var opts);
+                textureGroups.Add(new Dictionary<string, object?>
+                {
+                    ["GroupID"] = gid,
+                    ["Options"] = opts ?? new List<string>(),
+                });
+            }
+
+            configs.Add(new Dictionary<string, object?>
+            {
+                ["ConfigKey"] = configKey,
+                ["BaseResource"] = baseResource,
+                ["Slots"] = slots,
+                ["TextureGroups"] = textureGroups,
+                ["PaletteIDs"] = paletteIds,
+            });
+        }
+
+        Console.WriteLine($"[OK] ParseShipCustomisation: {configs.Count} ship configs");
+        return configs;
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    //  Colour Palettes
+    // ──────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses customisationcolourpalettes.MXML and extracts all named paint palettes
+    /// (excluding the NULL placeholder which has no colour names).
+    /// For each palette, only the active colour entries are returned — specifically the
+    /// first N entries that correspond to the TipText label count (the game fills unused
+    /// slots with white 1,1,1,1).
+    /// Each colour entry has its index, translated name (from TipText), and RGBA bytes.
+    /// The resulting JSON is the source of truth for <see cref="NmsColourPalette"/>
+    /// and covers ships (SHIP, SHIP_METALLIC), freighters (FREIGHTER, PIRATEFREIGHTER),
+    /// vehicles (VEHICLE, BIKE, TRUCK, SKIFF, etc.), companions (PET), and players (PLAYER).
+    /// </summary>
+    public static List<Dictionary<string, object?>> ParseShipColourPalettes(string mxmlPath)
+    {
+        var root = MxmlParser.LoadXml(mxmlPath);
+        var localisation = MxmlParser.LoadLocalisation(Path.Combine(
+            Path.GetDirectoryName(Path.GetDirectoryName(mxmlPath))!, ExtractorConfig.JsonSubfolder));
+        var results = new List<Dictionary<string, object?>>();
+
+        var palettesParent = root.Descendants("Property")
+            .FirstOrDefault(e => e.Attribute("name")?.Value == "Palettes"
+                              && e.Parent?.Name.LocalName == "Data");
+        if (palettesParent == null)
+        {
+            Console.WriteLine("[WARN] ParseShipColourPalettes: Palettes element not found");
+            return results;
+        }
+
+        foreach (var paletteElem in palettesParent.Elements("Property")
+            .Where(e => e.Attribute("value")?.Value == "GcCustomisationColourPalette"))
+        {
+            string paletteId = paletteElem.Elements("Property")
+                .Where(e => e.Attribute("name")?.Value == "ID")
+                .Select(e => e.Attribute("value")?.Value ?? "")
+                .FirstOrDefault() ?? "";
+
+            // Exclude the NULL placeholder palette (no colour names, all white slots)
+            if (string.IsNullOrEmpty(paletteId) ||
+                paletteId.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // Read TipText localisation keys to get colour names and determine count
+            var tipTextKeys = new List<string>();
+            var extraDataElem = paletteElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "ExtraData");
+            if (extraDataElem != null)
+            {
+                var tipTextParent = extraDataElem.Elements("Property")
+                    .FirstOrDefault(e => e.Attribute("name")?.Value == "TipText");
+                if (tipTextParent != null)
+                {
+                    foreach (var tipEntry in tipTextParent.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "TipText"))
+                    {
+                        string tipKey = tipEntry.Attribute("value")?.Value ?? "";
+                        tipTextKeys.Add(tipKey);
+                    }
+                }
+            }
+
+            // Read all RGBA colour entries from PaletteData.Colours
+            var allColours = new List<(double R, double G, double B, double A)>();
+            var paletteDataElem = paletteElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "PaletteData");
+            if (paletteDataElem != null)
+            {
+                var coloursParent = paletteDataElem.Elements("Property")
+                    .FirstOrDefault(e => e.Attribute("name")?.Value == "Colours");
+                if (coloursParent != null)
+                {
+                    foreach (var colourEntry in coloursParent.Elements("Property")
+                        .Where(e => e.Attribute("name")?.Value == "Colours"))
+                    {
+                        double r = GetFloatProperty(colourEntry, "R", 1.0);
+                        double g = GetFloatProperty(colourEntry, "G", 1.0);
+                        double b = GetFloatProperty(colourEntry, "B", 1.0);
+                        double a = GetFloatProperty(colourEntry, "A", 1.0);
+                        allColours.Add((r, g, b, a));
+                    }
+                }
+            }
+
+            // Use TipText count as the number of active colours; fall back to all
+            int activeCount = tipTextKeys.Count > 0 ? tipTextKeys.Count : allColours.Count;
+            var colourEntries = new List<Dictionary<string, object?>>();
+            for (int i = 0; i < activeCount && i < allColours.Count; i++)
+            {
+                var (cr, cg, cb, ca) = allColours[i];
+                string name = i < tipTextKeys.Count
+                    ? MxmlParser.Translate(tipTextKeys[i], tipTextKeys[i])
+                    : $"Colour {i}";
+
+                colourEntries.Add(new Dictionary<string, object?>
+                {
+                    ["Index"] = i,
+                    ["Name"] = name,
+                    ["R"] = (int)Math.Round(cr * 255),
+                    ["G"] = (int)Math.Round(cg * 255),
+                    ["B"] = (int)Math.Round(cb * 255),
+                    ["A"] = (int)Math.Round(ca * 255),
+                });
+            }
+
+            results.Add(new Dictionary<string, object?>
+            {
+                ["PaletteID"] = paletteId,
+                ["Colours"] = colourEntries,
+            });
+        }
+
+        Console.WriteLine($"[OK] ParseShipColourPalettes: {results.Count} palette(s)");
+        return results;
+    }
+
+    // ──────────────────────────────────────────────────────────────────
     //  Pet Battle Moves
     // ──────────────────────────────────────────────────────────────────
 
@@ -2994,5 +3341,22 @@ public static class Parsers
             return name.ToUpperInvariant() + "_";
 
         return name[..(secondUnderscore + 1)].ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Reads a named child Property float value from an XElement.
+    /// Returns <paramref name="fallback"/> if the property is absent or cannot be parsed.
+    /// </summary>
+    private static double GetFloatProperty(XElement parent, string propertyName, double fallback = 0.0)
+    {
+        string? raw = parent.Elements("Property")
+            .Where(e => e.Attribute("name")?.Value == propertyName)
+            .Select(e => e.Attribute("value")?.Value)
+            .FirstOrDefault();
+
+        return double.TryParse(raw,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out double val) ? val : fallback;
     }
 }

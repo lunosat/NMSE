@@ -1,19 +1,18 @@
 using System.Drawing;
+using System.Text.Json;
 
 namespace NMSE.Core.Utilities;
 
 /// <summary>
-/// Provides the fixed set of colours used by the NMS game engine for companion pet
-/// accessory customisation. These 20 colours form a "Paint" palette that the game
-/// restricts players to when colouring accessories. The same palette is used across
-/// multiple game systems that support the Paint palette with additional columns inserted
-/// for yellow, etc. - these will make their way over when relevant (such as advanced
-/// ship customisation).
+/// Provides colour palette data used by the NMS game engine for various
+/// customisation systems. Manages both the fixed pet accessory paint palette
+/// and all named paint palettes parsed from game data (ships, vehicles, companions,
+/// players, etc.) loaded from Colour Palettes.json.
 /// </summary>
 public static class NmsColourPalette
 {
     /// <summary>
-    /// A named entry in the NMS colour palette, pairing a display-friendly name
+    /// A named entry in an NMS colour palette, pairing a display-friendly name
     /// (for tooltips/accessibility) with the actual colour value.
     /// </summary>
     public readonly record struct PaletteEntry(string Name, Color Colour);
@@ -51,6 +50,82 @@ public static class NmsColourPalette
         new("Dark Grey",      Color.FromArgb( 76,  76,  76)),  // 18
         new("Black",          Color.FromArgb(  0,   0,   0)),  // 19
     ];
+
+    /// <summary>
+    /// All named NMS paint palettes loaded from Colour Palettes.json.
+    /// Covers ships (SHIP, SHIP_METALLIC), freighters (FREIGHTER, PIRATEFREIGHTER),
+    /// vehicles (VEHICLE, BIKE, TRUCK, SKIFF, HOVERCRAFT, SUBMARINE, MECH),
+    /// companions (PET), and players (PLAYER).
+    /// Keyed by palette ID (e.g. "SHIP", "SHIP_METALLIC"). Empty until LoadShipPalettes is called.
+    /// </summary>
+    public static IReadOnlyDictionary<string, PaletteEntry[]> ShipPalettes =>
+        _shipPalettes;
+
+    private static Dictionary<string, PaletteEntry[]> _shipPalettes = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Loads ship paint palette colour data from the given JSON file path
+    /// (typically "Colour Palettes.json" from the Resources/json/ directory).
+    /// Each entry in the JSON array must have "PaletteID" and a "Colours" array
+    /// with "Name", "R", "G", "B" integer fields.
+    /// Returns true if at least one palette was loaded successfully.
+    /// </summary>
+    public static bool LoadShipPalettes(string jsonPath)
+    {
+        if (!File.Exists(jsonPath)) return false;
+
+        try
+        {
+            var content = File.ReadAllBytes(jsonPath);
+            using var doc = JsonDocument.Parse(content);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return false;
+
+            var loaded = new Dictionary<string, PaletteEntry[]>(StringComparer.OrdinalIgnoreCase);
+            foreach (var elem in doc.RootElement.EnumerateArray())
+            {
+                string paletteId = elem.TryGetProperty("PaletteID", out var pidProp)
+                    ? pidProp.GetString() ?? "" : "";
+                if (string.IsNullOrEmpty(paletteId)) continue;
+
+                if (!elem.TryGetProperty("Colours", out var coloursArr) ||
+                    coloursArr.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var entries = new List<PaletteEntry>();
+                foreach (var colElem in coloursArr.EnumerateArray())
+                {
+                    string name = colElem.TryGetProperty("Name", out var nameProp)
+                        ? nameProp.GetString() ?? $"Colour {entries.Count}" : $"Colour {entries.Count}";
+                    int r = colElem.TryGetProperty("R", out var rp) ? rp.GetInt32() : 255;
+                    int g = colElem.TryGetProperty("G", out var gp) ? gp.GetInt32() : 255;
+                    int b = colElem.TryGetProperty("B", out var bp) ? bp.GetInt32() : 255;
+                    entries.Add(new PaletteEntry(name, Color.FromArgb(r, g, b)));
+                }
+
+                if (entries.Count > 0)
+                    loaded[paletteId] = entries.ToArray();
+            }
+
+            _shipPalettes = loaded;
+            return loaded.Count > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns the palette entries for the given palette ID (e.g. "SHIP", "SHIP_METALLIC",
+    /// "FREIGHTER"), or null if the palette is not loaded. Falls back to null rather than the
+    /// pet PaintPalette so callers can detect an unloaded palette explicitly.
+    /// </summary>
+    public static PaletteEntry[]? GetPaletteColours(string paletteId)
+    {
+        if (string.IsNullOrEmpty(paletteId)) return null;
+        _shipPalettes.TryGetValue(paletteId, out var entries);
+        return entries;
+    }
 
     /// <summary>
     /// Finds the closest palette colour to the given colour using Euclidean distance

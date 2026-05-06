@@ -755,6 +755,8 @@ public partial class MainFormResources : Form
             SettlementDatabase.LoadFromFile(Path.Combine(jsonPath, "Settlement Perks.json"));
             WikiGuideDatabase.LoadFromFile(Path.Combine(jsonPath, "Wiki Guide.json"));
             CompanionAccessoryDatabase.LoadFromFile(Path.Combine(jsonPath, "Companion Accessories.json"));
+            ShipCustomisationDatabase.LoadFromFile(Path.Combine(jsonPath, "Ship Customisation.json"));
+            NmsColourPalette.LoadShipPalettes(Path.Combine(jsonPath, "Colour Palettes.json"));
             PetBattleMoveDatabase.LoadFromFile(Path.Combine(jsonPath, "Pet Battle Moves.json"));
             PetBattleMovesetDatabase.LoadFromFile(Path.Combine(jsonPath, "Pet Battle Movesets.json"));
             PetBiomeAffinityMap.LoadFromFile(Path.Combine(jsonPath, "Game Table Globals.json"));

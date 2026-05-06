@@ -42,20 +42,21 @@ partial class StarshipPanel
     {
         SuspendLayout();
 
-        // Main layout: 1 column, 3 rows (title, details/stats+buttons, inventory)
+        // Main layout: 1 column, 3 rows
+        // Row 0: title, Row 1: ship selector, Row 2: outer tab control (fill)
         var mainLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
             Padding = new Padding(10),
-            AutoSize = true
+            AutoSize = false
         };
-
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // title
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // details/stats+buttons
-        mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // inventory
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // ship selector row
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // outer tabs
 
+        // --- Title panel ---
         var titlePanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -82,6 +83,48 @@ partial class StarshipPanel
         titlePanel.Controls.Add(_primaryShipLabel);
         mainLayout.Controls.Add(titlePanel, 0, 0);
 
+        // --- Ship selector row (above the tabs) ---
+        var selectorRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            Padding = new Padding(0, 0, 0, 4),
+        };
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        selectorRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        _selectLabel = new Label
+        {
+            Text = "Select Ship:",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0),
+        };
+        _shipSelector = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        _shipSelector.SelectedIndexChanged += OnShipSelected;
+        selectorRow.Controls.Add(_selectLabel, 0, 0);
+        selectorRow.Controls.Add(_shipSelector, 1, 0);
+        mainLayout.Controls.Add(selectorRow, 0, 1);
+
+        // --- Outer tab control ---
+        _outerTabs = new DoubleBufferedTabControl { Dock = DockStyle.Fill };
+
+        // -- "Ship Details" tab --
+        _shipDetailsTabPage = new TabPage("Ship Details");
+
+        var shipDetailsLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            AutoSize = false,
+        };
+        shipDetailsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        shipDetailsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
         // Details+Stats layout: 2 columns, 3 rows (details/stats, buttons, corvette row)
         var detailsStatsLayout = new TableLayoutPanel
         {
@@ -92,19 +135,19 @@ partial class StarshipPanel
         };
         detailsStatsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         detailsStatsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        detailsStatsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // details/stats
-        detailsStatsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // buttons
-        detailsStatsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // corvette extras row
+        detailsStatsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        detailsStatsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        detailsStatsLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        // Left panel for selection and properties
+        // Left panel for ship properties
         var leftPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 7,
+            RowCount = 6,
             AutoSize = true
         };
-        for (int i = 0; i < 7; i++)
+        for (int i = 0; i < 6; i++)
             leftPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         leftPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         leftPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -121,10 +164,6 @@ partial class StarshipPanel
         leftPanel.SetColumnSpan(_detailsLabel, 2);
         row++;
 
-        _shipSelector = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _shipSelector.SelectedIndexChanged += OnShipSelected;
-        _selectLabel = AddRow(leftPanel, "Select Ship:", _shipSelector, row++);
-
         _shipName = new TextBox { Dock = DockStyle.Fill };
         _shipName.Leave += OnShipNameChanged;
         _nameLabel = AddRow(leftPanel, "Name:", _shipName, row++);
@@ -139,7 +178,14 @@ partial class StarshipPanel
 
         var seedPanel = new Panel { Dock = DockStyle.Fill, Height = 26 };
         _shipSeed = new TextBox { Dock = DockStyle.Fill };
-        _generateSeedBtn = new Button { Text = "Generate", Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0) };
+        _generateSeedBtn = new Button
+        {
+            Text = "Generate",
+            Dock = DockStyle.Right,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(70, 0)
+        };
         _generateSeedBtn.Click += (s, e) =>
         {
             byte[] bytes = new byte[8];
@@ -194,20 +240,44 @@ partial class StarshipPanel
         detailsStatsLayout.Controls.Add(leftPanel, 0, 0);
         detailsStatsLayout.Controls.Add(rightPanel, 1, 0);
 
-        // Buttons panel (row 1: common buttons)
+        // Buttons panel
         var buttonPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight
         };
-        _deleteBtn = new Button { Text = "Delete Ship", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(76, 0) };
+        _deleteBtn = new Button
+        {
+            Text = "Delete Ship",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(76, 0)
+        };
         _deleteBtn.Click += OnDeleteShip;
-        _exportBtn = new Button { Text = "Export", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
+        _exportBtn = new Button
+        {
+            Text = "Export",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(75, 0)
+        };
         _exportBtn.Click += OnExportShip;
-        _importBtn = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
+        _importBtn = new Button
+        {
+            Text = "Import",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(75, 0)
+        };
         _importBtn.Click += OnImportShip;
-        _makePrimaryBtn = new Button { Text = "Make Primary", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(88, 0) };
+        _makePrimaryBtn = new Button
+        {
+            Text = "Make Primary",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(88, 0)
+        };
         _makePrimaryBtn.Click += OnMakePrimary;
         _corvetteWarningLabel = new ColorEmojiLabel
         {
@@ -226,7 +296,7 @@ partial class StarshipPanel
         detailsStatsLayout.Controls.Add(buttonPanel, 0, 1);
         detailsStatsLayout.SetColumnSpan(buttonPanel, 2);
 
-        // Corvette extras panel (row 2: Snapshot, Import Snapshot, Optimise + indicator)
+        // Corvette extras panel
         _corvetteExtrasPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -236,11 +306,29 @@ partial class StarshipPanel
             Margin = new Padding(0),
             Visible = false,
         };
-        _snapshotTechBtn = new Button { Text = "Snapshot Tech", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(100, 0) };
+        _snapshotTechBtn = new Button
+        {
+            Text = "Snapshot Tech",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(100, 0)
+        };
         _snapshotTechBtn.Click += OnSnapshotTech;
-        _importSnapshotBtn = new Button { Text = "Import Snapshot", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(100, 0) };
+        _importSnapshotBtn = new Button
+        {
+            Text = "Import Snapshot",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(100, 0)
+        };
         _importSnapshotBtn.Click += OnImportSnapshot;
-        _optimiseBtn = new Button { Text = "Optimise Build", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(100, 0) };
+        _optimiseBtn = new Button
+        {
+            Text = "Optimise Build",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(100, 0)
+        };
         _optimiseBtn.Click += OnOptimiseCorvette;
         _optimiseIndicator = new Label
         {
@@ -256,9 +344,9 @@ partial class StarshipPanel
         detailsStatsLayout.Controls.Add(_corvetteExtrasPanel, 0, 2);
         detailsStatsLayout.SetColumnSpan(_corvetteExtrasPanel, 2);
 
-        mainLayout.Controls.Add(detailsStatsLayout, 0, 1);
+        shipDetailsLayout.Controls.Add(detailsStatsLayout, 0, 0);
 
-        // Inventory tabs (fill remaining space)
+        // Inventory tabs
         _inventoryGrid = new InventoryGridPanel { Dock = DockStyle.Fill };
         _techGrid = new InventoryGridPanel { Dock = DockStyle.Fill };
         _techGrid.SetIsTechInventory(true);
@@ -285,9 +373,20 @@ partial class StarshipPanel
         _techTabPage.Controls.Add(_techGrid);
         _invTabs.TabPages.Add(_cargoTabPage);
         _invTabs.TabPages.Add(_techTabPage);
+        shipDetailsLayout.Controls.Add(_invTabs, 0, 1);
 
-        mainLayout.Controls.Add(_invTabs, 0, 2);
+        _shipDetailsTabPage.Controls.Add(shipDetailsLayout);
+        _outerTabs.TabPages.Add(_shipDetailsTabPage);
 
+        // -- "Customisation" tab --
+        _customisationTabPage = new TabPage("Customisation");
+        BuildCustomisationTab();
+        _outerTabs.TabPages.Add(_customisationTabPage);
+
+        // Prevent navigation to the Customisation tab when it is disabled
+        _outerTabs.Selecting += OnOuterTabSelecting;
+
+        mainLayout.Controls.Add(_outerTabs, 0, 2);
         Controls.Add(mainLayout);
 
         _inventoryGrid.SetSuperchargeDisabled(true);
@@ -297,6 +396,73 @@ partial class StarshipPanel
 
         ResumeLayout(false);
         PerformLayout();
+    }
+
+    /// <summary>
+    /// Builds the initial content of the Customisation tab.
+    /// The static controls (scene row, info label) are created here.
+    /// Dynamic controls (slots, palette, texture options) are rebuilt in
+    /// RebuildCustomisationDynamicControls when a ship is selected.
+    /// </summary>
+    private void BuildCustomisationTab()
+    {
+        _customisationScroll = new Panel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+        };
+
+        _customisationContent = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            ColumnCount = 2,
+            AutoSize = true,
+            Padding = new Padding(0, 4, 0, 0),
+        };
+        _customisationContent.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _customisationContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        // Row 0: scene label + combo
+        _sceneLabelCtrl = new Label
+        {
+            Text = "Ship Scene (Model) Resource:",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0),
+        };
+        _sceneCombo = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDown,
+            AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+            AutoCompleteSource = AutoCompleteSource.ListItems,
+        };
+        _sceneCombo.Leave += OnSceneComboLeave;
+        _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _customisationContent.Controls.Add(_sceneLabelCtrl, 0, 0);
+        _customisationContent.Controls.Add(_sceneCombo, 1, 0);
+
+        // Info label (shown when corvette or no config available)
+        _customisationInfoLabel = new Label
+        {
+            Text = "",
+            AutoSize = true,
+            Padding = new Padding(0, 8, 0, 0),
+            ForeColor = SystemColors.GrayText,
+            Visible = false,
+        };
+
+        _customisationScroll.Controls.Add(_customisationContent);
+        _customisationTabPage.Controls.Add(_customisationScroll);
+    }
+
+    /// <summary>
+    /// Cancels tab switching to the Customisation tab when it is in the disabled state.
+    /// </summary>
+    private void OnOuterTabSelecting(object? sender, TabControlCancelEventArgs e)
+    {
+        if (e.TabPage == _customisationTabPage && !_customisationTabEnabled)
+            e.Cancel = true;
     }
 
     private ComboBox _shipSelector = null!;
@@ -338,4 +504,20 @@ partial class StarshipPanel
     private Label _maneuverLabel = null!;
     private TabPage _cargoTabPage = null!;
     private TabPage _techTabPage = null!;
+
+    // Outer tab control and sub-tab pages
+    private DoubleBufferedTabControl _outerTabs = null!;
+    private TabPage _shipDetailsTabPage = null!;
+    private TabPage _customisationTabPage = null!;
+
+    // Customisation tab controls
+    private Panel _customisationScroll = null!;
+    private TableLayoutPanel _customisationContent = null!;
+    private Label _sceneLabelCtrl = null!;
+    private ComboBox _sceneCombo = null!;
+    private Label _customisationInfoLabel = null!;
+
+    // Tracks whether the Customisation tab may be navigated to
+    private bool _customisationTabEnabled = true;
 }
+

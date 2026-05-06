@@ -255,6 +255,8 @@ public class Program
             ("SettlementPerks", "SETTLEMENTPERKSTABLE.MXML", Parsers.ParseSettlementPerks),
             ("WikiGuide", "WIKI.MXML", Parsers.ParseWikiGuide),
             ("CompanionAccessories", "CHARACTERCUSTOMISATIONDESCRIPTORGROUPSDATA.MXML", Parsers.ParsePetAccessories),
+            ("ShipCustomisation", "modularcustomisationdatatable.MXML", Parsers.ParseShipCustomisation),
+            ("ColourPalettes", "customisationcolourpalettes.MXML", Parsers.ParseShipColourPalettes),
             ("PetBattleMoves", "PETBATTLERMOVESTABLE.MXML", Parsers.ParsePetBattleMoves),
             ("PetBattleMovesets", "PETBATTLERMOVESETSTABLE.MXML", Parsers.ParsePetBattleMovesets),
             ("GameTableGlobals", "GCGAMETABLEGLOBALS.MXML", Parsers.ParseGameTableGlobals),
@@ -337,6 +339,10 @@ public class Program
             finalFiles["Wiki Guide.json"] = baseData["WikiGuide"];
         if (baseData.ContainsKey("CompanionAccessories"))
             finalFiles["Companion Accessories.json"] = baseData["CompanionAccessories"];
+        if (baseData.ContainsKey("ShipCustomisation"))
+            finalFiles["Ship Customisation.json"] = baseData["ShipCustomisation"];
+        if (baseData.ContainsKey("ColourPalettes"))
+            finalFiles["Colour Palettes.json"] = baseData["ColourPalettes"];
         if (baseData.ContainsKey("PetBattleMoves"))
             finalFiles["Pet Battle Moves.json"] = baseData["PetBattleMoves"];
         if (baseData.ContainsKey("PetBattleMovesets"))

@@ -1376,7 +1376,7 @@ public partial class CompanionPanel : UserControl
         _activeColourMenu = null;
 
         // Build a 10×2 grid of colour cells hosted inside a lightweight dropdown.
-        var palette = NmsColourPalette.PaintPalette;
+        var palette = NmsColourPalette.GetPaletteColours("PET") ?? NmsColourPalette.PaintPalette;
         const int cols = 10;
         const int cellSize = 24;
         const int cellMargin = 1;
