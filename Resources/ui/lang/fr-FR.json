@@ -1355,6 +1355,7 @@
   "player.portal_glyphs": "Glyphes de portail :",
   "player.portal_glyphs_label": "Portal Glyphs:",
   "player.portal_interference": "Interférence de portail active",
+  "player.purple_warp_enabled": "Activer le saut vers les systèmes violets",
   "player.preset_creative": "Creative",
   "player.preset_custom": "Custom",
   "player.preset_invalid": "Invalide",

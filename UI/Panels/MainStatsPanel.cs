@@ -328,6 +328,35 @@ public partial class MainStatsPanel : UserControl
 
             // Portal interference
             try { _portalInterference.Checked = playerState.GetBool("OnOtherSideOfPortal"); } catch { _portalInterference.Checked = false; }
+
+            // Purple system warping - enabled when HasDiscoveredPurpleSystems is true AND ^HDRIVEBOOST4 is in KnownTech
+            try
+            {
+                bool hasDiscovered = false;
+                try { hasDiscovered = playerState.GetBool("HasDiscoveredPurpleSystems"); } catch { }
+
+                bool hasDriveBoost = false;
+                try
+                {
+                    var knownTech = playerState.GetArray("KnownTech");
+                    if (knownTech != null)
+                    {
+                        for (int i = 0; i < knownTech.Length; i++)
+                        {
+                            if (knownTech.Get(i) as string == "^HDRIVEBOOST4")
+                            {
+                                hasDriveBoost = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch { }
+
+                // Only pre-tick if both fields match the enabled state; untick on any mismatch
+                _purpleWarpEnabled.Checked = hasDiscovered && hasDriveBoost;
+            }
+            catch { _purpleWarpEnabled.Checked = false; }
         }
         catch { }
     }
@@ -554,6 +583,29 @@ public partial class MainStatsPanel : UserControl
 
         // Portal interference
         try { playerState.Set("OnOtherSideOfPortal", _portalInterference.Checked); } catch { }
+
+        // Purple system warping - sync HasDiscoveredPurpleSystems and ^HDRIVEBOOST4 in KnownTech
+        try
+        {
+            playerState.Set("HasDiscoveredPurpleSystems", _purpleWarpEnabled.Checked);
+
+            var knownTech = playerState.GetArray("KnownTech");
+            if (knownTech != null)
+            {
+                int idx = knownTech.IndexOf("^HDRIVEBOOST4");
+                if (_purpleWarpEnabled.Checked && idx < 0)
+                {
+                    // Add ^HDRIVEBOOST4 when ticked and not already present
+                    knownTech.Add("^HDRIVEBOOST4");
+                }
+                else if (!_purpleWarpEnabled.Checked && idx >= 0)
+                {
+                    // Remove ^HDRIVEBOOST4 when unticked and currently present
+                    knownTech.RemoveAt(idx);
+                }
+            }
+        }
+        catch { }
 
         // Space battle - warps to next
         try
@@ -1109,6 +1161,7 @@ public partial class MainStatsPanel : UserControl
         // Checkboxes
         _thirdPersonCharCam.Text = UiStrings.Get("player.third_person_camera");
         _portalInterference.Text = UiStrings.Get("player.portal_interference");
+        _purpleWarpEnabled.Text = UiStrings.Get("player.purple_warp_enabled");
 
         // Section headers
         _playerStatsHeader.Text = UiStrings.Get("player.section_stats");

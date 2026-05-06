@@ -1355,6 +1355,7 @@
   "player.portal_glyphs": "Glifi del portale:",
   "player.portal_glyphs_label": "Portal Glyphs:",
   "player.portal_interference": "Interferenza portale attiva",
+  "player.purple_warp_enabled": "Abilita il salto verso i sistemi viola",
   "player.preset_creative": "Creative",
   "player.preset_custom": "Custom",
   "player.preset_invalid": "Non valido",

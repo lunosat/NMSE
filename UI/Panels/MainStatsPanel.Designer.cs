@@ -90,6 +90,7 @@ partial class MainStatsPanel
         _nexusInSystemField = new TextBox { Width = 100, ReadOnly = true };
         _planetsInSystemField = new TextBox { Width = 100, ReadOnly = true };
         _portalInterference = new CheckBox { Text = "Portal Interference Active", AutoSize = true };
+        _purpleWarpEnabled = new CheckBox { Text = "Enable Purple System Warping", AutoSize = true };
 
         // Save Utilities controls
         _slotSourceCombo = new ComboBox { Width = 80, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -242,6 +243,7 @@ partial class MainStatsPanel
         _nexusInSystemLabel = AddRow(rightLayout, "Nexus in System:", _nexusInSystemField, rightRow++);
         _planetsInSystemLabel = AddRow(rightLayout, "Planets in System:", _planetsInSystemField, rightRow++);
         rightLayout.Controls.Add(_portalInterference, 1, rightRow++);
+        rightLayout.Controls.Add(_purpleWarpEnabled, 1, rightRow++);
 
         _spaceBattleHeader = AddSectionHeader(rightLayout, "Space Battle", rightRow++);
         _warpsToNextLabel = AddRow(rightLayout, "Warps to Next:", _warpsToNextBattleField, rightRow++);
@@ -584,6 +586,7 @@ partial class MainStatsPanel
     private TextBox _nexusInSystemField = null!;
     private TextBox _planetsInSystemField = null!;
     private CheckBox _portalInterference = null!;
+    private CheckBox _purpleWarpEnabled = null!;
 
     // Editable coordinate NUDs
     private InvariantNumericTextBox _galaxyNud = null!;

@@ -1362,6 +1362,7 @@
   "player.portal_glyphs": "Portal Glyphs:",
   "player.portal_glyphs_label": "Portal Glyphs:",
   "player.portal_interference": "Portal Interference Active",
+  "player.purple_warp_enabled": "Enable Purple System Warping",
   "player.preset_creative": "Creative",
   "player.preset_custom": "Custom",
   "player.preset_invalid": "Invalid",

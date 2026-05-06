@@ -1355,6 +1355,7 @@
   "player.portal_glyphs": "Глифы портала:",
   "player.portal_glyphs_label": "Portal Glyphs:",
   "player.portal_interference": "Помехи портала активны",
+  "player.purple_warp_enabled": "Включить варп к фиолетовым системам",
   "player.preset_creative": "Creative",
   "player.preset_custom": "Custom",
   "player.preset_invalid": "Недействительно",
