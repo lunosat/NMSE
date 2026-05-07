@@ -1,8 +1,35 @@
-## NMSE — No Man's Save Editor v1.1.52 (preview)
+## NMSE — No Man's Save Editor v1.1.61 (preview)
 
 > This is a preview build. Please practice safe backup practices and expect some bugs.
 
 ### Changelog
+
+#### Features:
+
+- Mappings / DB updated for 6.36 (no user facing changes).
+- Add editing for Warp to Next Space Battle. (Per FR #70)
+- Improved updater to use native solution over scripted solution. (Per FR #72)
+- Added release notes link in about menu. (Per FR #46)
+- Added release notes to and improved the new update available popup dialog (from this build onwards). (Per FR #46)
+- Added the ability to re-order bases in the teleport list (and array list) - note: the game will still replace the first few with "immediate local teleports" in the UI, such as close-by bases and freighters. This seems unavoidable. (Per FR #73)
+- Added ability to remove all terrain edits in the save from the Bases panel. (Per FR#66)
+- Backup management cleaned up. `.backup` files are no longer produced / used in favour of the `.zip` backups.
+- Progression levels added to the Guilds milestones and minor milestones re-arrangement / cleanup. (Per FR #68)
+- Added ability to enable Purple System warping from the Player -> General -> Current Coordinates section (enables the warping and adds the drive to KnownTech). (Per FR #77)
+- Added "Customisation" tab to the Starship panel (experimental feature) (Per FR #29) which allows:
+    - Modification of the scene resource (model) filename for all ships for ship glitching (like orbs).
+    - Modification of customisation options for player built ships.
+
+#### Bug Fixes:
+
+- Additional filter changes to the "Check Consistency" dialog box sync list (Per Issue #64)
+
+<br />
+
+<details>
+<summary>Previous Changelogs</summary>
+
+### Changelog 1.1.52 (preview)
 
 #### Bug Fixes:
 
@@ -11,9 +38,6 @@
 - Advanced save utility has had it's slot management logic updated to fix incorrect slots/files being managed when moving/swapping/copying/deleting. (Per Issue #63)
 
 <br />
-
-<details>
-<summary>Previous Changelogs</summary>
 
 ### Changelog 1.1.49 (preview)
 
