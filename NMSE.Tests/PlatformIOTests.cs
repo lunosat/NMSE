@@ -332,15 +332,39 @@ public class PlatformIOTests
         Assert.EndsWith(expectedManual, pairs[1].DataFile!);
     }
 
+    /// <summary>
+    /// PS4 HTOS layout: savedata00.hg is account data; game slots start at savedata02.
+    /// GetSlotFiles returns the MANUAL save of each slot.
+    /// Slot 0 (game slot 1) manual = savedata03.hg
+    /// Slot 1 (game slot 2) manual = savedata05.hg
+    /// </summary>
     [Theory]
-    [InlineData(0, "savedata01.hg")]
-    [InlineData(1, "savedata03.hg")]
+    [InlineData(0, "savedata03.hg")]
+    [InlineData(1, "savedata05.hg")]
     public void SaveSlotManager_GetSlotFiles_PS4_ReturnsManualSave(int slotIndex, string expectedDataName)
     {
         var files = SaveSlotManager.GetSlotFiles("/saves/ps4", slotIndex, SaveFileManager.Platform.PS4);
         Assert.NotNull(files.DataFile);
         Assert.EndsWith(expectedDataName, files.DataFile!);
     }
+
+    /// <summary>
+    /// GetAllSlotFiles for PS4 HTOS returns BOTH the auto-save and manual save.
+    /// Slot 0 -> savedata02 (auto) + savedata03 (manual)
+    /// Slot 1 -> savedata04 (auto) + savedata05 (manual)
+    /// </summary>
+    [Theory]
+    [InlineData(0, "savedata02.hg", "savedata03.hg")]
+    [InlineData(1, "savedata04.hg", "savedata05.hg")]
+    public void SaveSlotManager_GetAllSlotFiles_PS4_ReturnsBothFiles(
+        int slotIndex, string expectedAuto, string expectedManual)
+    {
+        var pairs = SaveSlotManager.GetAllSlotFiles("/saves/ps4", slotIndex, SaveFileManager.Platform.PS4);
+        Assert.Equal(2, pairs.Length);
+        Assert.EndsWith(expectedAuto,   pairs[0].DataFile!);
+        Assert.EndsWith(expectedManual, pairs[1].DataFile!);
+    }
+
 
     // --- SaveSlotManager: CopySlot ---
 

@@ -87,6 +87,8 @@ public partial class MainFormResources : Form
     private List<string>? _platformSlotIdentifiers;
     /// <summary>For Xbox: maps [slotComboIdx][fileComboIdx] to the Xbox slot identifier (e.g. "Slot1Auto").</summary>
     private List<List<string>>? _xboxFileIdentifiers;
+    /// <summary>For PS4 memory.dat: maps [slotComboIdx][fileComboIdx] to the memory.dat sub-slot index.</summary>
+    private List<List<int>>? _ps4SubSlotIndices;
 
     // Deferred panel loading: track which tabs have had LoadData called
     private readonly HashSet<int> _loadedTabIndices = new();
@@ -160,6 +162,7 @@ public partial class MainFormResources : Form
         _vehiclePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _cataloguePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _accountPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _basePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _companionPanel.ExosuitCargoModified += OnCompanionExosuitCargoModified;
 
         // Wire up Save Utilities reload event
@@ -887,6 +890,7 @@ public partial class MainFormResources : Form
         _ps4MemoryDatPath = null;
         _platformSlotIdentifiers = null;
         _xboxFileIdentifiers = null;
+        _ps4SubSlotIndices = null;
 
         if (_directoryCombo.SelectedItem is not string dir || !Directory.Exists(dir))
             return;
@@ -993,26 +997,50 @@ public partial class MainFormResources : Form
             _ps4MemoryDatPath = memoryDatPath;
             _platformSlotIdentifiers = new List<string>();
             _saveSlotFiles = new List<List<string>>();
+            _ps4SubSlotIndices = new List<List<int>>();
 
-            // PS4 memory.dat supports up to 15 save slots (each with auto+manual = 30 sub-slots)
-            // Try each slot to see if it has data
-            // Minimum valid JSON save data is at least a few bytes (e.g. `{"Version":1}`)
+            // PS4 supports 5 game slots; each has an auto (sub-slot 2N-1) and a manual (sub-slot 2N).
+            // Sub-slot 0 is account data and is not listed here.
+            const int PS4MaxGameSlots = 5;
             const int MinimumSlotDataLength = 10;
-            for (int i = 0; i < 30; i++)
+            for (int n = 1; n <= PS4MaxGameSlots; n++)
             {
+                int autoIdx   = 2 * n - 1;
+                int manualIdx = 2 * n;
+
+                string? autoJson   = null;
+                string? manualJson = null;
+                try { autoJson   = MemoryDatManager.ExtractSlotData(memoryDatPath, autoIdx);   } catch { }
+                try { manualJson = MemoryDatManager.ExtractSlotData(memoryDatPath, manualIdx); } catch { }
+
+                bool hasAuto   = autoJson   != null && autoJson.Length   > MinimumSlotDataLength;
+                bool hasManual = manualJson != null && manualJson.Length > MinimumSlotDataLength;
+                if (!hasAuto && !hasManual) continue;
+
+                var subSlots  = new List<int>();
+                var slotFiles = new List<string>();
+                if (hasAuto)   { subSlots.Add(autoIdx);   slotFiles.Add(memoryDatPath); }
+                if (hasManual) { subSlots.Add(manualIdx); slotFiles.Add(memoryDatPath); }
+
+                _ps4SubSlotIndices.Add(subSlots);
+                _saveSlotFiles.Add(slotFiles);
+                _platformSlotIdentifiers.Add(n.ToString(CultureInfo.InvariantCulture));
+
+                // Prefer the manual save for slot label (user-assigned names live there),
+                // falling back to auto if manual is absent.
+                string labelJson = hasManual ? manualJson! : autoJson!;
+                string saveName  = "";
+                string difficulty = "";
                 try
                 {
-                    string? testData = MemoryDatManager.ExtractSlotData(memoryDatPath, i);
-                    if (testData != null && testData.Length > MinimumSlotDataLength)
-                    {
-                        _platformSlotIdentifiers.Add(i.ToString(CultureInfo.InvariantCulture));
-                        _saveSlotFiles.Add(new List<string> { memoryDatPath });
-                        // Even sub-slot indices are auto-saves, odd are manual saves
-                        bool isAuto = i % 2 == 0;
-                        _saveSlotCombo.Items.Add($"PS4 Slot {i / 2 + 1}{(isAuto ? " (Auto)" : " (Manual)")}");
-                    }
+                    saveName  = SaveFileManager.DetectSaveNameFromJson(labelJson);
+                    int mode  = SaveFileManager.DetectGameModeFromJson(labelJson);
+                    if (mode > 0) difficulty = GameModeToString(mode);
                 }
                 catch { }
+
+                string label = BuildSlotLabel($"PS4: Slot {n}", saveName, difficulty);
+                _saveSlotCombo.Items.Add(label);
             }
         }
         else
@@ -1051,19 +1079,31 @@ public partial class MainFormResources : Form
                 }
             }
 
-            // Also check for PS4-style saves (savedata00.hg, savedata02.hg, etc.)
-            if (_saveSlotCombo.Items.Count == 0)
+            // PS4 HTOS format: savedata00.hg is account data; game slots start at savedata02.hg.
+            // Pair savedata{N*2+2}.hg (auto) + savedata{N*2+3}.hg (manual) for slot N (0-based).
+            if (_saveSlotCombo.Items.Count == 0 && _detectedPlatform == SaveFileManager.Platform.PS4)
             {
-                var ps4Files = Directory.GetFiles(dir, "savedata*.hg")
-                    .OrderBy(f => f)
-                    .ToArray();
-                for (int i = 0; i < ps4Files.Length; i++)
+                for (int i = 0; i < 15; i++)
                 {
-                    saveFiles.Add(new List<string> { ps4Files[i] });
-                    string difficulty = DetectDifficulty(ps4Files[i]);
-                    string saveName = DetectSaveName(ps4Files[i]);
-                    string label = BuildSlotLabel($"Save {i + 1}", saveName, difficulty);
-                    _saveSlotCombo.Items.Add(label);
+                    string autoFile   = Path.Combine(dir, $"savedata{i * 2 + 2:D2}.hg");
+                    string manualFile = Path.Combine(dir, $"savedata{i * 2 + 3:D2}.hg");
+
+                    bool hasAuto   = File.Exists(autoFile);
+                    bool hasManual = File.Exists(manualFile);
+
+                    if (hasAuto || hasManual)
+                    {
+                        var slotFiles = new List<string>();
+                        if (hasAuto)   slotFiles.Add(autoFile);
+                        if (hasManual) slotFiles.Add(manualFile);
+
+                        saveFiles.Add(slotFiles);
+                        string labelFile   = slotFiles[^1];
+                        string difficulty  = DetectDifficulty(labelFile);
+                        string saveName    = DetectSaveName(labelFile);
+                        string label       = BuildSlotLabel($"PS4: Slot {i + 1}", saveName, difficulty);
+                        _saveSlotCombo.Items.Add(label);
+                    }
                 }
             }
 
@@ -1097,6 +1137,17 @@ public partial class MainFormResources : Form
         int newestIndex = 0;
         DateTime newestTime = DateTime.MinValue;
 
+        // PS4 memory.dat: show "Auto" / "Manual" with timestamp from slot metadata.
+        bool isPs4MemoryDat = _ps4SubSlotIndices != null
+            && slotIndex < _ps4SubSlotIndices.Count;
+
+        // Read PS4 slot metadata once (for timestamps) before the per-file loop.
+        MemoryDatSlot[]? ps4Slots = null;
+        if (isPs4MemoryDat && _ps4MemoryDatPath != null)
+        {
+            try { ps4Slots = MemoryDatManager.ReadSlots(_ps4MemoryDatPath); } catch { }
+        }
+
         // Xbox: show "Auto - {DirectoryGUID}" / "Manual - {DirectoryGUID}" labels
         bool isXbox = _xboxFileIdentifiers != null
             && slotIndex < _xboxFileIdentifiers.Count;
@@ -1106,7 +1157,30 @@ public partial class MainFormResources : Form
             var filePath = files[i];
             string label;
 
-            if (isXbox)
+            if (isPs4MemoryDat)
+            {
+                int subSlotIdx = _ps4SubSlotIndices![slotIndex][i];
+                // Odd sub-slot indices are auto-saves; even are manual saves.
+                bool isAuto = subSlotIdx % 2 == 1;
+                string type = isAuto ? "Auto" : "Manual";
+
+                // Append timestamp from the slot's metadata (no file-system time for memory.dat).
+                string timestamp = "";
+                if (ps4Slots != null && subSlotIdx < ps4Slots.Length
+                    && ps4Slots[subSlotIdx].Timestamp.HasValue)
+                {
+                    var ts = ps4Slots[subSlotIdx].Timestamp!.Value.LocalDateTime;
+                    timestamp = $" - {ts:dd/MM/yy h:mmtt}";
+                    if (ts > newestTime)
+                    {
+                        newestTime = ts;
+                        newestIndex = i;
+                    }
+                }
+
+                label = $"{type}{timestamp}";
+            }
+            else if (isXbox)
             {
                 string xboxId = _xboxFileIdentifiers![slotIndex][i];
                 bool isAuto = xboxId.Contains("Auto", StringComparison.OrdinalIgnoreCase);
@@ -1145,7 +1219,17 @@ public partial class MainFormResources : Form
                 // Determine if this is a manual or auto save based on file naming
                 string suffix;
                 if (fileName.StartsWith("savedata", StringComparison.OrdinalIgnoreCase))
-                    suffix = "";
+                {
+                    // PS4 HTOS format: savedataNN.hg where even N = auto, odd N = manual.
+                    string numPart = fileName
+                        .Replace("savedata", "", StringComparison.OrdinalIgnoreCase)
+                        .Replace(".hg", "", StringComparison.OrdinalIgnoreCase);
+                    if (int.TryParse(numPart, System.Globalization.NumberStyles.Integer,
+                            System.Globalization.CultureInfo.InvariantCulture, out int num))
+                        suffix = num % 2 == 0 ? " (Auto)" : " (Manual)";
+                    else
+                        suffix = "";
+                }
                 else if (fileName.Equals("save.hg", StringComparison.OrdinalIgnoreCase))
                 {
                     // save.hg is the first slot's auto-save (metaIndex 2, collectionIndex 0)
@@ -1488,11 +1572,14 @@ public partial class MainFormResources : Form
             return;
         }
 
-        // PS4 memory.dat loading
-        if (_ps4MemoryDatPath != null && _platformSlotIdentifiers != null
-            && slotIndex >= 0 && slotIndex < _platformSlotIdentifiers.Count)
+        // PS4 memory.dat loading: use file combo to pick Auto vs Manual sub-slot
+        if (_ps4MemoryDatPath != null && _ps4SubSlotIndices != null
+            && slotIndex >= 0 && slotIndex < _ps4SubSlotIndices.Count)
         {
-            int memSlot = int.Parse(_platformSlotIdentifiers[slotIndex], System.Globalization.CultureInfo.InvariantCulture);
+            var subSlots = _ps4SubSlotIndices[slotIndex];
+            int fileIndex = _saveFileCombo.SelectedIndex;
+            if (fileIndex < 0 || fileIndex >= subSlots.Count) fileIndex = 0;
+            int memSlot = subSlots[fileIndex];
             LoadPS4MemoryDatSaveData(_ps4MemoryDatPath, memSlot);
             return;
         }
@@ -1741,9 +1828,13 @@ public partial class MainFormResources : Form
             // Determine slot index for meta writing
             int metaSlotIdx = _saveSlotCombo.SelectedIndex >= 0 ? _saveSlotCombo.SelectedIndex : 0;
 
+            // PS4 HTOS saves are plain uncompressed JSON (savedata*.hg without memory.dat).
+            // Writing LZ4-compressed data would produce a file the PS4 game cannot read.
+            bool compress = !(_detectedPlatform == SaveFileManager.Platform.PS4 && _ps4MemoryDatPath == null);
+
             // Write save file to disk with platform-appropriate meta
             SaveFileManager.SaveToFile(_currentFilePath, _currentSaveData,
-                compress: true, writeMeta: true, platform: _detectedPlatform, slotIndex: metaSlotIdx);
+                compress: compress, writeMeta: true, platform: _detectedPlatform, slotIndex: metaSlotIdx);
 
             // Write account data file to disk (if loaded).
             // accountdata.hg is always plain JSON with a null terminator — no LZ4

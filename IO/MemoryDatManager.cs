@@ -25,39 +25,64 @@ public class MemoryDatSlot
     public uint DecompressedSize { get; set; }
     /// <summary>Gets or sets whether this slot uses the SaveWizard export format.</summary>
     public bool IsSaveWizard { get; set; }
+    /// <summary>
+    /// Gets or sets the absolute data offset within memory.dat for SaveWizard-format slots.
+    /// This is read from field[8] (byte offset 32) of the 48-byte SaveWizard meta entry.
+    /// Zero for homebrew slots (which use <see cref="ChunkOffset"/> instead).
+    /// </summary>
+    public uint SaveWizardDataOffset { get; set; }
 }
 
 /// <summary>
 /// Reads and writes PlayStation memory.dat monolithic save files.
 ///
-/// The memory.dat format packs all save slots (account + up to 15 saves x 2 auto/manual)
-/// into a single file. Each slot has a 32-byte metadata header at a fixed offset, followed
+/// The memory.dat format packs all save slots (account + up to 5 saves x 2 auto/manual)
+/// into a single file. Each slot has a metadata entry at a fixed offset, followed
 /// by a data region where the actual (LZ4-compressed) JSON is stored.
 ///
-/// SaveWizard-exported files have an additional 20-byte preamble and per-slot SaveWizard
-/// headers. Homebrew dumps (e.g., from a modded PS4) omit these.
+/// SaveWizard-exported files have a 64-byte preamble, 48-byte per-slot meta entries,
+/// and pre-decompressed JSON data. Homebrew dumps (e.g., from a modded PS4 via Save
+/// Mounter or Apollo) have no preamble, 32-byte per-slot meta entries, and LZ4-compressed
+/// data.
 /// </summary>
 public static class MemoryDatManager
 {
-    // memory.dat layout constants
-    private const int META_HEADER = 0x000007D0;
-    private const int META_LENGTH_PER_SLOT = 32;  // 8 uint fields per slot
+    // Meta header value expected by the PS4 system.
+    private const uint META_HEADER = 0xCA55E77E;
 
-    // SaveWizard magic: "YOURTHESAVEWIZAR" (partial) followed by version bytes
-    private static readonly byte[] SAVEWIZARD_HEADER = {
-        0x59, 0x4F, 0x55, 0x52, 0x54, 0x48, 0x45, 0x53
-    };
+    // Per-slot meta entry size: 32 bytes (8 uint fields) for homebrew,
+    // 48 bytes (8 standard + 4 SaveWizard extension fields) for SaveWizard.
+    private const int META_LENGTH_PER_SLOT = 32;
+    private const int META_LENGTH_PER_SLOT_SAVEWIZARD = 48;
 
-    // Fixed offsets within memory.dat
-    private const int MEMORYDAT_OFFSET_META = 0x20;  // 32 - start of metadata region
-    private const int MEMORYDAT_OFFSET_DATA = 0x4020; // metadata region is 0x4000 bytes
+    // SaveWizard magic: "NOMANSKY" in UTF-8.
+    private static readonly byte[] SAVEWIZARD_HEADER = "NOMANSKY"u8.ToArray();
 
-    // Per-slot data allocation sizes in non-streaming format
-    private const int MEMORYDAT_LENGTH_ACCOUNTDATA = 0x40000;    // 256KB for account
-    private const int MEMORYDAT_LENGTH_CONTAINER = 0x300000;     // 3MB per save slot
+    // Metadata region start offsets within memory.dat.
+    // Homebrew meta is at 0x00; SaveWizard meta is at 0x40 (after the 64-byte preamble).
+    private const int MEMORYDAT_OFFSET_META = 0x00;             // homebrew
+    private const int MEMORYDAT_OFFSET_META_SAVEWIZARD = 0x40;  // SaveWizard
 
-    // Total file sizes
-    private const int MEMORYDAT_LENGTH_TOTAL = 0x2000020; // ~32MB total
+    // Data region start offsets (used when writing; reads use ChunkOffset from meta).
+    // Correct values differ by format.
+    private const int MEMORYDAT_OFFSET_DATA_HOMEBREW = 0x20000;      // 128 KB
+    private const int MEMORYDAT_OFFSET_DATA_SAVEWIZARD = 0x1040;     // 4 160 bytes after preamble
+    private const uint MEMORYDAT_OFFSET_DATA_ACCOUNTDATA = 0x20000U; // fixed account-data slot
+    private const uint MEMORYDAT_OFFSET_DATA_CONTAINER = 0xE0000U;   // first game-container slot
+
+    // Per-slot data allocation sizes for homebrew.
+    private const uint MEMORYDAT_LENGTH_ACCOUNTDATA = 0x40000U;  // 256 KB for account data
+    private const uint MEMORYDAT_LENGTH_CONTAINER = 0x300000U;   // 3 MB per save slot
+
+    // Total file sizes.
+    // Correct homebrew size is exactly 32 MB.
+    private const int MEMORYDAT_LENGTH_TOTAL = 0x2000000;            // 32 MB – homebrew
+    private const int MEMORYDAT_LENGTH_TOTAL_SAVEWIZARD = 0x3000000; // 48 MB – SaveWizard
+
+    // PS4 supports 5 game save slots, each with auto + manual = 2 containers, plus 1 account slot.
+    // Correct total is 11.
+    private const int MAX_SAVE_SLOTS_PS4 = 5;
+    private const int MEMORYDAT_TOTAL_SLOT_COUNT = 1 + MAX_SAVE_SLOTS_PS4 * 2; // 11
 
     /// <summary>
     /// Check if a file is in memory.dat format (PS4 monolithic save).
@@ -90,21 +115,25 @@ public static class MemoryDatManager
     /// Parse all save slot metadata from a memory.dat file.
     /// </summary>
     /// <param name="filePath">Path to memory.dat</param>
-    /// <returns>Array of slot metadata (index 0 = account, 1-30 = save slots).</returns>
+    /// <returns>Array of slot metadata (index 0 = account, 1-10 = save slots).</returns>
     public static MemoryDatSlot[] ReadSlots(string filePath)
     {
         byte[] data = File.ReadAllBytes(filePath);
         bool isSaveWizard = data.Length >= SAVEWIZARD_HEADER.Length &&
             data.AsSpan(0, SAVEWIZARD_HEADER.Length).SequenceEqual(SAVEWIZARD_HEADER);
 
-        int metaOffset = isSaveWizard ? MEMORYDAT_OFFSET_META : 0;
-        int totalSlots = 1 + 30; // account + 15 slots x 2 (auto + manual)
+        // Homebrew meta starts at 0x00; SaveWizard meta starts at 0x40.
+        int metaOffset = isSaveWizard ? MEMORYDAT_OFFSET_META_SAVEWIZARD : MEMORYDAT_OFFSET_META;
+        // SaveWizard uses 48-byte meta entries; homebrew uses 32-byte entries.
+        int metaPerSlot = isSaveWizard ? META_LENGTH_PER_SLOT_SAVEWIZARD : META_LENGTH_PER_SLOT;
+        // PS4 supports only 5 game slots -> 11 total containers.
+        int totalSlots = MEMORYDAT_TOTAL_SLOT_COUNT;
         var slots = new MemoryDatSlot[totalSlots];
 
         for (int i = 0; i < totalSlots; i++)
         {
-            int slotMetaOffset = metaOffset + (i * META_LENGTH_PER_SLOT);
-            if (slotMetaOffset + META_LENGTH_PER_SLOT > data.Length)
+            int slotMetaOffset = metaOffset + (i * metaPerSlot);
+            if (slotMetaOffset + metaPerSlot > data.Length)
             {
                 slots[i] = new MemoryDatSlot { Index = i, Exists = false };
                 continue;
@@ -119,7 +148,16 @@ public static class MemoryDatManager
             uint timestamp = ReadUInt32LE(data, slotMetaOffset + 24);
             uint decompressedSize = ReadUInt32LE(data, slotMetaOffset + 28);
 
-            bool exists = header == META_HEADER && chunkOffset != 0;
+            // Existence is indicated solely by a non-zero ChunkOffset. The header
+            // value varies across tools (0x000007D0 for older homebrew dumps, 0xCA55E77E
+            // for newer ones), so we no longer require a specific value.
+            bool exists = chunkOffset != 0;
+
+            // SaveWizard meta entries carry 16 extra bytes; field[8] at byte offset
+            // 32 within the entry holds the actual pre-decompressed data offset.
+            uint saveWizardDataOffset = 0;
+            if (isSaveWizard)
+                saveWizardDataOffset = ReadUInt32LE(data, slotMetaOffset + 32);
 
             slots[i] = new MemoryDatSlot
             {
@@ -133,6 +171,7 @@ public static class MemoryDatManager
                 Timestamp = timestamp > 0 ? DateTimeOffset.FromUnixTimeSeconds(timestamp) : null,
                 DecompressedSize = decompressedSize,
                 IsSaveWizard = isSaveWizard,
+                SaveWizardDataOffset = saveWizardDataOffset,
             };
         }
 
@@ -141,7 +180,7 @@ public static class MemoryDatManager
 
     /// <summary>
     /// Extract the JSON data for a specific slot from a memory.dat file.
-    /// Returns the decompressed JSON string.
+    /// Returns the JSON string, or null if the slot does not exist.
     /// </summary>
     public static string? ExtractSlotData(string filePath, int slotIndex)
     {
@@ -152,64 +191,170 @@ public static class MemoryDatManager
 
         byte[] data = File.ReadAllBytes(filePath);
 
-        int dataOffset;
-        int dataLength;
-
         if (slot.IsSaveWizard)
         {
-            // SaveWizard format: offset is stored in the extended meta
-            int extendedMetaOffset = MEMORYDAT_OFFSET_META + (slotIndex * META_LENGTH_PER_SLOT) + 32;
-            if (extendedMetaOffset + 4 <= data.Length)
-            {
-                dataOffset = (int)ReadUInt32LE(data, extendedMetaOffset);
-                dataLength = (int)slot.DecompressedSize;
-            }
-            else
-            {
+            // SaveWizard pre-decompresses the JSON; the actual data offset is in
+            // SaveWizardDataOffset (field[8] of the 48-byte meta entry) and the byte count
+            // is DecompressedSize. No LZ4 step is needed.
+            int dataOffset = (int)slot.SaveWizardDataOffset;
+            int dataLength = (int)slot.DecompressedSize;
+
+            if (dataOffset <= 0 || dataOffset + dataLength > data.Length)
                 return null;
-            }
+
+            // Trim any trailing NUL padding that SaveWizard may append.
+            int lastNonNul = Array.FindLastIndex(data, dataOffset + dataLength - 1, dataLength, b => b != 0);
+            int jsonEnd = lastNonNul < dataOffset ? 0 : lastNonNul - dataOffset + 1;
+            return System.Text.Encoding.GetEncoding(28591).GetString(data, dataOffset, jsonEnd);
         }
         else
         {
-            // Homebrew: data at fixed offset within the memory.dat data region
-            dataOffset = (int)slot.ChunkOffset;
-            dataLength = (int)slot.CompressedSize;
+            // Homebrew: data is LZ4-compressed at ChunkOffset with CompressedSize bytes.
+            int dataOffset = (int)slot.ChunkOffset;
+            int dataLength = (int)slot.CompressedSize;
+
+            if (dataOffset <= 0 || dataOffset + dataLength > data.Length)
+                return null;
+
+            byte[] compressedData = new byte[dataLength];
+            Buffer.BlockCopy(data, dataOffset, compressedData, 0, dataLength);
+
+            byte[] decompressed = new byte[slot.DecompressedSize];
+            int written = Lz4Compressor.Decompress(compressedData, 0, dataLength, decompressed, 0, (int)slot.DecompressedSize);
+
+            return System.Text.Encoding.GetEncoding(28591).GetString(decompressed, 0, written);
         }
-
-        if (dataOffset <= 0 || dataOffset + dataLength > data.Length)
-            return null;
-
-        byte[] compressedData = new byte[dataLength];
-        Buffer.BlockCopy(data, dataOffset, compressedData, 0, dataLength);
-
-        // Decompress (single-block LZ4 for memory.dat format)
-        byte[] decompressed = new byte[slot.DecompressedSize];
-        int written = Lz4Compressor.Decompress(compressedData, 0, dataLength, decompressed, 0, (int)slot.DecompressedSize);
-
-        // Convert to string using Latin1 encoding
-        return System.Text.Encoding.GetEncoding(28591).GetString(decompressed, 0, written);
     }
 
     /// <summary>
-    /// Write a complete memory.dat file from slot data.
+    /// Write a complete SaveWizard memory.dat file from raw (pre-decompressed) JSON slot data.
+    ///
+    /// The file layout follows the SaveWizard / PS4 known specification:
+    /// <list type="bullet">
+    ///   <item><description>[0x0000..0x003F] 64-byte preamble: "NOMANSKY" magic bytes, meta format, meta offset, slot count, total length, then zeros.</description></item>
+    ///   <item><description>[0x0040..0x03AF] 11 × 48-byte metadata entries (one per slot).</description></item>
+    ///   <item><description>[0x1040..]       Pre-decompressed JSON data, packed sequentially, no LZ4.</description></item>
+    ///   <item><description>Total file size: 48 MB (0x3000000).</description></item>
+    /// </list>
     /// </summary>
     /// <param name="outputPath">Output file path.</param>
-    /// <param name="slotData">Dictionary of slotIndex -> compressed data bytes.</param>
+    /// <param name="slotData">Dictionary of slotIndex -> raw JSON bytes (Latin-1 encoded, NOT LZ4-compressed).</param>
+    /// <param name="slotMeta">Dictionary of slotIndex -> slot metadata.</param>
+    public static void WriteMemoryDatSaveWizard(string outputPath, Dictionary<int, byte[]> slotData, Dictionary<int, MemoryDatSlot> slotMeta)
+    {
+        // Allocate 48 MB for SaveWizard format.
+        byte[] buffer = new byte[MEMORYDAT_LENGTH_TOTAL_SAVEWIZARD];
+
+        using var ms = new MemoryStream(buffer);
+        using var writer = new BinaryWriter(ms);
+
+        // -- 64-byte preamble at offset 0x00 --
+        // Layout:
+        //   [0x00] "NOMANSKY" magic bytes (8 bytes)
+        //   [0x08] meta format = 1        (4 bytes)
+        //   [0x0C] meta offset = 0x40     (4 bytes)
+        //   [0x10] slot count = 11        (4 bytes)
+        //   [0x14] total length           (4 bytes)
+        //   [0x18..0x3F] zeros            (40 bytes, already zero from buffer init)
+        ms.Position = 0;
+        writer.Write(SAVEWIZARD_HEADER);                         // [0x00] 8 bytes
+        writer.Write((uint)1);                                   // [0x08] meta format
+        writer.Write((uint)MEMORYDAT_OFFSET_META_SAVEWIZARD);    // [0x0C] meta offset = 0x40
+        writer.Write((uint)MEMORYDAT_TOTAL_SLOT_COUNT);          // [0x10] slot count
+        writer.Write((uint)MEMORYDAT_LENGTH_TOTAL_SAVEWIZARD);   // [0x14] total file size
+        // [0x18..0x3F] left as zeros from buffer initialisation
+
+        // -- Pre-calculate sequential data offsets --
+        // Data is packed from MEMORYDAT_OFFSET_DATA_SAVEWIZARD (0x1040) with no gaps.
+        var dataOffsets = new Dictionary<int, uint>();
+        uint nextOffset = (uint)MEMORYDAT_OFFSET_DATA_SAVEWIZARD;
+        foreach (var kvp in slotData.OrderBy(k => k.Key))
+        {
+            if (slotMeta.TryGetValue(kvp.Key, out var m) && m.Exists)
+            {
+                dataOffsets[kvp.Key] = nextOffset;
+                nextOffset += (uint)kvp.Value.Length;
+            }
+        }
+
+        // -- 11 × 48-byte meta entries starting at 0x40 --
+        // 48-byte entry layout:
+        //   +0  META_HEADER        (uint)
+        //   +4  format = 1         (uint)
+        //   +8  compressedSize     (uint) — equals decompressed size (no LZ4 in SW)
+        //   +12 chunkOffset        (uint) — set to SAVEWIZARD_OFFSET so chunkOffset≠0 -> exists
+        //   +16 chunkSize          (uint) — equals decompressed size
+        //   +20 metaIndex = i      (uint)
+        //   +24 timestamp          (uint)
+        //   +28 decompressedSize   (uint)
+        //   +32 SAVEWIZARD_OFFSET  (uint) — absolute offset of data in file (field[8])
+        //   +36 padding            (uint)
+        //   +40 padding            (uint)
+        //   +44 padding            (uint)
+        for (int i = 0; i < MEMORYDAT_TOTAL_SLOT_COUNT; i++)
+        {
+            ms.Position = MEMORYDAT_OFFSET_META_SAVEWIZARD + ((long)i * META_LENGTH_PER_SLOT_SAVEWIZARD);
+
+            if (slotMeta.TryGetValue(i, out var meta) && meta.Exists
+                && slotData.TryGetValue(i, out var raw)
+                && dataOffsets.TryGetValue(i, out uint dataOffset))
+            {
+                uint jsonSize = (uint)raw.Length;
+                writer.Write(META_HEADER);                                       // +0
+                writer.Write((uint)1);                                           // +4
+                writer.Write(jsonSize);                                          // +8  compressedSize
+                writer.Write(dataOffset);                                        // +12 chunkOffset (non-zero = exists)
+                writer.Write(jsonSize);                                          // +16 chunkSize
+                writer.Write((uint)i);                                           // +20 metaIndex
+                writer.Write((uint)(meta.Timestamp?.ToUnixTimeSeconds() ?? 0));  // +24 timestamp
+                writer.Write(jsonSize);                                          // +28 decompressedSize
+                writer.Write(dataOffset);                                        // +32 SAVEWIZARD_OFFSET
+                writer.Write((uint)0);                                           // +36 padding
+                writer.Write((uint)0);                                           // +40 padding
+                writer.Write((uint)0);                                           // +44 padding
+            }
+            else
+            {
+                // Empty slot: 48 zero bytes (chunkOffset = 0 -> exists = false).
+                for (int f = 0; f < META_LENGTH_PER_SLOT_SAVEWIZARD / 4; f++)
+                    writer.Write((uint)0);
+            }
+        }
+
+        // -- Write pre-decompressed JSON data sequentially from 0x1040 --
+        foreach (var kvp in slotData.OrderBy(k => k.Key))
+        {
+            if (slotMeta.TryGetValue(kvp.Key, out var meta) && meta.Exists
+                && dataOffsets.TryGetValue(kvp.Key, out uint dataOffset))
+            {
+                ms.Position = dataOffset;
+                writer.Write(kvp.Value);
+            }
+        }
+
+        File.WriteAllBytes(outputPath, buffer);
+    }
+
+    /// <summary>
+    /// Write a complete homebrew memory.dat file from slot data.
+    /// </summary>
+    /// <param name="outputPath">Output file path.</param>
+    /// <param name="slotData">Dictionary of slotIndex -> LZ4-compressed data bytes.</param>
     /// <param name="slotMeta">Dictionary of slotIndex -> slot metadata.</param>
     public static void WriteMemoryDat(string outputPath, Dictionary<int, byte[]> slotData, Dictionary<int, MemoryDatSlot> slotMeta)
     {
+        // Allocate exactly 32 MB (0x2000000) for homebrew.
         byte[] buffer = new byte[MEMORYDAT_LENGTH_TOTAL];
 
         using var ms = new MemoryStream(buffer);
         using var writer = new BinaryWriter(ms);
 
-        int totalSlots = Math.Max(31, slotMeta.Count);
-
-        // Write metadata for each slot
-        for (int i = 0; i < 31; i++)
+        // Only write metadata for 11 containers (1 account + 5 slots × 2), not 31.
+        for (int i = 0; i < MEMORYDAT_TOTAL_SLOT_COUNT; i++)
         {
             if (slotMeta.TryGetValue(i, out var meta) && meta.Exists)
             {
+                // Write 0xCA55E77E (META_HEADER).
                 writer.Write(META_HEADER);                                      // 4
                 writer.Write((uint)1);                                          // 4 - format
                 writer.Write(meta.CompressedSize);                              // 4
@@ -221,7 +366,7 @@ public static class MemoryDatManager
             }
             else
             {
-                // Empty slot
+                // Empty slot.
                 writer.Write(META_HEADER);
                 writer.Write((uint)1);
                 writer.Seek(12, SeekOrigin.Current);
@@ -230,8 +375,8 @@ public static class MemoryDatManager
             }
         }
 
-        // Write data regions
-        ms.Position = MEMORYDAT_OFFSET_DATA;
+        // Data region for homebrew begins at 0x20000.
+        ms.Position = MEMORYDAT_OFFSET_DATA_HOMEBREW;
 
         foreach (var kvp in slotData.OrderBy(k => k.Key))
         {

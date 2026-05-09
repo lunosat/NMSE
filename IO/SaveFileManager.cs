@@ -956,6 +956,47 @@ public class SaveFileManager
     }
 
     /// <summary>
+    /// Detect the game mode from an already-extracted JSON string (e.g. from a PS4 memory.dat slot).
+    /// Returns 0 if the mode cannot be determined.
+    /// </summary>
+    public static int DetectGameModeFromJson(string json)
+    {
+        if (string.IsNullOrEmpty(json)) return 0;
+        int result = ScanKeyForGameMode(json, "\"PresetGameMode\"");
+        if (result <= 0) result = ScanKeyForGameMode(json, "\"pwt\"");
+        if (result > 0) return result;
+        int dsIdx = json.IndexOf("\"DifficultyState\"", StringComparison.Ordinal);
+        if (dsIdx < 0) dsIdx = json.IndexOf("\"LyC\"", StringComparison.Ordinal);
+        if (dsIdx >= 0)
+        {
+            int dpIdx = json.IndexOf("\"DifficultyPresetType\"", dsIdx, StringComparison.Ordinal);
+            if (dpIdx < 0) dpIdx = json.IndexOf("\"7ND\"", dsIdx, StringComparison.Ordinal);
+            if (dpIdx >= 0)
+            {
+                int colonIdx = json.IndexOf(':', dpIdx + 1);
+                if (colonIdx >= 0)
+                {
+                    result = ScanValueForGameMode(json, colonIdx + 1);
+                    if (result > 0) return result;
+                }
+            }
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Extract the save name from an already-extracted JSON string (e.g. from a PS4 memory.dat slot).
+    /// Returns empty string if not found.
+    /// </summary>
+    public static string DetectSaveNameFromJson(string json)
+    {
+        if (string.IsNullOrEmpty(json)) return "";
+        return ExtractJsonStringValue(json, "\"SaveName\"")
+            ?? ExtractJsonStringValue(json, "\"Pk4\"")
+            ?? "";
+    }
+
+    /// <summary>
     /// Extract a JSON string value following a key in raw text.
     /// Returns null if the key is not found.
     /// </summary>

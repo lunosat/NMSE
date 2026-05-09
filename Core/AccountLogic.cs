@@ -99,7 +99,14 @@ internal static class AccountLogic
     {
         string accountPath = Path.Combine(saveDirectory, "accountdata.hg");
         if (!File.Exists(accountPath))
-            return new AccountData { ErrorMessage = UiStrings.Get("account.not_found") };
+        {
+            // PS4 HTOS format: account data lives in savedata00.hg instead of accountdata.hg
+            string ps4AccountPath = Path.Combine(saveDirectory, "savedata00.hg");
+            if (File.Exists(ps4AccountPath))
+                accountPath = ps4AccountPath;
+            else
+                return new AccountData { ErrorMessage = UiStrings.Get("account.not_found") };
+        }
 
         try
         {

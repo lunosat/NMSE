@@ -155,9 +155,12 @@ public static class SaveSlotManager
 
     private static SlotFiles[] GetPlaystationAllSlotFiles(string dir, int slotIndex)
     {
-        // Same two file per slot layout as Switch.
-        int autoIdx   = slotIndex * 2;
-        int manualIdx = slotIndex * 2 + 1;
+        // PS4 HTOS layout: savedata00.hg is the account data file (not a game slot).
+        // Game slot N (0-based) maps to:
+        //   auto   = savedata{N*2+2:D2}.hg + manifest{N*2+2:D2}.hg  (N=0 -> savedata02)
+        //   manual = savedata{N*2+3:D2}.hg + manifest{N*2+3:D2}.hg  (N=0 -> savedata03)
+        int autoIdx   = slotIndex * 2 + 2;
+        int manualIdx = slotIndex * 2 + 3;
 
         return
         [

@@ -250,10 +250,10 @@ public static class MetaFileWriter
 
             writer.Write((uint)0); // profile hash placeholder -> offset 64
 
-            writer.Write(metaBaseVersion); // 4 -> offset 68
+            writer.Write(metaBaseVersion);       // 4 -> offset 68
             writer.Write((ushort)info.GameMode); // 2 -> offset 72
-            writer.Write((ushort)info.Season); // 2 -> offset 74
-            writer.Write(info.TotalPlayTime); // 8 -> offset 76
+            writer.Write((ushort)info.Season);   // 2 -> offset 74
+            writer.Write(info.TotalPlayTime);    // 8 -> offset 76
 
             // Offset 84: repeat decompressed size (matches game-written layout)
             writer.Write(decompressedSize); // 4 -> offset 84
@@ -352,15 +352,15 @@ public static class MetaFileWriter
             using var ms = new MemoryStream(buffer);
             using var writer = new BinaryWriter(ms);
 
-            writer.Write(META_HEADER_SWITCH_PS); // 4
-            writer.Write(metaFormat);            // 4
-            writer.Write(decompressedSize);      // 4
-            writer.Write(metaIndex);             // 4
+            writer.Write(META_HEADER_SWITCH_PS);                           // 4
+            writer.Write(metaFormat);                                      // 4
+            writer.Write(decompressedSize);                                // 4
+            writer.Write(metaIndex);                                       // 4
             writer.Write((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()); // 4
-            writer.Write(info.BaseVersion);      // 4
-            writer.Write((ushort)info.GameMode); // 2
-            writer.Write((ushort)info.Season);   // 2
-            writer.Write(info.TotalPlayTime);    // 8
+            writer.Write(info.BaseVersion);                                // 4
+            writer.Write((ushort)info.GameMode);                           // 2
+            writer.Write((ushort)info.Season);                             // 2
+            writer.Write(info.TotalPlayTime);                              // 8
             // Total so far: 36 bytes
 
             if (bufferLen > SWITCH_META_BEFORE_NAME)
@@ -374,43 +374,106 @@ public static class MetaFileWriter
     }
 
     /// <summary>
-    /// Write a PS4 streaming meta file (manifest*.hg) next to the save data file.
-    /// This is for savedata*.hg format (non-memory.dat).
+    /// Write a PS4 HTOS streaming meta file (manifest*.hg) next to the save data file.
+    /// The manifest file number is derived from the save file name (savedata02.hg -> manifest02.hg)
+    /// rather than from the <paramref name="metaIndex"/> parameter so that the correct companion
+    /// manifest is always written regardless of which slot-combo index the caller passes.
     /// </summary>
     public static void WritePlaystationStreamingMeta(string saveFilePath, uint decompressedSize, SaveMetaInfo info, int metaIndex)
     {
         string dir = Path.GetDirectoryName(saveFilePath)!;
+
+        // Derive the manifest index from the data file name (savedata02.hg -> 2).
+        // This ensures manifest02.hg is written even when metaIndex=0 is passed.
+        string fname = Path.GetFileNameWithoutExtension(saveFilePath);
+        const string sdPrefix = "savedata";
+        if (fname.StartsWith(sdPrefix, StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(fname.AsSpan(sdPrefix.Length),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out int derivedIdx))
+        {
+            metaIndex = derivedIdx;
+        }
+
         string metaPath = Path.Combine(dir, $"manifest{metaIndex:D2}.hg");
 
-        // PS4 streaming account meta: header + format (always 2002) + decompressedSize.
-        // PS streaming account meta uses META_FORMAT_2 unconditionally
-        // and uses Switch-equivalent buffer sizes.
+        uint metaFormat = GetMetaFormat(info.BaseVersion);
+        int bufferLen = GetSwitchMetaLength(metaFormat);
+
+        // For the account data file (metaIndex 0): preserve existing bytes where present
+        // and only update the header fields.  Account manifests don't carry save-name or
+        // difficulty data so we leave the rest of the buffer as-is.
         if (metaIndex == 0)
         {
-            uint metaFormat = GetMetaFormat(info.BaseVersion);
-            int bufLen = metaFormat >= META_FORMAT_2 ? SWITCH_META_LENGTH_WAYPOINT : SWITCH_META_LENGTH_VANILLA;
             byte[] buffer;
             if (File.Exists(metaPath))
             {
                 buffer = File.ReadAllBytes(metaPath);
-                if (buffer.Length < bufLen)
-                    Array.Resize(ref buffer, bufLen);
+                if (buffer.Length < bufferLen)
+                    Array.Resize(ref buffer, bufferLen);
             }
             else
             {
-                buffer = new byte[bufLen];
+                buffer = new byte[bufferLen];
             }
             using var ms = new MemoryStream(buffer);
             using var writer = new BinaryWriter(ms);
-            writer.Write(META_HEADER_SWITCH_PS);
-            writer.Write(META_FORMAT_2);
-            writer.Write(decompressedSize);
+            writer.Write(META_HEADER_SWITCH_PS);     // 4
+            writer.Write(metaFormat);                // 4
+            writer.Write(decompressedSize);          // 4
             File.WriteAllBytes(metaPath, buffer);
             return;
         }
 
-        // PS4 streaming save meta is not written for non-SaveWizard files.
-        // The game reads metadata from the data file itself in homebrew mode.
+        // Save-slot manifest: write all fields from scratch.
+        {
+            byte[] buffer = new byte[bufferLen];
+            using var ms = new MemoryStream(buffer);
+            using var writer = new BinaryWriter(ms);
+
+            writer.Write(META_HEADER_SWITCH_PS);                           // 4 -> offset 0
+            writer.Write(metaFormat);                                      // 4 -> offset 4
+            writer.Write(decompressedSize);                                // 4 -> offset 8
+            writer.Write(metaIndex);                                       // 4 -> offset 12
+            writer.Write((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()); // 4 -> offset 16
+            writer.Write(info.BaseVersion);                                // 4 -> offset 20
+            writer.Write((ushort)info.GameMode);                           // 2 -> offset 24
+            writer.Write((ushort)info.Season);                             // 2 -> offset 26
+            writer.Write(info.TotalPlayTime);                              // 8 -> offset 28
+            // Bytes 36-39 are padding (zeros).
+
+            if (bufferLen > SWITCH_META_BEFORE_NAME)
+            {
+                ms.Position = SWITCH_META_BEFORE_NAME; // 40
+                WriteSaveNameAndSummary(writer, info, ms, SWITCH_META_BEFORE_DIFFICULTY, bufferLen);
+            }
+
+            // Worlds Part I/II extensions (format ≥ 2003): slot ID, timestamp, format copy, difficulty tag.
+            if (metaFormat >= META_FORMAT_3)
+            {
+                // Slot ID (8 bytes at offset 300 — same position as in Switch Worlds I+ manifests)
+                // This is a platform-assigned opaque identifier, not the save-slot index.
+                // The PS4 game generates it internally; the editor does not track it, so zero is safe.
+                ms.Position = SWITCH_META_BEFORE_DIFFICULTY + 4; // 300
+                writer.Write((ulong)0); // slot identifier — platform-assigned, not known by the editor
+
+                ms.Position = SWITCH_META_BEFORE_DIFFICULTY + 12; // 308
+                writer.Write((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()); // timestamp
+
+                ms.Position = SWITCH_META_BEFORE_DIFFICULTY + 16; // 312
+                writer.Write(metaFormat); // format copy
+            }
+
+            // Worlds Part II extension (format ≥ 2004): difficulty tag string (64 bytes at offset 316).
+            if (metaFormat >= META_FORMAT_4)
+            {
+                ms.Position = SWITCH_META_BEFORE_DIFFICULTY + 20; // 316
+                byte[] tagBytes = GetNullTerminatedBytes(info.DifficultyPresetTag ?? "", 64);
+                writer.Write(tagBytes);
+            }
+
+            File.WriteAllBytes(metaPath, buffer);
+        }
     }
 
     /// <summary>
