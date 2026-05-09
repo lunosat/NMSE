@@ -210,6 +210,90 @@ internal static class BaseLogic
     }
 
     /// <summary>
+    /// Clears all terrain edits from the save, excluding edits at locations occupied by
+    /// player bases. Each base's GalacticAddress is normalised and compared against every
+    /// entry in <c>PlayerStateData.TerrainEditData.GalacticAddresses</c>; only entries whose
+    /// address does <em>not</em> match any known base are removed.
+    /// </summary>
+    /// <param name="playerState">The PlayerStateData JSON object.</param>
+    /// <returns>The total number of terrain edit buffers removed, or 0 if none were found.</returns>
+    internal static int ClearAllTerrainEditsExceptBases(JsonObject playerState)
+    {
+        var terrainData = playerState.GetObject("TerrainEditData");
+        if (terrainData == null)
+            return 0;
+
+        var galacticAddresses = terrainData.GetArray("GalacticAddresses");
+        var bufferSizes = terrainData.GetArray("BufferSizes");
+        var edits = terrainData.GetArray("Edits");
+        if (galacticAddresses == null || bufferSizes == null || edits == null)
+            return 0;
+
+        // Build a set of normalised galactic addresses for all player bases.
+        var baseAddresses = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var bases = playerState.GetArray("PersistentPlayerBases");
+        if (bases != null)
+        {
+            for (int i = 0; i < bases.Length; i++)
+            {
+                var baseObj = bases.GetObject(i);
+                string addr = CoordinateHelper.NormalizeGalacticAddress(baseObj?.Get("GalacticAddress"));
+                if (!string.IsNullOrEmpty(addr))
+                    baseAddresses.Add(addr);
+            }
+        }
+
+        // Optional arrays that may be present depending on save version.
+        var bufferAges = terrainData.GetArray("BufferAges");
+        var bufferAnchors = terrainData.GetArray("BufferAnchors");
+        var bufferProtected = terrainData.GetArray("BufferProtected");
+
+        // Calculate cumulative edit offsets so we know where each buffer's edits start.
+        int totalBuffers = bufferSizes.Length;
+        var editOffsets = new int[totalBuffers];
+        int runningOffset = 0;
+        for (int i = 0; i < totalBuffers; i++)
+        {
+            editOffsets[i] = runningOffset;
+            runningOffset += bufferSizes.GetInt(i);
+        }
+
+        // Collect indices to remove (those NOT matching a base address), in reverse order.
+        var toRemove = new List<int>();
+        for (int i = 0; i < galacticAddresses.Length; i++)
+        {
+            string terrainAddress = CoordinateHelper.NormalizeGalacticAddress(galacticAddresses.Get(i));
+            if (!baseAddresses.Contains(terrainAddress))
+                toRemove.Add(i);
+        }
+
+        if (toRemove.Count == 0)
+            return 0;
+
+        // Process in reverse order to preserve earlier indices during removal.
+        for (int m = toRemove.Count - 1; m >= 0; m--)
+        {
+            int idx = toRemove[m];
+            int editCount = bufferSizes.GetInt(idx);
+            int editStart = editOffsets[idx];
+
+            for (int e = editCount - 1; e >= 0; e--)
+                edits.RemoveAt(editStart + e);
+
+            galacticAddresses.RemoveAt(idx);
+            bufferSizes.RemoveAt(idx);
+            if (bufferAges != null && idx < bufferAges.Length)
+                bufferAges.RemoveAt(idx);
+            if (bufferAnchors != null && idx < bufferAnchors.Length)
+                bufferAnchors.RemoveAt(idx);
+            if (bufferProtected != null && idx < bufferProtected.Length)
+                bufferProtected.RemoveAt(idx);
+        }
+
+        return toRemove.Count;
+    }
+
+    /// <summary>
     /// Clears all terrain edits from the save, regardless of which base they belong to.
     /// All entries are removed from every parallel array in <c>PlayerStateData.TerrainEditData</c>:
     /// GalacticAddresses, BufferSizes, BufferAges, BufferAnchors, BufferProtected, and Edits.

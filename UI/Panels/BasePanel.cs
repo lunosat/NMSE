@@ -14,9 +14,12 @@ namespace NMSE.UI.Panels;
 /// </summary>
 public partial class BasePanel : UserControl
 {
+    public event EventHandler? DataModified;
+
     public BasePanel()
     {
         InitializeComponent();
+        _basesSubPanel.DataModified += (s, e) => DataModified?.Invoke(this, EventArgs.Empty);
     }
 
     public void SetDatabase(GameItemDatabase? database)
@@ -144,6 +147,8 @@ internal static class NpcRaceLocKeys
 /// </summary>
 internal class BasesSubPanel : UserControl
 {
+    public event EventHandler? DataModified;
+
     // NPC section
     private readonly ComboBox _npcSelector;
     private readonly ComboBox _npcRaceCombo;
@@ -173,6 +178,7 @@ internal class BasesSubPanel : UserControl
     private readonly Button _moveBaseComputerBtn;
     private readonly Button _clearTerrainEditsBtn;
     private readonly Button _clearAllTerrainEditsBtn;
+    private readonly Button _clearAllTerrainExceptBasesBtn;
 
     // Labels for localisation
     private readonly Label _npcTitle;
@@ -299,13 +305,13 @@ internal class BasesSubPanel : UserControl
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 11,
+            RowCount = 12,
             Padding = new Padding(0)
         };
         rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 11; i++)
             rightLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -371,7 +377,7 @@ internal class BasesSubPanel : UserControl
         _baseItems = new TextBox { Dock = DockStyle.Fill, ReadOnly = true };
         _itemsLabel = AddRow(rightLayout, UiStrings.Get("base.items_label"), _baseItems, row); row++;
 
-        // Buttons panel
+        // Buttons panel row 1: Export / Import / Move Base Computer
         var buttonPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -385,17 +391,32 @@ internal class BasesSubPanel : UserControl
         _importBtn.Click += OnImport;
         _moveBaseComputerBtn = new Button { Text = UiStrings.Get("base.move_basecomp"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(140, 0), Enabled = false };
         _moveBaseComputerBtn.Click += OnMoveBaseComputer;
+        buttonPanel.Controls.Add(_exportBtn);
+        buttonPanel.Controls.Add(_importBtn);
+        buttonPanel.Controls.Add(_moveBaseComputerBtn);
+        rightLayout.Controls.Add(buttonPanel, 0, row);
+        rightLayout.SetColumnSpan(buttonPanel, 3);
+        row++;
+
+        // Buttons panel row 2: Terrain edit clearing
+        var terrainButtonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(0, 2, 0, 0)
+        };
         _clearTerrainEditsBtn = new Button { Text = UiStrings.Get("base.clear_terrain"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(140, 0), Enabled = false };
         _clearTerrainEditsBtn.Click += OnClearTerrainEdits;
         _clearAllTerrainEditsBtn = new Button { Text = UiStrings.Get("base.clear_all_terrain"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(140, 0), Enabled = false };
         _clearAllTerrainEditsBtn.Click += OnClearAllTerrainEdits;
-        buttonPanel.Controls.Add(_exportBtn);
-        buttonPanel.Controls.Add(_importBtn);
-        buttonPanel.Controls.Add(_moveBaseComputerBtn);
-        buttonPanel.Controls.Add(_clearTerrainEditsBtn);
-        buttonPanel.Controls.Add(_clearAllTerrainEditsBtn);
-        rightLayout.Controls.Add(buttonPanel, 0, row);
-        rightLayout.SetColumnSpan(buttonPanel, 3);
+        _clearAllTerrainExceptBasesBtn = new Button { Text = UiStrings.Get("base.clear_all_terrain_except_bases"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(140, 0), Enabled = false };
+        _clearAllTerrainExceptBasesBtn.Click += OnClearAllTerrainExceptBases;
+        terrainButtonPanel.Controls.Add(_clearTerrainEditsBtn);
+        terrainButtonPanel.Controls.Add(_clearAllTerrainEditsBtn);
+        terrainButtonPanel.Controls.Add(_clearAllTerrainExceptBasesBtn);
+        rightLayout.Controls.Add(terrainButtonPanel, 0, row);
+        rightLayout.SetColumnSpan(terrainButtonPanel, 3);
 
         outerLayout.Controls.Add(rightLayout, 1, 0);
 
@@ -423,6 +444,7 @@ internal class BasesSubPanel : UserControl
         _moveBaseComputerBtn.Enabled = false;
         _clearTerrainEditsBtn.Enabled = false;
         _clearAllTerrainEditsBtn.Enabled = false;
+        _clearAllTerrainExceptBasesBtn.Enabled = false;
 
         try
         {
@@ -430,6 +452,7 @@ internal class BasesSubPanel : UserControl
             if (_playerState == null) return;
 
             _clearAllTerrainEditsBtn.Enabled = true;
+            _clearAllTerrainExceptBasesBtn.Enabled = true;
 
             // Load NPCWorkers (up to 5: Armorer, Farmer, Overseer, Technician, Scientist)
             var npcWorkers = _playerState.GetArray("NPCWorkers");
@@ -978,6 +1001,7 @@ internal class BasesSubPanel : UserControl
             int removed = BaseLogic.ClearTerrainEdits(_playerState, item.Data);
             if (removed > 0)
             {
+                DataModified?.Invoke(this, EventArgs.Empty);
                 MessageBox.Show(this,
                     UiStrings.Format("base.clear_terrain_success", removed),
                     UiStrings.Get("base.clear_terrain_title"),
@@ -1015,6 +1039,7 @@ internal class BasesSubPanel : UserControl
             int removed = BaseLogic.ClearAllTerrainEdits(_playerState);
             if (removed > 0)
             {
+                DataModified?.Invoke(this, EventArgs.Empty);
                 MessageBox.Show(this,
                     UiStrings.Format("base.clear_all_terrain_success", removed),
                     UiStrings.Get("base.clear_all_terrain_title"),
@@ -1032,6 +1057,44 @@ internal class BasesSubPanel : UserControl
         {
             MessageBox.Show(this,
                 UiStrings.Format("base.clear_all_terrain_failed", ex.Message),
+                UiStrings.Get("common.error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void OnClearAllTerrainExceptBases(object? sender, EventArgs e)
+    {
+        if (_playerState == null) return;
+
+        var result = MessageBox.Show(this,
+            UiStrings.Get("base.clear_all_terrain_except_bases_confirm"),
+            UiStrings.Get("base.clear_all_terrain_except_bases_title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (result != DialogResult.Yes) return;
+
+        try
+        {
+            int removed = BaseLogic.ClearAllTerrainEditsExceptBases(_playerState);
+            if (removed > 0)
+            {
+                DataModified?.Invoke(this, EventArgs.Empty);
+                MessageBox.Show(this,
+                    UiStrings.Format("base.clear_all_terrain_except_bases_success", removed),
+                    UiStrings.Get("base.clear_all_terrain_except_bases_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("base.clear_all_terrain_except_bases_none"),
+                    UiStrings.Get("base.clear_all_terrain_except_bases_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                UiStrings.Format("base.clear_all_terrain_except_bases_failed", ex.Message),
                 UiStrings.Get("common.error"),
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -1062,6 +1125,7 @@ internal class BasesSubPanel : UserControl
         _moveBaseComputerBtn.Text = UiStrings.Get("base.move_basecomp");
         _clearTerrainEditsBtn.Text = UiStrings.Get("base.clear_terrain");
         _clearAllTerrainEditsBtn.Text = UiStrings.Get("base.clear_all_terrain");
+        _clearAllTerrainExceptBasesBtn.Text = UiStrings.Get("base.clear_all_terrain_except_bases");
         _moveUpBtn.Text = UiStrings.Get("base.move_base_up");
         _moveDownBtn.Text = UiStrings.Get("base.move_base_down");
         _toTopBtn.Text = UiStrings.Get("base.move_base_to_top");
