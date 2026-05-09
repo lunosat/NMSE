@@ -40,10 +40,14 @@ partial class MultitoolPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             Padding = new Padding(10),
             AutoSize = true
         };
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // title row
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // selector row
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // main two-column panel
+        rootLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize)); // buttons
 
         // Title
         _titleLabel = new Label
@@ -73,6 +77,53 @@ partial class MultitoolPanel
         titlePanel.Controls.Add(_primaryToolLabel);
         rootLayout.Controls.Add(titlePanel, 0, 0);
 
+        // Selector row (label + dropdown + archive buttons), similar to the Starship panel
+        var selectorRow = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 4,
+            RowCount = 1,
+            AutoSize = true,
+            Padding = new Padding(0, 0, 0, 4),
+        };
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        selectorRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        _selectLabel = new Label
+        {
+            Text = "Select Multi-tool:",
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0),
+        };
+        _toolSelector = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        _toolSelector.SelectedIndexChanged += OnToolSelected;
+        selectorRow.Controls.Add(_selectLabel, 0, 0);
+        selectorRow.Controls.Add(_toolSelector, 1, 0);
+
+        _archiveMoveBtn = new Button
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(3, 0, 0, 0),
+        };
+        _archiveMoveBtn.Click += OnMoveToolToArchive;
+        selectorRow.Controls.Add(_archiveMoveBtn, 2, 0);
+
+        _archiveImportBtn = new Button
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(3, 0, 0, 0),
+        };
+        _archiveImportBtn.Click += OnImportToolFromArchive;
+        selectorRow.Controls.Add(_archiveImportBtn, 3, 0);
+
+        rootLayout.Controls.Add(selectorRow, 0, 1);
+
         // Main two-column panel
         var mainPanel = new TableLayoutPanel
         {
@@ -84,7 +135,7 @@ partial class MultitoolPanel
         mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent) { Width = 50 });
         mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent) { Width = 50 });
 
-        // Left panel: selector, name, class, seed
+        // Left panel: name, type, class, seed
         var leftPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -106,10 +157,6 @@ partial class MultitoolPanel
         leftPanel.Controls.Add(_detailsLabel, 0, leftRow);
         leftPanel.SetColumnSpan(_detailsLabel, 2);
         leftRow++;
-
-        _toolSelector = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _toolSelector.SelectedIndexChanged += OnToolSelected;
-        _selectLabel = AddRow(leftPanel, "Select Multi-tool:", _toolSelector, leftRow++);
 
         _toolName = new TextBox { Dock = DockStyle.Fill };
         _toolName.Leave += OnToolNameChanged;
@@ -178,7 +225,7 @@ partial class MultitoolPanel
         mainPanel.Controls.Add(leftPanel, 0, 0);
         mainPanel.Controls.Add(rightPanel, 1, 0);
 
-        rootLayout.Controls.Add(mainPanel, 0, 1);
+        rootLayout.Controls.Add(mainPanel, 0, 2);
 
         // Buttons panel
         var buttonPanel = new FlowLayoutPanel
@@ -200,7 +247,7 @@ partial class MultitoolPanel
         buttonPanel.Controls.Add(_importBtn);
         buttonPanel.Controls.Add(_makePrimaryBtn);
 
-        rootLayout.Controls.Add(buttonPanel, 0, 2);
+        rootLayout.Controls.Add(buttonPanel, 0, 3);
 
         // Inventory grid (fills remaining space)
         _storeGrid = new InventoryGridPanel { Dock = DockStyle.Fill };
@@ -228,6 +275,8 @@ partial class MultitoolPanel
     private Button _exportBtn;
     private Button _importBtn;
     private Button _makePrimaryBtn;
+    private Button _archiveMoveBtn;
+    private Button _archiveImportBtn;
     private Label _primaryToolLabel;
     private Label _titleLabel;
     private Label _detailsLabel;

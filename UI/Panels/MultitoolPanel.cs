@@ -67,6 +67,8 @@ public partial class MultitoolPanel : UserControl
         _exportBtn.Text = UiStrings.Get("multitool.export");
         _importBtn.Text = UiStrings.Get("multitool.import");
         _makePrimaryBtn.Text = UiStrings.Get("multitool.make_primary");
+        _archiveMoveBtn.Text = UiStrings.Get("multitool.archive_move_btn");
+        _archiveImportBtn.Text = UiStrings.Get("multitool.archive_import_btn");
         _storeGrid.SetMaxSupportedLabel(UiStrings.Format("common.max_supported", "10x6"));
         RefreshToolTypeCombo();
         _storeGrid.ApplyUiLocalisation();
@@ -449,6 +451,234 @@ public partial class MultitoolPanel : UserControl
         {
             MessageBox.Show(this, UiStrings.Format("common.import_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void OnMoveToolToArchive(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_multitools == null || _playerState == null ||
+                _toolSelector.SelectedIndex < 0 || _toolSelector.Items.Count == 0) return;
+
+            var item = (MultitoolLogic.ToolListItem)_toolSelector.Items[_toolSelector.SelectedIndex]!;
+            int idx = item.DataIndex;
+            if (idx >= _multitools.Length) return;
+
+            // Block Primary multitool
+            if (idx == _activeToolIndex)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.archive_primary_blocked"),
+                    UiStrings.Get("multitool.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Require at least one remaining valid tool after the move
+            if (MultitoolLogic.CountValidTools(_multitools) <= 1)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.cannot_delete_only"),
+                    UiStrings.Get("multitool.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Find empty archive slot
+            var archivedTools = _playerState.GetArray("ArchivedMultitools");
+            if (archivedTools == null)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.archive_no_slots"),
+                    UiStrings.Get("multitool.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int archIdx = MultitoolLogic.FindEmptyArchivedToolSlot(archivedTools);
+            if (archIdx < 0)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.archive_no_slots"),
+                    UiStrings.Get("multitool.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Confirm
+            var result = MessageBox.Show(this,
+                UiStrings.Get("multitool.archive_move_confirm"),
+                UiStrings.Get("multitool.archive_move_title"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (result != DialogResult.Yes) return;
+
+            var tool = _multitools.GetObject(idx);
+            var archivedSlot = archivedTools.GetObject(archIdx);
+            MultitoolLogic.MoveToolToArchive(tool, archivedSlot);
+
+            // Rebuild the tool list
+            int selIdx = _toolSelector.SelectedIndex;
+            _toolSelector.Items.Clear();
+            var toolList = MultitoolLogic.BuildToolList(_multitools);
+            foreach (var toolItem in toolList)
+                _toolSelector.Items.Add(toolItem);
+
+            if (_toolSelector.Items.Count > 0)
+                _toolSelector.SelectedIndex = Math.Clamp(selIdx, 0, _toolSelector.Items.Count - 1);
+            else
+                _storeGrid.LoadInventory(null);
+
+            DataModified?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, UiStrings.Format("common.export_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void OnImportToolFromArchive(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_multitools == null || _playerState == null) return;
+
+            var archivedTools = _playerState.GetArray("ArchivedMultitools");
+            if (archivedTools == null)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.archive_empty"),
+                    UiStrings.Get("multitool.archive_import_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Build list of archived tools
+            var archivedList = MultitoolLogic.BuildArchivedToolList(archivedTools);
+            if (archivedList.Count == 0)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.archive_empty"),
+                    UiStrings.Get("multitool.archive_import_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Find empty list slot
+            int emptyListIdx = MultitoolLogic.FindEmptySlot(_multitools);
+            if (emptyListIdx < 0)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("multitool.archive_no_list_slots"),
+                    UiStrings.Get("multitool.archive_import_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Show selection dialog
+            int selectedIdx = ShowArchiveSelectionDialog(
+                archivedList.Select(a => a.DisplayName).ToList(),
+                UiStrings.Get("multitool.archive_import_title"));
+            if (selectedIdx < 0) return;
+
+            var selectedItem = archivedList[selectedIdx];
+
+            // Confirm
+            var result = MessageBox.Show(this,
+                UiStrings.Get("multitool.archive_import_confirm"),
+                UiStrings.Get("multitool.archive_import_title"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result != DialogResult.Yes) return;
+
+            var archivedSlot = archivedTools.GetObject(selectedItem.ArchiveIndex);
+            var targetTool = _multitools.GetObject(emptyListIdx);
+            MultitoolLogic.ImportToolFromArchive(archivedSlot, targetTool);
+
+            // Refresh list and select the newly imported tool
+            RefreshToolList();
+            for (int i = 0; i < _toolSelector.Items.Count; i++)
+            {
+                if (((MultitoolLogic.ToolListItem)_toolSelector.Items[i]!).DataIndex == emptyListIdx)
+                {
+                    _toolSelector.SelectedIndex = i;
+                    break;
+                }
+            }
+
+            DataModified?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, UiStrings.Format("common.import_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// Shows a modal dialog presenting a list of items for the user to select from.
+    /// Returns the index of the selected item in <paramref name="items"/>, or -1 if cancelled.
+    /// </summary>
+    private static int ShowArchiveSelectionDialog(List<string> items, string title)
+    {
+        using var form = new Form
+        {
+            Text = title,
+            Width = 420,
+            Height = 320,
+            MinimumSize = new Size(320, 240),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.Sizable,
+        };
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(10),
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var label = new Label
+        {
+            Text = title + ":",
+            AutoSize = true,
+            Padding = new Padding(0, 0, 0, 4),
+        };
+        layout.Controls.Add(label, 0, 0);
+
+        var listBox = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            SelectionMode = SelectionMode.One,
+        };
+        foreach (var item in items)
+            listBox.Items.Add(item);
+        if (listBox.Items.Count > 0)
+            listBox.SelectedIndex = 0;
+        layout.Controls.Add(listBox, 0, 1);
+
+        var buttonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            Padding = new Padding(0, 4, 0, 0),
+        };
+        var cancelBtn = new Button { Text = UiStrings.Get("common.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+        var importBtn = new Button { Text = UiStrings.Get("common.import"), DialogResult = DialogResult.OK, AutoSize = true };
+        form.AcceptButton = importBtn;
+        form.CancelButton = cancelBtn;
+        buttonPanel.Controls.Add(cancelBtn);
+        buttonPanel.Controls.Add(importBtn);
+        layout.Controls.Add(buttonPanel, 0, 2);
+
+        form.Controls.Add(layout);
+
+        listBox.DoubleClick += (s, e) => { form.DialogResult = DialogResult.OK; form.Close(); };
+
+        if (form.ShowDialog() != DialogResult.OK) return -1;
+        return listBox.SelectedIndex;
     }
 
     private void RefreshToolTypeCombo()

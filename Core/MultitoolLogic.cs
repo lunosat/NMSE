@@ -386,6 +386,169 @@ internal static class MultitoolLogic
         return -1;
     }
 
+    // --- Archive (ArchivedMultitools) helpers ---
+
+    /// <summary>
+    /// Determines whether an archived multitool slot is occupied.
+    /// A slot is occupied when its MultitoolData.Seed[0] is true.
+    /// </summary>
+    internal static bool IsArchivedToolSlotOccupied(JsonObject archivedSlot)
+    {
+        try
+        {
+            var mtd = archivedSlot.GetObject("MultitoolData");
+            var seed = mtd?.GetArray("Seed");
+            if (seed != null && seed.Length > 0)
+                return seed.GetBool(0);
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>
+    /// Finds the first empty slot in the ArchivedMultitools array.
+    /// Returns -1 if all slots are occupied.
+    /// </summary>
+    internal static int FindEmptyArchivedToolSlot(JsonArray archivedTools)
+    {
+        for (int i = 0; i < archivedTools.Length; i++)
+        {
+            try
+            {
+                var slot = archivedTools.GetObject(i);
+                if (!IsArchivedToolSlotOccupied(slot))
+                    return i;
+            }
+            catch { }
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Builds a display list of occupied archived multitools for the import dialog.
+    /// </summary>
+    internal static List<ArchivedToolListItem> BuildArchivedToolList(JsonArray archivedTools)
+    {
+        var list = new List<ArchivedToolListItem>();
+        for (int i = 0; i < archivedTools.Length; i++)
+        {
+            try
+            {
+                var slot = archivedTools.GetObject(i);
+                if (!IsArchivedToolSlotOccupied(slot)) continue;
+
+                string name = slot.GetString("ArchivedName") ?? "";
+                string cls = "";
+                try { cls = slot.GetObject("ArchivedInventoryClass")?.GetString("InventoryClass") ?? ""; } catch { }
+
+                string filename = "";
+                try { filename = slot.GetObject("MultitoolData")?.GetObject("Resource")?.GetString("Filename") ?? ""; } catch { }
+                int typeIdx = Array.FindIndex(ToolTypes, t => t.Filename.Equals(filename, StringComparison.OrdinalIgnoreCase));
+                string typeName = typeIdx >= 0 ? ToolTypes[typeIdx].Name : "";
+
+                string display;
+                if (string.IsNullOrEmpty(name))
+                    display = string.IsNullOrEmpty(typeName) ? $"[{i + 1}] Multitool - {cls}" : $"[{i + 1}] {typeName} - {cls}";
+                else
+                    display = $"[{i + 1}] {name} - {cls}";
+
+                list.Add(new ArchivedToolListItem(display, i));
+            }
+            catch { }
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// Moves a multitool from Multitools into an ArchivedMultitools slot.
+    /// Copies the tool data into the archive slot and resets the source slot.
+    /// </summary>
+    internal static void MoveToolToArchive(JsonObject tool, JsonObject archivedSlot)
+    {
+        // Copy full tool data into MultitoolData.
+        // DeepClone is required so that the subsequent DeleteToolData call on the source tool
+        // does not corrupt the shared nested objects (Seed, Resource, inventories) in the archive slot.
+        var mtd = archivedSlot.GetObject("MultitoolData");
+        if (mtd != null)
+        {
+            var toolClone = tool.DeepClone();
+            foreach (var key in toolClone.Names())
+                mtd.Set(key, toolClone.Get(key));
+        }
+
+        // Set archive metadata
+        archivedSlot.Set("ArchivedName", tool.GetString("Name") ?? "");
+
+        // ArchivedInventoryClass: class from Store.Class
+        try
+        {
+            string cls = tool.GetObject("Store")?.GetObject("Class")?.GetString("InventoryClass") ?? "C";
+            var archivedInvClass = archivedSlot.GetObject("ArchivedInventoryClass");
+            archivedInvClass?.Set("InventoryClass", cls);
+        }
+        catch { }
+
+        // WeaponClass: set from Resource filename or default Pistol
+        try
+        {
+            string filename = tool.GetObject("Resource")?.GetString("Filename") ?? "";
+            string weaponClass = "Pistol";
+            if (filename.Contains("SENTINELMULTITOOL", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Robot";
+            else if (filename.Contains("YOURRIFLETEST", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Rifle";
+            var wc = archivedSlot.GetObject("WeaponClass");
+            wc?.Set("WeaponStatClass", weaponClass);
+        }
+        catch { }
+
+        // Reset the source tool slot
+        DeleteToolData(tool);
+    }
+
+    /// <summary>
+    /// Imports an archived multitool into a target Multitools slot.
+    /// Copies tool data from the archive into the target slot and clears the archive slot.
+    /// </summary>
+    internal static void ImportToolFromArchive(JsonObject archivedSlot, JsonObject targetTool)
+    {
+        // Copy tool data from MultitoolData to target slot.
+        // DeepClone is required so that the subsequent DeleteToolData call on the archive slot
+        // does not corrupt the shared nested objects (Seed, Resource, inventories) in targetTool.
+        var mtd = archivedSlot.GetObject("MultitoolData");
+        if (mtd != null)
+        {
+            var mtdClone = mtd.DeepClone();
+            foreach (var key in mtdClone.Names())
+                targetTool.Set(key, mtdClone.Get(key));
+        }
+
+        // Clear the archive slot
+        var archivedMtd = archivedSlot.GetObject("MultitoolData");
+        if (archivedMtd != null)
+            DeleteToolData(archivedMtd);
+
+        // Reset archive metadata
+        archivedSlot.Set("ArchivedName", "");
+        try { archivedSlot.GetObject("ArchivedInventoryClass")?.Set("InventoryClass", "C"); } catch { }
+        try { archivedSlot.GetObject("WeaponClass")?.Set("WeaponStatClass", "Pistol"); } catch { }
+    }
+
+    /// <summary>
+    /// Represents an item in the archived multitool selection list for the import dialog.
+    /// </summary>
+    internal sealed class ArchivedToolListItem
+    {
+        public string DisplayName { get; }
+        public int ArchiveIndex { get; }
+        public ArchivedToolListItem(string displayName, int archiveIndex)
+        {
+            DisplayName = displayName;
+            ArchiveIndex = archiveIndex;
+        }
+        public override string ToString() => DisplayName;
+    }
+
     /// <summary>
     /// Returns the display name for the multitool at the given index.
     /// </summary>
