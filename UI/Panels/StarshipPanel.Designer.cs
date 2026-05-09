@@ -87,13 +87,15 @@ partial class StarshipPanel
         var selectorRow = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 4,
             RowCount = 1,
             AutoSize = true,
             Padding = new Padding(0, 0, 0, 4),
         };
         selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        selectorRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         selectorRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         _selectLabel = new Label
@@ -107,13 +109,32 @@ partial class StarshipPanel
         _shipSelector.SelectedIndexChanged += OnShipSelected;
         selectorRow.Controls.Add(_selectLabel, 0, 0);
         selectorRow.Controls.Add(_shipSelector, 1, 0);
+
+        _archiveMoveBtn = new Button
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(3, 0, 0, 0),
+        };
+        _archiveMoveBtn.Click += OnMoveShipToArchive;
+        selectorRow.Controls.Add(_archiveMoveBtn, 2, 0);
+
+        _archiveImportBtn = new Button
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Margin = new Padding(3, 0, 0, 0),
+        };
+        _archiveImportBtn.Click += OnImportShipFromArchive;
+        selectorRow.Controls.Add(_archiveImportBtn, 3, 0);
+
         mainLayout.Controls.Add(selectorRow, 0, 1);
 
         // --- Outer tab control ---
         _outerTabs = new DoubleBufferedTabControl { Dock = DockStyle.Fill };
 
         // -- "Ship Details" tab --
-        _shipDetailsTabPage = new TabPage("Ship Details");
+        _shipDetailsTabPage = new TabPage();
 
         var shipDetailsLayout = new TableLayoutPanel
         {
@@ -367,9 +388,9 @@ partial class StarshipPanel
         _inventoryGrid.RefreshToolbarActions();
 
         _invTabs = new DoubleBufferedTabControl { Dock = DockStyle.Fill };
-        _cargoTabPage = new TabPage("Cargo");
+        _cargoTabPage = new TabPage();
         _cargoTabPage.Controls.Add(_inventoryGrid);
-        _techTabPage = new TabPage("Technology");
+        _techTabPage = new TabPage();
         _techTabPage.Controls.Add(_techGrid);
         _invTabs.TabPages.Add(_cargoTabPage);
         _invTabs.TabPages.Add(_techTabPage);
@@ -379,7 +400,7 @@ partial class StarshipPanel
         _outerTabs.TabPages.Add(_shipDetailsTabPage);
 
         // -- "Customisation" tab --
-        _customisationTabPage = new TabPage("Customisation");
+        _customisationTabPage = new TabPage();
         BuildCustomisationTab();
         _outerTabs.TabPages.Add(_customisationTabPage);
 
@@ -480,6 +501,8 @@ partial class StarshipPanel
     private Button _exportBtn = null!;
     private Button _importBtn = null!;
     private Button _makePrimaryBtn = null!;
+    private Button _archiveMoveBtn = null!;
+    private Button _archiveImportBtn = null!;
     private Label _primaryShipLabel = null!;
     private ColorEmojiLabel _corvetteWarningLabel = null!;
     private FlowLayoutPanel _corvetteExtrasPanel = null!;

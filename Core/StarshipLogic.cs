@@ -653,6 +653,201 @@ internal static class StarshipLogic
         return -1;
     }
 
+    // --- Archive (ArchivedShipOwnership) helpers ---
+
+    /// <summary>
+    /// Determines whether an archived ship slot is occupied.
+    /// A slot is occupied when its Ownership.Resource.Seed[0] is true.
+    /// </summary>
+    internal static bool IsArchivedShipSlotOccupied(JsonObject archivedSlot)
+    {
+        try
+        {
+            var ownership = archivedSlot.GetObject("Ownership");
+            var resource = ownership?.GetObject("Resource");
+            var seed = resource?.GetArray("Seed");
+            if (seed != null && seed.Length > 0)
+                return seed.GetBool(0);
+        }
+        catch { }
+        return false;
+    }
+
+    /// <summary>
+    /// Finds the first empty slot in the ArchivedShipOwnership array.
+    /// Returns -1 if all slots are occupied.
+    /// </summary>
+    internal static int FindEmptyArchivedShipSlot(JsonArray archivedShips)
+    {
+        for (int i = 0; i < archivedShips.Length; i++)
+        {
+            try
+            {
+                var slot = archivedShips.GetObject(i);
+                if (!IsArchivedShipSlotOccupied(slot))
+                    return i;
+            }
+            catch { }
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// Builds a display list of occupied archived ships for the import dialog.
+    /// </summary>
+    internal static List<ArchivedShipListItem> BuildArchivedShipList(JsonArray archivedShips)
+    {
+        var list = new List<ArchivedShipListItem>();
+        for (int i = 0; i < archivedShips.Length; i++)
+        {
+            try
+            {
+                var slot = archivedShips.GetObject(i);
+                if (!IsArchivedShipSlotOccupied(slot)) continue;
+
+                string name = slot.GetString("ArchivedName") ?? "";
+                string cls = "";
+                try { cls = slot.GetObject("ArchivedInventoryClass")?.GetString("InventoryClass") ?? ""; } catch { }
+
+                string filename = "";
+                try { filename = slot.GetObject("Ownership")?.GetObject("Resource")?.GetString("Filename") ?? ""; } catch { }
+                string typeName = LookupShipTypeName(filename);
+
+                string display;
+                if (string.IsNullOrEmpty(name))
+                    display = string.IsNullOrEmpty(typeName) ? $"[{i + 1}] Ship - {cls}" : $"[{i + 1}] {typeName} - {cls}";
+                else
+                    display = $"[{i + 1}] {name} - {cls}";
+
+                list.Add(new ArchivedShipListItem(display, i));
+            }
+            catch { }
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// Moves a ship from ShipOwnership into an ArchivedShipOwnership slot.
+    /// Copies the ship data into the archive slot and resets the source slot.
+    /// </summary>
+    /// <param name="ship">The source ship JSON object from ShipOwnership.</param>
+    /// <param name="shipIndex">The index of the ship in the ShipOwnership array.</param>
+    /// <param name="archivedSlot">The target empty archive slot JSON object.</param>
+    /// <param name="ccdArray">The CharacterCustomisationData array (may be null).</param>
+    /// <param name="usesLegacyColours">Whether this ship uses legacy colours, from ShipUsesLegacyColours[shipIndex].</param>
+    internal static void MoveShipToArchive(JsonObject ship, int shipIndex, JsonObject archivedSlot, JsonArray? ccdArray, bool usesLegacyColours)
+    {
+        // Copy full ship data into Ownership.
+        // DeepClone is required so that the subsequent DeleteShipData call on the source ship
+        // does not corrupt the shared nested objects (Resource, Inventory, etc.) in the archive slot.
+        var ownership = archivedSlot.GetObject("Ownership");
+        if (ownership != null)
+        {
+            var shipClone = ship.DeepClone();
+            foreach (var key in shipClone.Names())
+                ownership.Set(key, shipClone.Get(key));
+        }
+
+        // Copy CCD into Customisation.
+        // DeepClone for the same reason: ResetShipCustomisation modifies the original ccdEntry in place.
+        var ccdEntry = GetShipCustomisation(ccdArray, shipIndex);
+        var customisation = archivedSlot.GetObject("Customisation");
+        if (customisation != null && ccdEntry != null)
+        {
+            var ccdClone = ccdEntry.DeepClone();
+            foreach (var key in ccdClone.Names())
+                customisation.Set(key, ccdClone.Get(key));
+        }
+
+        // Set archive metadata
+        archivedSlot.Set("UsesLegacyColours", usesLegacyColours);
+        archivedSlot.Set("ArchivedName", ship.GetString("Name") ?? "");
+
+        // ArchivedClass: ship class from Resource filename
+        try
+        {
+            string filename = ship.GetObject("Resource")?.GetString("Filename") ?? "";
+            string shipTypeName = LookupShipTypeName(filename);
+            var archivedClass = archivedSlot.GetObject("ArchivedClass");
+            archivedClass?.Set("ShipClass", string.IsNullOrEmpty(shipTypeName) ? "Fighter" : shipTypeName);
+        }
+        catch { }
+
+        // ArchivedInventoryClass: inventory class from Inventory.Class
+        try
+        {
+            string cls = ship.GetObject("Inventory")?.GetObject("Class")?.GetString("InventoryClass") ?? "C";
+            var archivedInvClass = archivedSlot.GetObject("ArchivedInventoryClass");
+            archivedInvClass?.Set("InventoryClass", cls);
+        }
+        catch { }
+
+        // Reset the source ship slot in ShipOwnership
+        DeleteShipData(ship);
+        ResetShipCustomisation(ccdArray, shipIndex);
+    }
+
+    /// <summary>
+    /// Imports an archived ship into a target ShipOwnership slot.
+    /// Copies ship data from the archive into the target slot and clears the archive slot.
+    /// </summary>
+    /// <param name="archivedSlot">The source archive slot JSON object.</param>
+    /// <param name="targetShip">The target empty ship slot in ShipOwnership.</param>
+    /// <param name="targetIndex">The index in the ShipOwnership array.</param>
+    /// <param name="ccdArray">The CharacterCustomisationData array (may be null).</param>
+    internal static void ImportShipFromArchive(JsonObject archivedSlot, JsonObject targetShip, int targetIndex, JsonArray? ccdArray)
+    {
+        // Copy ship data from Ownership to target ship slot.
+        // DeepClone is required so that the subsequent DeleteShipData call on the archive slot
+        // does not corrupt the shared nested objects (Resource, Inventory, etc.) in targetShip.
+        var ownership = archivedSlot.GetObject("Ownership");
+        if (ownership != null)
+        {
+            var ownershipClone = ownership.DeepClone();
+            foreach (var key in ownershipClone.Names())
+                targetShip.Set(key, ownershipClone.Get(key));
+        }
+
+        // Copy Customisation into CCD
+        var customisation = archivedSlot.GetObject("Customisation");
+        if (customisation != null)
+            SetShipCustomisation(ccdArray, targetIndex, customisation);
+
+        // Clear the archive slot
+        var archivedOwnership = archivedSlot.GetObject("Ownership");
+        if (archivedOwnership != null)
+            DeleteShipData(archivedOwnership);
+
+        // Reset archive metadata
+        archivedSlot.Set("ArchivedName", "");
+        archivedSlot.Set("UsesLegacyColours", false);
+        var archCustomisation = archivedSlot.GetObject("Customisation");
+        if (archCustomisation != null)
+        {
+            archCustomisation.Set("SelectedPreset", "^");
+            var cd = archCustomisation.GetObject("CustomData");
+            if (cd != null)
+                ResetCustomDataObject(cd);
+        }
+        try { archivedSlot.GetObject("ArchivedInventoryClass")?.Set("InventoryClass", "C"); } catch { }
+        try { archivedSlot.GetObject("ArchivedClass")?.Set("ShipClass", "Freighter"); } catch { }
+    }
+
+    /// <summary>
+    /// Represents an item in the archived ship selection list for the import dialog.
+    /// </summary>
+    internal sealed class ArchivedShipListItem
+    {
+        public string DisplayName { get; }
+        public int ArchiveIndex { get; }
+        public ArchivedShipListItem(string displayName, int archiveIndex)
+        {
+            DisplayName = displayName;
+            ArchiveIndex = archiveIndex;
+        }
+        public override string ToString() => DisplayName;
+    }
+
     /// <summary>
     /// Determines whether a ship filename corresponds to a Corvette type.
     /// </summary>

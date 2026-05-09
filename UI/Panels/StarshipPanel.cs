@@ -172,6 +172,8 @@ public partial class StarshipPanel : UserControl
         _exportBtn.Text = UiStrings.Get("starship.export");
         _importBtn.Text = UiStrings.Get("starship.import");
         _makePrimaryBtn.Text = UiStrings.Get("starship.make_primary");
+        _archiveMoveBtn.Text = UiStrings.Get("starship.archive_move_btn");
+        _archiveImportBtn.Text = UiStrings.Get("starship.archive_import_btn");
         _snapshotTechBtn.Text = UiStrings.Get("starship.export_snapshot");
         _importSnapshotBtn.Text = UiStrings.Get("starship.import_snapshot");
         _optimiseBtn.Text = UiStrings.Get("starship.optimise");
@@ -705,6 +707,264 @@ public partial class StarshipPanel : UserControl
                 _shipSelector.SelectedIndex = Math.Min(selIdx, _shipSelector.Items.Count - 1);
         }
         catch { }
+    }
+
+    private void OnMoveShipToArchive(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_shipOwnership == null || _playerState == null || _shipSelector.SelectedIndex < 0) return;
+
+            var item = (StarshipLogic.ShipListItem)_shipSelector.Items[_shipSelector.SelectedIndex]!;
+            int idx = item.DataIndex;
+            if (idx >= _shipOwnership.Length) return;
+
+            var ship = _shipOwnership.GetObject(idx);
+
+            // Block Corvettes
+            if (IsShipCorvette(ship))
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_corvette_blocked"),
+                    UiStrings.Get("starship.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Block Primary ship
+            if (idx == _primaryShipIndex)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_primary_blocked"),
+                    UiStrings.Get("starship.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Require at least one remaining valid ship after the move
+            if (StarshipLogic.CountValidShips(_shipOwnership) <= 1)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.cannot_delete_only"),
+                    UiStrings.Get("starship.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Find empty archive slot
+            var archivedShips = _playerState.GetArray("ArchivedShipOwnership");
+            if (archivedShips == null)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_no_slots"),
+                    UiStrings.Get("starship.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int archIdx = StarshipLogic.FindEmptyArchivedShipSlot(archivedShips);
+            if (archIdx < 0)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_no_slots"),
+                    UiStrings.Get("starship.archive_move_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Confirm
+            var result = MessageBox.Show(this,
+                UiStrings.Get("starship.archive_move_confirm"),
+                UiStrings.Get("starship.archive_move_title"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (result != DialogResult.Yes) return;
+
+            // Get legacy colours flag for this ship
+            bool usesLegacyColours = false;
+            try
+            {
+                var legacyArr = _playerState.GetArray("ShipUsesLegacyColours");
+                if (legacyArr != null && idx < legacyArr.Length)
+                {
+                    var val = legacyArr.Get(idx);
+                    if (val is bool b) usesLegacyColours = b;
+                }
+            }
+            catch { }
+
+            var archivedSlot = archivedShips.GetObject(archIdx);
+            var ccdArray = _playerState.GetArray("CharacterCustomisationData");
+            StarshipLogic.MoveShipToArchive(ship, idx, archivedSlot, ccdArray, usesLegacyColours);
+
+            _primaryShipLabel.Text = UiStrings.Format("starship.primary_label", StarshipLogic.GetPrimaryShipName(_shipOwnership, _primaryShipIndex));
+
+            // Rebuild the ship list and select the next available ship
+            int selIdx = _shipSelector.SelectedIndex;
+            _shipSelector.Items.Clear();
+            var shipList = StarshipLogic.BuildShipList(_shipOwnership);
+            foreach (var shipItem in shipList)
+                _shipSelector.Items.Add(shipItem);
+
+            if (_shipSelector.Items.Count > 0)
+                _shipSelector.SelectedIndex = Math.Clamp(selIdx, 0, _shipSelector.Items.Count - 1);
+
+            DataModified?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, UiStrings.Format("common.export_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void OnImportShipFromArchive(object? sender, EventArgs e)
+    {
+        try
+        {
+            if (_shipOwnership == null || _playerState == null) return;
+
+            var archivedShips = _playerState.GetArray("ArchivedShipOwnership");
+            if (archivedShips == null)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_empty"),
+                    UiStrings.Get("starship.archive_import_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Build list of archived ships
+            var archivedList = StarshipLogic.BuildArchivedShipList(archivedShips);
+            if (archivedList.Count == 0)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_empty"),
+                    UiStrings.Get("starship.archive_import_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Find empty list slot
+            int emptyListIdx = StarshipLogic.FindEmptySlot(_shipOwnership);
+            if (emptyListIdx < 0)
+            {
+                MessageBox.Show(this,
+                    UiStrings.Get("starship.archive_no_list_slots"),
+                    UiStrings.Get("starship.archive_import_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Show selection dialog
+            int selectedArchiveIdx = ShowArchiveSelectionDialog(
+                archivedList.Select(a => a.DisplayName).ToList(),
+                UiStrings.Get("starship.archive_import_title"));
+            if (selectedArchiveIdx < 0) return;
+
+            var selectedItem = archivedList[selectedArchiveIdx];
+
+            // Confirm
+            var result = MessageBox.Show(this,
+                UiStrings.Get("starship.archive_import_confirm"),
+                UiStrings.Get("starship.archive_import_title"),
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result != DialogResult.Yes) return;
+
+            var archivedSlot = archivedShips.GetObject(selectedItem.ArchiveIndex);
+            var targetShip = _shipOwnership.GetObject(emptyListIdx);
+            var ccdArray = _playerState.GetArray("CharacterCustomisationData");
+            StarshipLogic.ImportShipFromArchive(archivedSlot, targetShip, emptyListIdx, ccdArray);
+
+            // Rebuild ship list and select the newly imported ship
+            _shipSelector.Items.Clear();
+            var shipList = StarshipLogic.BuildShipList(_shipOwnership);
+            foreach (var shipItem in shipList)
+                _shipSelector.Items.Add(shipItem);
+
+            for (int i = 0; i < _shipSelector.Items.Count; i++)
+            {
+                if (((StarshipLogic.ShipListItem)_shipSelector.Items[i]!).DataIndex == emptyListIdx)
+                {
+                    _shipSelector.SelectedIndex = i;
+                    break;
+                }
+            }
+
+            DataModified?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, UiStrings.Format("common.import_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// Shows a modal dialog presenting a list of items for the user to select from.
+    /// Returns the index of the selected item in <paramref name="items"/>, or -1 if cancelled.
+    /// </summary>
+    private static int ShowArchiveSelectionDialog(List<string> items, string title)
+    {
+        using var form = new Form
+        {
+            Text = title,
+            Width = 420,
+            Height = 320,
+            MinimumSize = new Size(320, 240),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.Sizable,
+        };
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+            Padding = new Padding(10),
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var label = new Label
+        {
+            Text = title + ":",
+            AutoSize = true,
+            Padding = new Padding(0, 0, 0, 4),
+        };
+        layout.Controls.Add(label, 0, 0);
+
+        var listBox = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            SelectionMode = SelectionMode.One,
+        };
+        foreach (var item in items)
+            listBox.Items.Add(item);
+        if (listBox.Items.Count > 0)
+            listBox.SelectedIndex = 0;
+        layout.Controls.Add(listBox, 0, 1);
+
+        var buttonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            Padding = new Padding(0, 4, 0, 0),
+        };
+        var cancelBtn = new Button { Text = UiStrings.Get("common.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+        var importBtn = new Button { Text = UiStrings.Get("common.import"), DialogResult = DialogResult.OK, AutoSize = true };
+        form.AcceptButton = importBtn;
+        form.CancelButton = cancelBtn;
+        buttonPanel.Controls.Add(cancelBtn);
+        buttonPanel.Controls.Add(importBtn);
+        layout.Controls.Add(buttonPanel, 0, 2);
+
+        form.Controls.Add(layout);
+
+        // Double-click selects
+        listBox.DoubleClick += (s, e) => { form.DialogResult = DialogResult.OK; form.Close(); };
+
+        if (form.ShowDialog() != DialogResult.OK) return -1;
+        return listBox.SelectedIndex;
     }
 
     private void OnExportShip(object? sender, EventArgs e)
