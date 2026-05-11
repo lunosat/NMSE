@@ -423,20 +423,6 @@ public partial class AccountPanel : UserControl
             platformRows.Select(r => (r.Id, r.Unlocked)).ToList(),
             userSettings, "UnlockedPlatformRewards");
 
-        // Sync account-level Seen* arrays (SeenProducts, SeenTechnologies) to match
-        // REDEEMED state (not unlock state). The Seen* arrays track items the player
-        // has redeemed/claimed. Unlock checkboxes only affect Unlocked* arrays;
-        // redeem checkboxes affect Seen* arrays. The two are mutually exclusive.
-        // IMPORTANT: Seen* arrays store the actual PRODUCT ID (e.g. ^EXPD_POSTER11A),
-        // not the reward identifier (e.g. ^TWITCH_376). For season rewards these
-        // happen to be the same, but for twitch/platform rewards they differ.
-        AccountLogic.SyncAccountSeenArrays(userSettings,
-            ResolveProductIdsForSeen(seasonRows), _database);
-        AccountLogic.SyncAccountSeenArrays(userSettings,
-            ResolveProductIdsForSeen(twitchRows), _database);
-        AccountLogic.SyncAccountSeenArrays(userSettings,
-            ResolveProductIdsForSeen(platformRows), _database);
-
         // Save per-save redeemed state (writes RedeemedSeasonRewards / RedeemedTwitchRewards).
         // Known* sync is done ONLY for items the user actually changed (see below).
         AccountLogic.SaveRedeemedRewards(saveData,
@@ -526,29 +512,6 @@ public partial class AccountPanel : UserControl
                 changed.Add((id, unlocked, redeemed));
         }
         return changed;
-    }
-
-    /// <summary>
-    /// Maps reward rows to (ProductId, Redeemed) tuples for Seen* array sync.
-    /// The Seen* arrays in account data store the actual product IDs (e.g.
-    /// <c>^EXPD_POSTER11A</c>), not the reward identifiers (e.g. <c>^TWITCH_376</c>).
-    /// For season rewards these happen to be the same, but for twitch and platform
-    /// rewards they differ. This method resolves each reward to its product ID
-    /// via <see cref="_productIdMap"/>, falling back to the reward ID when no
-    /// separate ProductId is defined.
-    /// Uses <c>Redeemed</c> state (not Unlocked) because Seen* arrays track
-    /// redeemed/claimed items, not just unlocked ones.
-    /// </summary>
-    private List<(string Id, bool Present)> ResolveProductIdsForSeen(
-        List<(string Id, bool Unlocked, bool Redeemed)> rows)
-    {
-        return rows.Select(r =>
-        {
-            string productId = r.Id;
-            if (_productIdMap.TryGetValue(r.Id, out var pid) && !string.IsNullOrEmpty(pid))
-                productId = CatalogueLogic.EnsureCaretPrefix(pid);
-            return (productId, r.Redeemed);
-        }).ToList();
     }
 
     /// <summary>

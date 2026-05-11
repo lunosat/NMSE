@@ -186,28 +186,32 @@ internal static class AccountLogic
     /// <summary>
     /// Synchronises the account-level Seen* arrays (<c>SeenProducts</c>,
     /// <c>SeenTechnologies</c>, <c>SeenSubstances</c>) in <c>UserSettingsData</c>
-    /// based on the <b>redeemed</b> state of rewards.
+    /// based on a provided list of item IDs and their desired presence state.
     /// <para>
-    /// The Seen* arrays track which reward items the player has <b>redeemed</b>
-    /// (claimed) in the game. This is separate from the Unlocked* arrays which
-    /// track which rewards are available to redeem. The two are mutually
-    /// exclusive: unlock checkboxes write to Unlocked* arrays, while redeem
-    /// checkboxes write to Seen* arrays and save-level Redeemed*/Known* arrays.
+    /// The Seen* arrays track which items the player has <b>viewed/browsed</b>
+    /// in the in-game item catalogue. They are <b>not</b> tied to reward redemption
+    /// state, unlock state, or any save-level data. This is confirmed by NomNom's
+    /// source: <c>IsAccountSeen</c> is only ever set from the Account Catalogue UI,
+    /// never from reward unlock or redemption paths.
+    /// </para>
+    /// <para>
+    /// This function is provided for future use (e.g. a catalogue-browsed items panel)
+    /// and for completeness. It must <b>not</b> be called from reward unlock or
+    /// redemption sync paths — doing so would incorrectly remove catalogue-browsed
+    /// history for any item whose redeem state happens to be false.
     /// </para>
     /// <para>
     /// When <b>removing</b> (present=false), the entry is removed from <b>all three</b>
-    /// Seen* arrays. The game may place the same item in multiple arrays (e.g.
-    /// expedition cosmetics often appear in both SeenProducts and SeenTechnologies),
-    /// and items from mixed-type JSON files like Others.json cannot be reliably
-    /// mapped to a single array. Removing from all arrays ensures complete cleanup.
+    /// Seen* arrays to ensure complete cleanup regardless of which array the game
+    /// originally placed the item in.
     /// </para>
     /// <para>
     /// When <b>adding</b> (present=true), the entry is added to the best-guess
-    /// array based on item type (defaulting to SeenProducts for rewards).
+    /// array based on item type (defaulting to SeenProducts for unknown items).
     /// </para>
     /// </summary>
     /// <param name="userSettings">The <c>UserSettingsData</c> JSON object from account data.</param>
-    /// <param name="rewards">Reward entries with their current redeem/presence states.</param>
+    /// <param name="rewards">Items with their desired presence states.</param>
     /// <param name="database">Optional game item database for determining item types.</param>
     internal static void SyncAccountSeenArrays(JsonObject userSettings,
         List<(string Id, bool Present)> rewards, GameItemDatabase? database = null)
