@@ -1,8 +1,34 @@
-## NMSE — No Man's Save Editor v1.1.61 (preview)
+## NMSE — No Man's Save Editor v1.1.64 (preview)
 
 > This is a preview build. Please practice safe backup practices and expect some bugs.
 
 ### Changelog
+
+#### Features:
+
+- "Clear All Terrain Except Base" added to the Bases panel - allows clearing of terrain edits, excluding edits tied to bases. (Per Issue #78) 
+- Magic bytes / headers for multiple PS4 save formats updated to newer versions to support more up to date formats.
+- Starship Archive support added. (Per Issue #3) Allows:
+    - Importing of archived ships into the active list from the games archived ships slots.
+    - Moving of a starship to the archived ships list from the active list.
+- Multi-tool Archive support added. (Per Issue #3) Allows:
+    - Importing of archived multi-tools into the active list from the games archived multi-tool slots.
+    - Moving of a multi-tool to the archived multi-tool list from the active list.
+> Archives Caveat: <br />
+> Archives arrays store procedural names to string when stored in game, but standard arrays don't under any normal circumstances. <br />
+> This means they may display with no name if archived from the editor with a procgen name as the editor cannot generate the names. <br />
+> There is no way around this without reverse engineering the name generation markov assembler and robinhood tables.
+
+#### Bug Fixes:
+
+- Syncing of `Seen*` arrays removed from the rewards sync process so catalogued seen items aren't affected by items that aren't unlocked. Will be used for a future "seen" panel.
+
+<br />
+
+<details>
+<summary>Previous Changelogs</summary>
+
+### Changelog 1.1.61 (preview)
 
 #### Features:
 
@@ -25,9 +51,6 @@
 - Additional filter changes to the "Check Consistency" dialog box sync list (Per Issue #64)
 
 <br />
-
-<details>
-<summary>Previous Changelogs</summary>
 
 ### Changelog 1.1.52 (preview)
 
