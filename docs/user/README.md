@@ -60,7 +60,7 @@ NMSE can edit save files from all platforms that *No Man's Sky* supports:
 | Steam | ✅ | ✅ | Saves found automatically |
 | GOG | ✅ | ✅ | Saves found automatically |
 | Xbox Game Pass | ✅ | ✅ | Saves found automatically |
-| PlayStation 4 | ✅ | - | Requires manual file transfer |
+| PlayStation 4 | ✅ | - | Requires manual file transfer (SW or HB) |
 | Nintendo Switch | ✅ | - | Requires manual file transfer |
 
 ---
