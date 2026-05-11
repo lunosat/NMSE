@@ -12658,4 +12658,39 @@ public class LogicTests
         Assert.Equal(1, refilled);
         Assert.Equal(100, slot.GetInt("Amount"));
     }
+
+    [Fact]
+    public void Ps4Htos_RoundTrip_PreservesObfuscatedKeys()
+    {
+        // Arrange: set up the default mapper
+        var mapper = new JsonNameMapper();
+        var mapPath = FindResourceMapFile();
+        if (mapPath == null) return; // skip if not found
+        mapper.Load(mapPath);
+        JsonParser.SetDefaultMapper(mapper);
+
+        const string obfuscatedJson = "{\"F2P\":4727,\"8>q\":\"PS4|Final\",\"XTp\":\"Main\",\"<h0\":{\"Pk4\":\"\",\"Lg8\":1327}}";
+
+        // Act: parse and re-serialize
+        var obj = JsonObject.Parse(obfuscatedJson);
+        var serialized = obj.ToString();
+
+        // Assert: output must use obfuscated keys
+        Assert.True(obj.NameMapper != null, "NameMapper should be set after parsing obfuscated JSON");
+        Assert.StartsWith("{\"F2P\":", serialized);
+        Assert.Contains("\"8>q\":", serialized);
+        Assert.Contains("\"XTp\":", serialized);
+    }
+
+    private static string? FindResourceMapFile()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "Resources", "map", "mapping.json");
+            if (File.Exists(candidate)) return candidate;
+            dir = dir.Parent;
+        }
+        return null;
+    }
 }

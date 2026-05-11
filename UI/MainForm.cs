@@ -1830,19 +1830,28 @@ public partial class MainFormResources : Form
 
             // PS4 HTOS saves are plain uncompressed JSON (savedata*.hg without memory.dat).
             // Writing LZ4-compressed data would produce a file the PS4 game cannot read.
-            bool compress = !(_detectedPlatform == SaveFileManager.Platform.PS4 && _ps4MemoryDatPath == null);
+            bool isPs4Htos = _detectedPlatform == SaveFileManager.Platform.PS4 && _ps4MemoryDatPath == null;
+            bool compress = !isPs4Htos;
 
             // Write save file to disk with platform-appropriate meta
             SaveFileManager.SaveToFile(_currentFilePath, _currentSaveData,
                 compress: compress, writeMeta: true, platform: _detectedPlatform, slotIndex: metaSlotIdx);
 
             // Write account data file to disk (if loaded).
-            // accountdata.hg is always plain JSON with a null terminator — no LZ4
-            // compression and no meta file. (Xbox account data is handled separately
-            // via SaveXboxAccountData which uses raw LZ4 block compression.)
+            // accountdata.hg is always plain JSON with a null terminator — no LZ4 compression.
+            // For PS4 HTOS saves the manifest (manifest00.hg) must also be rewritten whenever
+            // the account file size changes (e.g. after unlocking rewards), otherwise the PS4
+            // system reads the stale size from the manifest and may reject the save.
+            // (Xbox account data is handled separately via SaveXboxAccountData.)
             if (_accountPanel.AccountData != null && _accountPanel.AccountFilePath != null)
+            {
+                if (_detectedPlatform == SaveFileManager.Platform.PS4)
+                    _accountPanel.AccountData.NameMapper ??= JsonParser.GetDefaultMapper();
+
+                bool writeAccountMeta = isPs4Htos;
                 SaveFileManager.SaveToFile(_accountPanel.AccountFilePath, _accountPanel.AccountData,
-                    compress: false, writeMeta: false);
+                    compress: false, writeMeta: writeAccountMeta, platform: _detectedPlatform, slotIndex: 0);
+            }
 
             _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath));
             _hasUnsavedChanges = false;
