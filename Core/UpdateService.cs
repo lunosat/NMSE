@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
@@ -646,25 +647,55 @@ public static class UpdateService
         // Copy all remaining files (skip the exe - already handled above).
         CopyDirectory(extractDir, appDir, skipFileName: hasNewExe ? exeName : null);
 
-        // Relaunch the updated application then let the caller exit.
-        Process? proc;
-        try
+        // Before attempting to launch, wait for the new executable to become
+        // readable.  Cloud-sync agents (OneDrive, Dropbox, etc.) may hold an
+        // exclusive lock on the freshly written file while uploading it, which
+        // prevents Process.Start from mapping the EXE into memory.
+        // WaitForFileReadable polls with a back-off schedule up to 10 seconds.
+        if (!WaitForFileReadable(exePath, TimeSpan.FromSeconds(10)))
         {
-            proc = Process.Start(new ProcessStartInfo
-            {
-                FileName        = exePath,
-                UseShellExecute = false
-            });
+            throw new UpdateSyncLockException(
+                $"The update was applied but the new executable could not be " +
+                $"accessed after 10 seconds. A cloud sync agent may be locking " +
+                $"the file while uploading it. Please relaunch manually from: {exePath}");
         }
-        catch (Exception ex)
+
+        // Relaunch the updated application.
+        // UseShellExecute = true routes creation through ShellExecuteEx, which
+        // tolerates transient sharing restrictions better than a direct CreateProcess
+        // call.  The retry loop handles the small window between the accessibility
+        // check above and the actual process-creation call.
+        // Loop structure: each attempt is made immediately; Thread.Sleep is only
+        // reached when proc is null or an exception was caught (i.e. on failure).
+        // When proc != null the break exits before any sleep, so a successful first
+        // attempt incurs zero extra delay.
+        Process? proc = null;
+        Exception? lastLaunchEx = null;
+        int[] retryDelaysMs = [500, 1000, 2000, 3000];
+        foreach (int delayMs in retryDelaysMs)
         {
-            throw new InvalidOperationException(
-                $"The update was applied but the application could not be relaunched: {ex.Message}", ex);
+            try
+            {
+                proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName        = exePath,
+                    UseShellExecute = true,
+                });
+                if (proc != null) break; // success - exit without sleeping
+            }
+            catch (IOException ex)                                             { lastLaunchEx = ex; }
+            catch (Win32Exception ex) when (ex.NativeErrorCode is 5 /* ERROR_ACCESS_DENIED */
+                                                                  or 32 /* ERROR_SHARING_VIOLATION */)
+                                                                               { lastLaunchEx = ex; }
+
+            // Only reached on failure - pause before retrying.
+            Thread.Sleep(delayMs);
         }
 
         if (proc == null)
             throw new InvalidOperationException(
-                "The update was applied but the application could not be relaunched.");
+                "The update was applied but the application could not be relaunched" +
+                (lastLaunchEx != null ? $": {lastLaunchEx.Message}" : "."));
 
         // Best-effort: clean up the temp extract directory.
         try { Directory.Delete(extractDir, recursive: true); }
@@ -722,6 +753,98 @@ public static class UpdateService
             CopyDirectory(dir, Path.Combine(destDir, dirName));
         }
     }
+
+    /// <summary>
+    /// Returns <c>true</c> if <paramref name="dir"/> appears to be inside a
+    /// folder monitored by a known cloud-sync agent.  Uses a simple path-prefix
+    /// check against well-known default install locations for OneDrive, Dropbox,
+    /// Google Drive, iCloud Drive, Box, pCloud, and SugarSync; no SDK or
+    /// registry lookup is performed.
+    /// </summary>
+    /// <remarks>
+    /// OneDrive business accounts append a suffix to the folder name (e.g.
+    /// "OneDrive - Contoso"), so the check tests only the prefix.
+    ///
+    /// Backblaze Personal Backup is a system-wide backup agent that monitors
+    /// the entire drive; it does not create a dedicated sync folder under the
+    /// user profile, so there is no path prefix to test for it.
+    ///
+    /// SugarSync 2.0 uses "SugarSync" as the default folder name; older
+    /// installs (pre-2015 shutdown) used "My SugarSync".  Both are included.
+    /// </remarks>
+    public static bool IsInKnownSyncFolder(string dir)
+    {
+        if (string.IsNullOrEmpty(dir))
+            return false;
+
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrEmpty(userProfile))
+            return false;
+
+        // Common default locations used by popular cloud-sync agents.
+        string[] syncPrefixes =
+        [
+            Path.Combine(userProfile, "OneDrive"),
+            Path.Combine(userProfile, "Dropbox"),
+            Path.Combine(userProfile, "Google Drive"),
+            Path.Combine(userProfile, "GoogleDrive"),
+            Path.Combine(userProfile, "Box"),
+            Path.Combine(userProfile, "iCloudDrive"),
+            Path.Combine(userProfile, "pCloud Drive"),
+            // SugarSync 2.0 default; older pre-2015 installs used "My SugarSync".
+            Path.Combine(userProfile, "SugarSync"),
+            Path.Combine(userProfile, "My SugarSync"),
+        ];
+
+        string normalised = dir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        foreach (string prefix in syncPrefixes)
+        {
+            if (normalised.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Polls <paramref name="exePath"/> until it can be opened for reading or
+    /// <paramref name="timeout"/> elapses.  Returns <c>true</c> when the file
+    /// becomes accessible, <c>false</c> on timeout.
+    /// </summary>
+    /// <remarks>
+    /// The probe opens the file with <c>FileShare.ReadWrite</c>, mirroring the
+    /// access that a process loader needs.  Delay intervals grow from 200 ms to
+    /// 2 000 ms so common sync agents (which typically release within 1-2 s)
+    /// are handled quickly with minimal busy-wait.  The deadline check at the
+    /// top of each iteration ensures the total elapsed time never significantly
+    /// exceeds <paramref name="timeout"/>, regardless of how many delay steps
+    /// the schedule defines.
+    /// </remarks>
+    private static bool WaitForFileReadable(string exePath, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        // Back-off schedule: poll frequently at first, then ease off.
+        // The deadline check caps the total wait to 'timeout' in all cases.
+        int[] delaysMs = [200, 400, 600, 800, 1000, 1500, 2000];
+        int attempt = 0;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                using var fs = new FileStream(exePath, FileMode.Open, FileAccess.Read,
+                                              FileShare.ReadWrite);
+                return true;
+            }
+            catch (IOException)            { /* still locked - keep waiting */ }
+            catch (UnauthorizedAccessException) { return false; /* permissions issue - give up */ }
+
+            int delay = attempt < delaysMs.Length ? delaysMs[attempt++] : 2000;
+            Thread.Sleep(delay);
+        }
+
+        return false;
+    }
 }
 
 /// <summary>Describes an available update from GitHub Releases.</summary>
@@ -730,3 +853,14 @@ public record UpdateInfo(
     Version  RemoteVersion,
     string   DownloadUrl,
     string?  ReleaseNotes);
+
+/// <summary>
+/// Thrown when the updated executable cannot be launched because a cloud-sync
+/// agent (such as OneDrive or Dropbox) held an exclusive lock on the new file
+/// beyond the permitted wait window.
+/// </summary>
+public sealed class UpdateSyncLockException : InvalidOperationException
+{
+    public UpdateSyncLockException(string message) : base(message) { }
+    public UpdateSyncLockException(string message, Exception inner) : base(message, inner) { }
+}

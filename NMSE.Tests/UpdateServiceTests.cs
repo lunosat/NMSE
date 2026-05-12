@@ -635,4 +635,64 @@ public class BuildRtfWithIssueLinksTests
         string result = UpdateService.BuildRtfWithIssueLinks("hello");
         Assert.StartsWith(@"{\rtf1", result);
     }
+
+    // IsInKnownSyncFolder
+
+    [Fact]
+    public void IsInKnownSyncFolder_NullOrEmpty_ReturnsFalse()
+    {
+        Assert.False(UpdateService.IsInKnownSyncFolder(null!));
+        Assert.False(UpdateService.IsInKnownSyncFolder(string.Empty));
+    }
+
+    [Fact]
+    public void IsInKnownSyncFolder_ArbitraryTempPath_ReturnsFalse()
+    {
+        // A path well outside any user profile sync folder should return false.
+        Assert.False(UpdateService.IsInKnownSyncFolder(Path.GetTempPath()));
+    }
+
+    [Theory]
+    [InlineData("OneDrive")]
+    [InlineData("OneDrive - Contoso")]
+    [InlineData("Dropbox")]
+    [InlineData("Google Drive")]
+    [InlineData("Box")]
+    [InlineData("iCloudDrive")]
+    [InlineData("pCloud Drive")]
+    [InlineData("SugarSync")]
+    [InlineData("My SugarSync")]
+    public void IsInKnownSyncFolder_KnownSyncSubfolder_ReturnsTrue(string syncFolder)
+    {
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string dir = Path.Combine(userProfile, syncFolder, "SomeApp");
+        Assert.True(UpdateService.IsInKnownSyncFolder(dir));
+    }
+
+    [Fact]
+    public void IsInKnownSyncFolder_OneDriveFolderRoot_ReturnsTrue()
+    {
+        // The folder itself (not just a subfolder) should also be detected.
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string dir = Path.Combine(userProfile, "OneDrive");
+        Assert.True(UpdateService.IsInKnownSyncFolder(dir));
+    }
+
+    // UpdateSyncLockException
+
+    [Fact]
+    public void UpdateSyncLockException_IsInvalidOperationException()
+    {
+        var ex = new UpdateSyncLockException("test message");
+        Assert.IsAssignableFrom<InvalidOperationException>(ex);
+        Assert.Equal("test message", ex.Message);
+    }
+
+    [Fact]
+    public void UpdateSyncLockException_InnerExceptionCtor_Preserved()
+    {
+        var inner = new IOException("disk full");
+        var ex    = new UpdateSyncLockException("outer", inner);
+        Assert.Equal(inner, ex.InnerException);
+    }
 }

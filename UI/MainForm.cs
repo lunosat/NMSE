@@ -2618,6 +2618,18 @@ public partial class MainFormResources : Form
     /// </summary>
     private async void PromptUserForUpdate(UpdateInfo update)
     {
+        // If running from a cloud-synced folder, show an advisory before the
+        // update prompt so the user knows they may need to relaunch manually
+        // should the sync agent briefly lock the new executable during upload.
+        if (UpdateService.IsInKnownSyncFolder(AppContext.BaseDirectory))
+        {
+            MessageBox.Show(this,
+                UiStrings.Get("update.sync_folder_advisory"),
+                UiStrings.Get("update.title"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
         DialogResult result;
         using (var dialog = new Form
         {
@@ -2630,19 +2642,16 @@ public partial class MainFormResources : Form
             MinimizeBox     = false,
         })
         {
-            // Header label height: tall enough for the update.available_msg text
-            // (version info + install prompt on ~4 lines at default font size).
-            const int HeaderLabelHeight = 88;
-
-            // Header label with version info and install prompt
+            // Header label with version info and install prompt.
+            // AutoSize = true lets the label grow its height to wrap all text at any
+            // DPI/font-scale setting; Dock = Top constrains the width to the dialog width.
             var headerLabel = new Label
             {
                 Text      = UiStrings.Format("update.available_msg",
                                 $"{VerMajor}.{VerMinor}.{VerPatch}",
                                 update.RemoteVersion.ToString(3)),
                 Dock      = DockStyle.Top,
-                AutoSize  = false,
-                Height    = HeaderLabelHeight,
+                AutoSize  = true,
                 Padding   = new Padding(10, 10, 10, 4),
             };
 
@@ -2821,6 +2830,15 @@ public partial class MainFormResources : Form
                         MessageBoxIcon.Error);
                 }
             }
+            catch (UpdateSyncLockException)
+            {
+                progressDialog.Close();
+                MessageBox.Show(this,
+                    UiStrings.Get("update.sync_lock_msg"),
+                    UiStrings.Get("update.sync_lock_title"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
             catch (Exception ex)
             {
                 progressDialog.Close();
@@ -2839,28 +2857,53 @@ public partial class MainFormResources : Form
 
     private void OnAbout(object? sender, EventArgs e)
     {
+        // The form uses AutoSize so it grows to fit all content regardless of
+        // the system DPI or font-scale setting.  A TableLayoutPanel provides
+        // the vertical stacking; the two-column layout places the OK button
+        // in the right column of the last row for natural right-alignment.
         using var aboutForm = new Form
         {
-            Text = $"About",
+            Text            = "About",
             FormBorderStyle = FormBorderStyle.FixedDialog,
-            StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size(340, 160),
-            MaximizeBox = false,
-            MinimizeBox = false
+            StartPosition   = FormStartPosition.CenterParent,
+            AutoSize        = true,
+            AutoSizeMode    = AutoSizeMode.GrowAndShrink,
+            MaximizeBox     = false,
+            MinimizeBox     = false,
         };
 
-        var label = new Label
+        // Two-column table: col 0 = percent-fill spacer, col 1 = auto-size (button).
+        // Rows 0 and 1 span both columns (label and link); row 2 places the OK
+        // button in col 1 so it appears right-aligned without hardcoded positions.
+        var tableLayout = new TableLayoutPanel
         {
-            Text = $"{AppName}\n{VerMajor}.{VerMinor}.{VerPatch} ({SuppGameRel})\n\nby vector_cmdr",
-            AutoSize = true,
-            Location = new Point(16, 16)
+            ColumnCount  = 2,
+            RowCount     = 3,
+            AutoSize     = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock         = DockStyle.Fill,
+            Padding      = new Padding(16),
         };
+        tableLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        tableLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        tableLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        tableLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        tableLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var infoLabel = new Label
+        {
+            Text     = $"{AppName}\n{VerMajor}.{VerMinor}.{VerPatch} ({SuppGameRel})\n\nby vector_cmdr",
+            AutoSize = true,
+            Margin   = new Padding(0, 0, 20, 8),
+        };
+        tableLayout.Controls.Add(infoLabel, 0, 0);
+        tableLayout.SetColumnSpan(infoLabel, 2);
 
         var link = new LinkLabel
         {
-            Text = GitHubCreatorUrl,
+            Text     = GitHubCreatorUrl,
             AutoSize = true,
-            Location = new Point(16, 80)
+            Margin   = new Padding(0, 0, 0, 12),
         };
         link.Links[0].LinkData = GitHubCreatorUrl;
         link.LinkClicked += (s, args) =>
@@ -2872,26 +2915,27 @@ public partial class MainFormResources : Form
                 {
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                     {
-                        FileName = linkData,
+                        FileName        = linkData,
                         UseShellExecute = true
                     });
                 }
             }
             catch { }
         };
+        tableLayout.Controls.Add(link, 0, 1);
+        tableLayout.SetColumnSpan(link, 2);
 
-        var okButton = new System.Windows.Forms.Button
+        var okButton = new Button
         {
-            Text = "OK",
+            Text         = "OK",
             DialogResult = DialogResult.OK,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-            Location = new Point(aboutForm.ClientSize.Width - 90, aboutForm.ClientSize.Height - 40),
-            Size = new Size(75, 25)
+            MinimumSize  = new Size(80, 26),
+            AutoSize     = true,
+            Margin       = new Padding(0),
         };
+        tableLayout.Controls.Add(okButton, 1, 2);
 
-        aboutForm.Controls.Add(label);
-        aboutForm.Controls.Add(link);
-        aboutForm.Controls.Add(okButton);
+        aboutForm.Controls.Add(tableLayout);
         aboutForm.AcceptButton = okButton;
         aboutForm.ShowDialog(this);
     }
