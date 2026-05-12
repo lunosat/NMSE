@@ -264,7 +264,7 @@ public class PlatformIOTests
 
             // Switch meta is NOT encrypted - verify header directly
             uint header = BitConverter.ToUInt32(metaBytes, 0);
-            Assert.Equal(MetaFileWriter.META_HEADER_SWITCH_PS, header);
+            Assert.Equal(MetaFileWriter.META_HEADER_SWITCH, header);
         }
         finally
         {
@@ -1477,7 +1477,7 @@ public class PlatformIOTests
     }
 
     [Fact]
-    public void SwitchMeta_AccountMeta_OnlyWritesSizeAtOffset8()
+    public void SwitchMeta_AccountMeta_WritesSizeAtOffset8And36()
     {
         string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_{Guid.NewGuid():N}");
         Directory.CreateDirectory(tmpDir);
@@ -1512,8 +1512,16 @@ public class PlatformIOTests
             uint writtenSize = BitConverter.ToUInt32(result, 8);
             Assert.Equal(2048u, writtenSize);
 
-            // Bytes 12+ should be preserved (0xAA pattern)
-            for (int i = 12; i < existingData.Length; i++)
+            // Bytes 12..35 should be preserved (0xAA pattern)
+            for (int i = 12; i < 36; i++)
+                Assert.Equal(0xAA, result[i]);
+
+            // Offset 36..39 must also contain the decompressed size (duplicate field)
+            uint writtenSize36 = BitConverter.ToUInt32(result, 36);
+            Assert.Equal(2048u, writtenSize36);
+
+            // Bytes 40+ should be preserved (0xAA pattern)
+            for (int i = 40; i < existingData.Length; i++)
                 Assert.Equal(0xAA, result[i]);
         }
         finally
@@ -1548,7 +1556,7 @@ public class PlatformIOTests
 
             // Switch meta is not encrypted; read fields directly
             uint header = BitConverter.ToUInt32(metaBytes, 0);
-            Assert.Equal(MetaFileWriter.META_HEADER_SWITCH_PS, header);
+            Assert.Equal(MetaFileWriter.META_HEADER_SWITCH, header);
 
             uint format = BitConverter.ToUInt32(metaBytes, 4);
             Assert.Equal(MetaFileWriter.META_FORMAT_2, format);
@@ -1600,8 +1608,9 @@ public class PlatformIOTests
 
             // PS streaming meta is not encrypted
             uint header = BitConverter.ToUInt32(metaBytes, 0);
-            Assert.Equal(MetaFileWriter.META_HEADER_SWITCH_PS, header);
+            Assert.Equal(MetaFileWriter.META_HEADER_PS4, header);
 
+            // No sibling manifest exists in this test, so the fallback (info.BaseVersion resolves to META_FORMAT_2) is used.
             uint format = BitConverter.ToUInt32(metaBytes, 4);
             Assert.Equal(MetaFileWriter.META_FORMAT_2, format);
 
@@ -1642,19 +1651,77 @@ public class PlatformIOTests
 
             byte[] result = File.ReadAllBytes(metaPath);
 
-            // First 12 bytes: header (4) + format (4) + decompressedSize (4)
+            // First 4 bytes: magic header
             uint header = BitConverter.ToUInt32(result, 0);
-            Assert.Equal(MetaFileWriter.META_HEADER_SWITCH_PS, header);
+            Assert.Equal(MetaFileWriter.META_HEADER_PS4, header);
 
-            uint format = BitConverter.ToUInt32(result, 4);
-            Assert.Equal(MetaFileWriter.META_FORMAT_2, format);
+            // Offset 4 (meta format): no sibling manifest exists, so fallback value
+            // (derived from info.BaseVersion = 4115, resolves to META_FORMAT_2) is written.
+            uint formatAtOffset4 = BitConverter.ToUInt32(result, 4);
+            Assert.Equal(MetaFileWriter.META_FORMAT_2, formatAtOffset4);
 
             uint decompressedSize = BitConverter.ToUInt32(result, 8);
             Assert.Equal(4096u, decompressedSize);
 
-            // Bytes at offset 12+ should retain the 0xBB pattern
-            for (int i = 12; i < existingData.Length; i++)
+            // Bytes at offset 12..35 should retain the 0xBB pattern
+            for (int i = 12; i < 36; i++)
                 Assert.Equal(0xBB, result[i]);
+
+            // Offset 36..39: duplicate decompressedSize (must match offset 8, not stale 0xBB)
+            uint decompressedSize36 = BitConverter.ToUInt32(result, 36);
+            Assert.Equal(4096u, decompressedSize36);
+
+            // Bytes at offset 40+ should retain the 0xBB pattern
+            for (int i = 40; i < existingData.Length; i++)
+                Assert.Equal(0xBB, result[i]);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [Fact]
+    public void PlaystationStreamingMeta_AccountMeta_ReadsFormatFromSiblingManifest()
+    {
+        // When a sibling game-save manifest exists (manifest02.hg, etc.), the account manifest
+        // (manifest00.hg) must adopt the same meta format rather than deriving it from the
+        // account JSON's Version field (which uses a different numbering scheme).
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string savePath = Path.Combine(tmpDir, "savedata00.hg");
+            File.WriteAllText(savePath, "dummy");
+
+            // Create a sibling game-save manifest at manifest02.hg with META_FORMAT_4 (2004).
+            byte[] siblingManifest = new byte[MetaFileWriter.PS4_META_LENGTH_WORLDS_II];
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_HEADER_PS4), 0, siblingManifest, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_FORMAT_4), 0, siblingManifest, 4, 4);
+            File.WriteAllBytes(Path.Combine(tmpDir, "manifest02.hg"), siblingManifest);
+
+            // Use a low BaseVersion that would normally resolve to META_FORMAT_1.
+            var metaInfo = new SaveMetaInfo { BaseVersion = 4098 };
+
+            MetaFileWriter.WritePlaystationStreamingMeta(savePath, 16384, metaInfo, 0);
+
+            string metaPath = Path.Combine(tmpDir, "manifest00.hg");
+            Assert.True(File.Exists(metaPath));
+            byte[] result = File.ReadAllBytes(metaPath);
+
+            // The sibling manifest's format (META_FORMAT_4) must be written, not META_FORMAT_1.
+            uint format = BitConverter.ToUInt32(result, 4);
+            Assert.Equal(MetaFileWriter.META_FORMAT_4, format);
+
+            uint decompressedSize = BitConverter.ToUInt32(result, 8);
+            Assert.Equal(16384u, decompressedSize);
+
+            // Offset 36 must also carry the decompressed size.
+            uint decompressedSize36 = BitConverter.ToUInt32(result, 36);
+            Assert.Equal(16384u, decompressedSize36);
+
+            // Buffer must be sized for META_FORMAT_4.
+            Assert.Equal(MetaFileWriter.PS4_META_LENGTH_WORLDS_II, result.Length);
         }
         finally
         {

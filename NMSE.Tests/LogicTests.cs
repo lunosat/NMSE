@@ -12682,6 +12682,86 @@ public class LogicTests
         Assert.Contains("\"XTp\":", serialized);
     }
 
+    [Fact]
+    public void WritePlaystationStreamingMeta_AccountManifest_WritesDuplicateDecompressedSizeAtOffset36()
+    {
+        // The PS4 native manifest format stores decompressedSize at BOTH offset 8 and offset 36.
+        // PS4 HTOS format in editor always writes both fields. If offset 36 is stale (old size)
+		// while offset 8 is updated, the PS4 game rejects the account save and resets (assumed).
+		// This test ensures both fields are written with the same value by WritePlaystationStreamingMeta.
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_ps4meta_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string saveFile = Path.Combine(tmpDir, "savedata00.hg");
+            string metaFile = Path.Combine(tmpDir, "manifest00.hg");
+
+            // Create a minimal existing manifest with stale decoSize at both offset 8 and 36
+            byte[] existingManifest = new byte[380];
+            uint oldSize = 39_469;
+            Buffer.BlockCopy(BitConverter.GetBytes(0xCA55E77Eu), 0, existingManifest, 0, 4);  // magic
+            Buffer.BlockCopy(BitConverter.GetBytes(2004u), 0, existingManifest, 4, 4);        // format
+            Buffer.BlockCopy(BitConverter.GetBytes(oldSize), 0, existingManifest, 8, 4);      // decoSize at 8
+            Buffer.BlockCopy(BitConverter.GetBytes(oldSize), 0, existingManifest, 36, 4);     // decoSize at 36 (duplicate)
+            File.WriteAllBytes(metaFile, existingManifest);
+            File.WriteAllBytes(saveFile, Array.Empty<byte>()); // dummy save file
+
+            uint newSize = 34_067;
+            var info = new SaveMetaInfo { BaseVersion = 4727 };
+
+            // Act
+            MetaFileWriter.WritePlaystationStreamingMeta(saveFile, newSize, info, 0);
+
+            // Assert: both offset 8 and offset 36 must hold the new decompressedSize
+            byte[] written = File.ReadAllBytes(metaFile);
+            uint at8  = BitConverter.ToUInt32(written, 8);
+            uint at36 = BitConverter.ToUInt32(written, 36);
+            Assert.Equal(newSize, at8);
+            Assert.Equal(newSize, at36);  // This was the failing field before the fix
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void WritePlaystationStreamingMeta_GameSaveManifest_WritesDuplicateDecompressedSizeAtOffset36()
+    {
+        // Game-save manifests must also mirror decompressedSize at offset 36 to match HTOS format.
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_ps4meta_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string saveFile = Path.Combine(tmpDir, "savedata02.hg");
+            string metaFile = Path.Combine(tmpDir, "manifest02.hg");
+            File.WriteAllBytes(saveFile, Array.Empty<byte>());
+
+            uint decoSize = 2_333_427;
+            var info = new SaveMetaInfo
+            {
+                BaseVersion = 4727,
+                GameMode = 4,      // Creative
+                TotalPlayTime = 357,
+                SaveSummary = "Aboard the Space Anomaly",
+                DifficultyPreset = 3,
+                DifficultyPresetTag = "Creative"
+            };
+
+            MetaFileWriter.WritePlaystationStreamingMeta(saveFile, decoSize, info, 2);
+
+            byte[] written = File.ReadAllBytes(metaFile);
+            uint at8  = BitConverter.ToUInt32(written, 8);
+            uint at36 = BitConverter.ToUInt32(written, 36);
+            Assert.Equal(decoSize, at8);
+            Assert.Equal(decoSize, at36);  // Was zero before the fix
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
     private static string? FindResourceMapFile()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
