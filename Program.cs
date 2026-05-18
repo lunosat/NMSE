@@ -20,6 +20,18 @@ static class Program
         Application.ThreadException += OnThreadException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
+        // Opt in to per-monitor DPI awareness so WinForms scales controls,
+        // fonts, and images proportionally when the display scale factor changes.
+        // Done as best effort - if not supported, default and silently degrade to default DPI.
+        try
+        {
+            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+        }
+        catch
+        {
+            // Not supported in compatibility layer or env
+        }
+
         ApplicationConfiguration.Initialize();
 
         // Show a lightweight splash screen so the user gets immediate
