@@ -2270,9 +2270,10 @@ public static class Parsers
         return productId;
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    //  Pet Accessories
-    // ──────────────────────────────────────────────────────────────────
+    // -------------------------------------------------------
+    //  Pet Accessories (DescriptorGroupSets > PET_ACCESSORY)
+    //  (from charactercustomisationdescriptorgroupsdata.MXML)
+    // -------------------------------------------------------
 
     /// <summary>
     /// Parses PET_ACCESSORY descriptor groups from CHARACTERCUSTOMISATIONDESCRIPTORGROUPSDATA.MXML.
@@ -2337,9 +2338,10 @@ public static class Parsers
         return accessories;
     }
 
-    // ──────────────────────────────────────────────────────────────────
+    // -----------------------------------------
     //  Ship Customisation
-    // ──────────────────────────────────────────────────────────────────
+    // (from modularcustomisationdatatable.MXML)
+    // -----------------------------------------
 
     /// <summary>
     /// Parses the modular customisation data table (modularcustomisationdatatable.MXML).
@@ -2567,9 +2569,92 @@ public static class Parsers
         return configs;
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    //  Colour Palettes
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------
+    //  Base Colour Palettes (for specialised channels)
+    // (from basecolourpalettes.MXML)
+    // ------------------------------------------------
+
+    /// <summary>
+    /// Parses basecolourpalettes.MXML and extracts named palettes (e.g. SailShip_Sails)
+    /// that are used for specialised colour channels beyond the standard customisation palettes.
+    /// These palettes use GcPaletteData format (indexed colour entries without TipText names).
+    /// Entries are merged into the same Colour Palettes.json format used by
+    /// <see cref="ParseShipColourPalettes"/> so that <see cref="NmsColourPalette"/>
+    /// can load them alongside the customisation palettes.
+    /// </summary>
+    public static List<Dictionary<string, object?>> ParseBaseColourPalettes(string mxmlPath)
+    {
+        var root = MxmlParser.LoadXml(mxmlPath);
+        var results = new List<Dictionary<string, object?>>();
+
+        var tableParent = root.Descendants("Property")
+            .FirstOrDefault(e => e.Attribute("name")?.Value == "Table"
+                              && e.Parent?.Name.LocalName == "Data");
+        if (tableParent == null)
+        {
+            Console.WriteLine("[WARN] ParseBaseColourPalettes: Table element not found");
+            return results;
+        }
+
+        foreach (var paletteElem in tableParent.Elements("Property")
+            .Where(e => e.Attribute("value")?.Value == "GcPaletteData"))
+        {
+            string paletteId = paletteElem.Elements("Property")
+                .Where(e => e.Attribute("name")?.Value == "Name")
+                .Select(e => e.Attribute("value")?.Value ?? "")
+                .FirstOrDefault() ?? "";
+
+            if (string.IsNullOrEmpty(paletteId) ||
+                paletteId.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var coloursParent = paletteElem.Elements("Property")
+                .FirstOrDefault(e => e.Attribute("name")?.Value == "Colours");
+            if (coloursParent == null) continue;
+
+            var allColours = new List<(double R, double G, double B, double A)>();
+            foreach (var colourEntry in coloursParent.Elements("Property")
+                .Where(e => e.Attribute("name")?.Value == "Colours"))
+            {
+                double r = GetFloatProperty(colourEntry, "R", 1.0);
+                double g = GetFloatProperty(colourEntry, "G", 1.0);
+                double b = GetFloatProperty(colourEntry, "B", 1.0);
+                double a = GetFloatProperty(colourEntry, "A", 1.0);
+                allColours.Add((r, g, b, a));
+            }
+
+            if (allColours.Count == 0) continue;
+
+            var colourEntries = new List<Dictionary<string, object?>>();
+            for (int i = 0; i < allColours.Count; i++)
+            {
+                var (cr, cg, cb, ca) = allColours[i];
+                colourEntries.Add(new Dictionary<string, object?>
+                {
+                    ["Index"] = i,
+                    ["Name"] = $"Colour {i}",
+                    ["R"] = (int)Math.Round(cr * 255),
+                    ["G"] = (int)Math.Round(cg * 255),
+                    ["B"] = (int)Math.Round(cb * 255),
+                    ["A"] = (int)Math.Round(ca * 255),
+                });
+            }
+
+            results.Add(new Dictionary<string, object?>
+            {
+                ["PaletteID"] = paletteId,
+                ["Colours"] = colourEntries,
+            });
+        }
+
+        Console.WriteLine($"[OK] ParseBaseColourPalettes: {results.Count} palette(s)");
+        return results;
+    }
+
+    // -----------------------------------------------------------
+    //  Customisation Colour Palettes
+    //  (for ships, freighters, vehicles, companions, and players)
+    // -----------------------------------------------------------
 
     /// <summary>
     /// Parses customisationcolourpalettes.MXML and extracts all named paint palettes
@@ -2684,9 +2769,10 @@ public static class Parsers
         return results;
     }
 
-    // ──────────────────────────────────────────────────────────────────
+    // -----------------------------------------------------------------
     //  Pet Battle Moves
-    // ──────────────────────────────────────────────────────────────────
+    //  (from petbattlermovestable.MXML, filtered in DB for pet battles)
+    // -----------------------------------------------------------------
 
     /// <summary>
     /// Parses pet battler moves from petbattlermovestable.MXML.
@@ -2783,9 +2869,10 @@ public static class Parsers
         return moves;
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    //  Pet Battle Movesets
-    // ──────────────────────────────────────────────────────────────────
+    // ------------------------------------------------------------
+    //  Pet Battle Movesets (for pet battles)
+    //  (derived from petbattlermovesetstable.MXML, filtered in DB)
+    // ------------------------------------------------------------
 
     /// <summary>
     /// Parses pet battler movesets from petbattlermovesetstable.MXML.
@@ -2876,9 +2963,10 @@ public static class Parsers
         return movesets;
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    //  Game Table Globals (Pet Battle sections)
-    // ──────────────────────────────────────────────────────────────────
+    // -------------------------------------
+    //  Game Table Globals (for pet battles)
+    //  (from gcgametableglobals.MXML)
+    // -------------------------------------
 
     /// <summary>
     /// Parses pet-battle-relevant sections from gcgametableglobals.MXML:
@@ -2962,9 +3050,10 @@ public static class Parsers
         return result;
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    //  Creature Species (from creaturedatatable.MXML)
-    // ──────────────────────────────────────────────────────────────────
+    // --------------------------------------
+    //  Creature Species (for companion pets)
+    //  (from creaturedatatable.MXML)
+    // --------------------------------------
 
     /// <summary>
     /// Parses creature species data from creaturedatatable.MXML.
@@ -3147,9 +3236,10 @@ public static class Parsers
         return species;
     }
 
-    // ──────────────────────────────────────────────────────────────────
-    //  Creature Descriptors (from SCENE.MXML files + creaturefilenametable.MXML)
-    // ──────────────────────────────────────────────────────────────────
+    // ----------------------------------------------------
+    //  Creature Descriptors (for companion pets)
+    // (from SCENE.MXML files + creaturefilenametable.MXML)
+    // ----------------------------------------------------
 
     /// <summary>
     /// Parses creature descriptor trees from SCENE MXML files.

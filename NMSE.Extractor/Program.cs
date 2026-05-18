@@ -257,6 +257,7 @@ public class Program
             ("CompanionAccessories", "CHARACTERCUSTOMISATIONDESCRIPTORGROUPSDATA.MXML", Parsers.ParsePetAccessories),
             ("ShipCustomisation", "modularcustomisationdatatable.MXML", Parsers.ParseShipCustomisation),
             ("ColourPalettes", "customisationcolourpalettes.MXML", Parsers.ParseShipColourPalettes),
+            ("BaseColourPalettes", "basecolourpalettes.MXML", Parsers.ParseBaseColourPalettes),
             ("PetBattleMoves", "PETBATTLERMOVESTABLE.MXML", Parsers.ParsePetBattleMoves),
             ("PetBattleMovesets", "PETBATTLERMOVESETSTABLE.MXML", Parsers.ParsePetBattleMovesets),
             ("GameTableGlobals", "GCGAMETABLEGLOBALS.MXML", Parsers.ParseGameTableGlobals),
@@ -342,7 +343,30 @@ public class Program
         if (baseData.ContainsKey("ShipCustomisation"))
             finalFiles["Ship Customisation.json"] = baseData["ShipCustomisation"];
         if (baseData.ContainsKey("ColourPalettes"))
-            finalFiles["Colour Palettes.json"] = baseData["ColourPalettes"];
+        {
+            var colourPalettes = baseData["ColourPalettes"];
+            // Merge BaseColourPalettes into ColourPalettes, deduplicating by PaletteID
+            if (baseData.ContainsKey("BaseColourPalettes"))
+            {
+                var existingIds = new HashSet<string>(colourPalettes
+                    .Select(d => d.GetValueOrDefault("PaletteID")?.ToString() ?? ""),
+                    StringComparer.OrdinalIgnoreCase);
+                foreach (var bp in baseData["BaseColourPalettes"])
+                {
+                    string bpId = bp.GetValueOrDefault("PaletteID")?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(bpId) && !existingIds.Contains(bpId))
+                    {
+                        colourPalettes.Add(bp);
+                        existingIds.Add(bpId);
+                    }
+                }
+            }
+            finalFiles["Colour Palettes.json"] = colourPalettes;
+        }
+        else if (baseData.ContainsKey("BaseColourPalettes"))
+        {
+            finalFiles["Colour Palettes.json"] = baseData["BaseColourPalettes"];
+        }
         if (baseData.ContainsKey("PetBattleMoves"))
             finalFiles["Pet Battle Moves.json"] = baseData["PetBattleMoves"];
         if (baseData.ContainsKey("PetBattleMovesets"))
