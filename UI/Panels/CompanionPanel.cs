@@ -25,6 +25,11 @@ public partial class CompanionPanel : UserControl
     /// <summary>Raised when the companion panel modifies the exosuit cargo inventory (e.g. placing an egg).</summary>
     public event EventHandler? ExosuitCargoModified;
 
+    /// <summary>Raised whenever companion data is modified by the user.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified() => DataModified?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Cached per-slot allowed move IDs, gathered from all movesets. Index 0-4.</summary>
     private readonly List<PetBattleMoveEntry>[] _allowedMovesPerSlot = new List<PetBattleMoveEntry>[5];
 
@@ -68,12 +73,30 @@ public partial class CompanionPanel : UserControl
                 foreach (var opt in slot.Options)
                 {
                     if (seen.Add(opt.Template) && PetBattleMoveDatabase.ById.TryGetValue(opt.Template, out var move))
-                        allowed.Add(move);
+                    {
+                        if (!IsRestrictedMove(move.Id))
+                            allowed.Add(move);
+                    }
                 }
             }
 
             _allowedMovesPerSlot[i] = allowed;
         }
+    }
+
+    /// <summary>
+    /// Checks whether a move ID is restricted from user selection.
+    /// Restricted moves are still displayed if the companion already has them,
+    /// but the user cannot select them from the dropdown.
+    /// </summary>
+    private static bool IsRestrictedMove(string moveId)
+    {
+        foreach (var restricted in CompanionLogic.RestrictedMoveIds)
+        {
+            if (string.Equals(moveId, restricted, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private static Label AddRow(TableLayoutPanel layout, string label, Control field, int row)
@@ -105,7 +128,7 @@ public partial class CompanionPanel : UserControl
         seedField.Dock = DockStyle.Fill;
         panel.Controls.Add(seedField, 0, 0);
 
-        var genBtn = new Button { Text = UiStrings.Get("companion.gen"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(40, 23) };
+        var genBtn = new Button { Text = UiStrings.Get("companion.gen"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(40, 0) };
         genBtn.Click += (s, e) =>
         {
             byte[] bytes = new byte[8];
@@ -564,6 +587,7 @@ public partial class CompanionPanel : UserControl
 
             // Mark the slot as occupied so the game recognises it
             ActivateSlotIfEmpty(comp);
+            RaiseDataModified();
         }
     }
 
@@ -640,6 +664,7 @@ public partial class CompanionPanel : UserControl
         if (comp == null) return;
         comp.Set("CustomName", _nameField.Text);
         RefreshListEntry();
+        RaiseDataModified();
     }
 
     private void WriteCreatureSeed()
@@ -650,7 +675,10 @@ public partial class CompanionPanel : UserControl
         if (normalized == null) return;
         var arr = comp.GetArray("CreatureSeed");
         if (arr != null && arr.Length >= 2)
+        {
             arr.Set(1, normalized);
+            RaiseDataModified();
+        }
     }
 
     private void WriteSecondarySeed()
@@ -664,6 +692,7 @@ public partial class CompanionPanel : UserControl
             bool hasValue = normalized != null;
             arr.Set(0, hasValue);
             arr.Set(1, hasValue ? normalized! : "0x0");
+            RaiseDataModified();
         }
     }
 
@@ -673,7 +702,10 @@ public partial class CompanionPanel : UserControl
         if (comp == null) return;
         var normalized = SeedHelper.NormalizeSeedOrInteger(_speciesSeedField.Text);
         if (normalized != null)
+        {
             comp.Set("SpeciesSeed", normalized);
+            RaiseDataModified();
+        }
     }
 
     private void WriteGenusSeed()
@@ -682,7 +714,10 @@ public partial class CompanionPanel : UserControl
         if (comp == null) return;
         var normalized = SeedHelper.NormalizeSeedOrInteger(_genusSeedField.Text);
         if (normalized != null)
+        {
             comp.Set("GenusSeed", normalized);
+            RaiseDataModified();
+        }
     }
 
     private void WritePredator()
@@ -690,6 +725,7 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null) return;
         comp.Set("Predator", _predatorField.Checked);
+        RaiseDataModified();
     }
 
     private void WriteBiome()
@@ -697,7 +733,11 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null || _biomeField.SelectedItem == null) return;
         var biomeObj = comp.GetObject("Biome");
-        biomeObj?.Set("Biome", (string)_biomeField.SelectedItem);
+        if (biomeObj != null)
+        {
+            biomeObj.Set("Biome", (string)_biomeField.SelectedItem);
+            RaiseDataModified();
+        }
     }
 
     private void WriteCreatureType()
@@ -705,7 +745,11 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null || _creatureTypeField.SelectedItem == null) return;
         var ctObj = comp.GetObject("CreatureType");
-        ctObj?.Set("CreatureType", (string)_creatureTypeField.SelectedItem);
+        if (ctObj != null)
+        {
+            ctObj.Set("CreatureType", (string)_creatureTypeField.SelectedItem);
+            RaiseDataModified();
+        }
     }
 
     private void WriteScale()
@@ -724,6 +768,7 @@ public partial class CompanionPanel : UserControl
             // Store as RawDouble with the user's display text to preserve
             // the exact representation in serialised output.
             comp.Set("Scale", new RawDouble(val, _scaleField.DisplayText));
+            RaiseDataModified();
         }
     }
 
@@ -741,6 +786,7 @@ public partial class CompanionPanel : UserControl
             if (existing is double d && d == val)
                 return;
             comp.Set("Trust", new RawDouble(val, _trustField.DisplayText));
+            RaiseDataModified();
         }
     }
 
@@ -755,6 +801,7 @@ public partial class CompanionPanel : UserControl
             bool hasValue = normalized != null && normalized != "0x0";
             arr.Set(0, hasValue);
             arr.Set(1, hasValue ? normalized! : "0x0");
+            RaiseDataModified();
         }
     }
 
@@ -769,6 +816,7 @@ public partial class CompanionPanel : UserControl
             bool hasValue = normalized != null && normalized != "0x0";
             arr.Set(0, hasValue);
             arr.Set(1, hasValue ? normalized! : "0x0");
+            RaiseDataModified();
         }
     }
 
@@ -777,6 +825,7 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null) return;
         comp.Set("HasFur", _hasFurField.Checked);
+        RaiseDataModified();
     }
 
     private void WriteTrait(int index, InvariantNumericTextBox field)
@@ -794,6 +843,7 @@ public partial class CompanionPanel : UserControl
             if (existing is double d && d == val)
                 return;
             traits.Set(index, new RawDouble(val, field.DisplayText));
+            RaiseDataModified();
         }
     }
 
@@ -812,6 +862,7 @@ public partial class CompanionPanel : UserControl
             if (existing is double d && d == val)
                 return;
             moods.Set(index, new RawDouble(val, field.DisplayText));
+            RaiseDataModified();
         }
     }
 
@@ -822,6 +873,7 @@ public partial class CompanionPanel : UserControl
         string text = _customSpeciesNameField.Text;
         // Save format uses ^ prefix for species names
         comp.Set("CustomSpeciesName", string.IsNullOrEmpty(text) ? "^" : $"^{text.TrimStart('^')}");
+        RaiseDataModified();
     }
 
     private void WriteEggModified()
@@ -829,6 +881,7 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null) return;
         comp.Set("EggModified", _eggModifiedField.Checked);
+        RaiseDataModified();
     }
 
     private void WriteHasBeenSummoned()
@@ -836,6 +889,7 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null) return;
         comp.Set("HasBeenSummoned", _hasBeenSummonedField.Checked);
+        RaiseDataModified();
     }
 
     private void WriteAllowUnmodifiedReroll()
@@ -843,6 +897,7 @@ public partial class CompanionPanel : UserControl
         var comp = SelectedCompanion;
         if (comp == null) return;
         comp.Set("AllowUnmodifiedReroll", _allowUnmodifiedRerollField.Checked);
+        RaiseDataModified();
     }
 
     private void WriteUA()
@@ -857,13 +912,19 @@ public partial class CompanionPanel : UserControl
             string hexPart = text.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
                 ? text[2..] : text;
             if (long.TryParse(hexPart, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _))
+            {
                 comp.Set("UA", "0x" + hexPart.ToUpperInvariant());
+                RaiseDataModified();
+            }
         }
         else
         {
             // Decimal mode: write back as a long
             if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long val))
+            {
                 comp.Set("UA", val);
+                RaiseDataModified();
+            }
         }
     }
 
@@ -1072,6 +1133,7 @@ public partial class CompanionPanel : UserControl
             // Add new values (with ^ prefix)
             foreach (var d in descriptors)
                 descArr.Add($"^{d}");
+            RaiseDataModified();
         }
     }
 
@@ -1316,6 +1378,7 @@ public partial class CompanionPanel : UserControl
             _accessoryPrimarySwatches[uiRow].BackColor = SystemColors.Control;
             _accessoryAltSwatches[uiRow].BackColor = SystemColors.Control;
             _accessoryScaleFields[uiRow].Text = "1.0";
+            RaiseDataModified();
             return;
         }
 
@@ -1340,6 +1403,7 @@ public partial class CompanionPanel : UserControl
             }
         }
         _accessoryDescriptorLabels[uiRow].Text = accEntry.Descriptor ?? "";
+        RaiseDataModified();
     }
 
     /// <summary>
@@ -1429,7 +1493,7 @@ public partial class CompanionPanel : UserControl
     /// <summary>
     /// Writes a chosen colour to the save data for a specific accessory slot and colour index.
     /// </summary>
-    private static void WriteColourToSave(JsonObject slotData, int colourIndex, Color colour)
+    private void WriteColourToSave(JsonObject slotData, int colourIndex, Color colour)
     {
         var customData = slotData.GetObject("CustomData");
         if (customData == null) return;
@@ -1450,6 +1514,7 @@ public partial class CompanionPanel : UserControl
                 colArr.Set(1, rgba[1]);
                 colArr.Set(2, rgba[2]);
                 colArr.Set(3, rgba[3]);
+                RaiseDataModified();
             }
         }
         catch { }
@@ -1479,7 +1544,11 @@ public partial class CompanionPanel : UserControl
         if (_accessoryScaleFields[uiRow].NumericValue is double val)
         {
             var customData = slotData.GetObject("CustomData");
-            customData?.Set("Scale", new RawDouble(val, _accessoryScaleFields[uiRow].DisplayText));
+            if (customData != null)
+            {
+                customData.Set("Scale", new RawDouble(val, _accessoryScaleFields[uiRow].DisplayText));
+                RaiseDataModified();
+            }
         }
     }
 
@@ -1504,6 +1573,7 @@ public partial class CompanionPanel : UserControl
             ClearJsonArrayContents(customData.GetArray("Colours"));
             customData.Set("Scale", 1.0);
         }
+        RaiseDataModified();
 
         // Refresh display
         _loading = true;
@@ -1800,6 +1870,7 @@ public partial class CompanionPanel : UserControl
 
         var member = members.GetObject(slotIndex);
         member?.Set("PetIndex", selectedPetIndex);
+        RaiseDataModified();
     }
 
     /// <summary>Item for PetBattleTeam combo boxes holding the pet index and display label.</summary>
@@ -1816,7 +1887,7 @@ public partial class CompanionPanel : UserControl
 
         for (int i = 0; i < 5; i++)
         {
-            // Populate combo
+            // Populate combo with "None" + allowed moves
             _moveSlotCombos[i].Items.Clear();
             _moveSlotCombos[i].Items.Add(UiStrings.GetOrNull("companion.battle_move_none") ?? "None");
 
@@ -1833,6 +1904,25 @@ public partial class CompanionPanel : UserControl
                     moveId = (moves.GetString(i) ?? "").TrimStart('^');
                 }
                 catch { }
+            }
+
+            // If the companion has a restricted move that was filtered out of the dropdown,
+            // add it back so it displays correctly, but it won't be re-selectable.
+            if (!string.IsNullOrEmpty(moveId) && IsRestrictedMove(moveId)
+                && PetBattleMoveDatabase.ById.TryGetValue(moveId, out var restrictedMove))
+            {
+                bool alreadyInCombo = false;
+                for (int ci = 1; ci < _moveSlotCombos[i].Items.Count; ci++)
+                {
+                    if (_moveSlotCombos[i].Items[ci] is PetBattleMoveEntry existing
+                        && string.Equals(existing.Id, moveId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        alreadyInCombo = true;
+                        break;
+                    }
+                }
+                if (!alreadyInCombo)
+                    _moveSlotCombos[i].Items.Add(restrictedMove);
             }
 
             // Select move in combo
@@ -1976,6 +2066,14 @@ public partial class CompanionPanel : UserControl
         var selectedItem = _moveSlotCombos[slotIndex].SelectedItem;
         string moveId = selectedItem is PetBattleMoveEntry moveEntry ? moveEntry.Id : "";
 
+        // Block selection of restricted moves (e.g. REVIVE) - user cannot change a slot TO these IDs
+        if (!string.IsNullOrEmpty(moveId) && IsRestrictedMove(moveId))
+        {
+            // Revert to "None" — the move is only shown for display when the companion already has it
+            _moveSlotCombos[slotIndex].SelectedIndex = 0;
+            moveId = "";
+        }
+
         // Write to PetBattlerMoves string array
         try
         {
@@ -1983,6 +2081,7 @@ public partial class CompanionPanel : UserControl
             if (moves != null && slotIndex < moves.Length)
             {
                 moves.Set(slotIndex, string.IsNullOrEmpty(moveId) ? "^" : $"^{moveId}");
+                RaiseDataModified();
             }
         }
         catch { }
@@ -1998,6 +2097,7 @@ public partial class CompanionPanel : UserControl
         comp.Set("PetBattlerUseCoreStatClassOverrides", _battleOverrideCheck.Checked);
         UpdateClassOverrideEnabled();
         UpdateAverageClass();
+        RaiseDataModified();
     }
 
     /// <summary>Enables/disables the battle class comboboxes and placeholder labels.</summary>
@@ -2035,6 +2135,7 @@ public partial class CompanionPanel : UserControl
                 WriteClassOverride(overrides, 0, _battleHealthClass.SelectedItem as string ?? "C");
                 WriteClassOverride(overrides, 1, _battleAgilityClass.SelectedItem as string ?? "C");
                 WriteClassOverride(overrides, 2, _battleCombatClass.SelectedItem as string ?? "C");
+                RaiseDataModified();
             }
         }
         catch { }
@@ -2086,6 +2187,7 @@ public partial class CompanionPanel : UserControl
                     treats.Set(1, (int)(_battleTreatAgility.NumericValue ?? 0));
                 if (treats.Length > 2 && WasBattleIntChangedByUser("TreatCombat", (int)(_battleTreatCombat.NumericValue ?? 0), _battleTreatCombat))
                     treats.Set(2, (int)(_battleTreatCombat.NumericValue ?? 0));
+                RaiseDataModified();
             }
         }
         catch { }
@@ -2108,6 +2210,7 @@ public partial class CompanionPanel : UserControl
         if (!WasBattleIntChangedByUser("GenesAvailable", (int)(_battleGenesAvailable.NumericValue ?? 0), _battleGenesAvailable))
             return;
         comp.Set("PetBattlerTreatsAvailable", (int)(_battleGenesAvailable.NumericValue ?? 0));
+        RaiseDataModified();
     }
 
     /// <summary>Handles mutation progress value change.</summary>
@@ -2130,6 +2233,7 @@ public partial class CompanionPanel : UserControl
         if (existing is double d && d == val)
             return;
         comp.Set("PetBattleProgressToTreat", new RawDouble(val, _battleMutationProgress.DisplayText));
+        RaiseDataModified();
     }
 
     /// <summary>Writes the victories value.</summary>
@@ -2140,6 +2244,7 @@ public partial class CompanionPanel : UserControl
         if (!WasBattleIntChangedByUser("Victories", (int)(_battleVictories.NumericValue ?? 0), _battleVictories))
             return;
         comp.Set("PetBattlerVictories", (int)(_battleVictories.NumericValue ?? 0));
+        RaiseDataModified();
     }
 
     /// <summary>Enables or disables all battle controls.</summary>
@@ -2194,6 +2299,7 @@ public partial class CompanionPanel : UserControl
             RefreshListEntry();
             OnCompanionSelected(null, EventArgs.Empty);
         }
+        RaiseDataModified();
     }
 
     private void OnExport(object? sender, EventArgs e)
@@ -2295,6 +2401,7 @@ public partial class CompanionPanel : UserControl
             // Refresh list
             var saveData = FindSaveDataRoot();
             if (saveData != null) LoadData(saveData);
+            RaiseDataModified();
         }
         catch (Exception ex)
         {
@@ -2346,6 +2453,7 @@ public partial class CompanionPanel : UserControl
                 _birthTimePicker.Value = DateTimeOffset.FromUnixTimeSeconds(newBirthTime).ToLocalTime().DateTime;
             }
             finally { _loading = false; }
+            RaiseDataModified();
         }
         catch
         {
@@ -2463,6 +2571,7 @@ public partial class CompanionPanel : UserControl
         // Refresh the companion list
         var saveData = FindSaveDataRoot();
         if (saveData != null) LoadData(saveData);
+        RaiseDataModified();
 
         // Ask if user wants to place the egg in exosuit
         if (MessageBox.Show(this,
@@ -2499,6 +2608,8 @@ public partial class CompanionPanel : UserControl
         }
 
         // Copy arrays: Descriptors, CreatureSeed, CreatureSecondarySeed, ColourBaseSeed, BoneScaleSeed, Traits
+        // Descriptors can vary in length (body parts), so we must replace the egg's array entirely
+        // rather than copying element-by-element which would truncate to the shorter length.
         foreach (string key in new[] { "Descriptors", "CreatureSeed", "CreatureSecondarySeed", "ColourBaseSeed", "BoneScaleSeed", "Traits" })
         {
             try
@@ -2506,12 +2617,7 @@ public partial class CompanionPanel : UserControl
                 var arr = pet.GetArray(key);
                 if (arr != null)
                 {
-                    var eggArr = egg.GetArray(key);
-                    if (eggArr != null)
-                    {
-                        for (int i = 0; i < Math.Min(arr.Length, eggArr.Length); i++)
-                            eggArr.Set(i, arr.Get(i));
-                    }
+                    egg.Set(key, arr.DeepClone());
                 }
             }
             catch { }
@@ -2724,6 +2830,7 @@ public partial class CompanionPanel : UserControl
 
         // Notify listeners (e.g. MainForm) so the exosuit inventory grid is refreshed
         ExosuitCargoModified?.Invoke(this, EventArgs.Empty);
+        RaiseDataModified();
 
         MessageBox.Show(this,
             string.Format(CultureInfo.CurrentCulture, UiStrings.GetOrNull("companion.place_egg_success") ?? "Egg placed in exosuit cargo at position ({0}, {1}).", targetX, targetY),

@@ -10,6 +10,16 @@ namespace NMSE.Core;
 internal static class CompanionLogic
 {
     /// <summary>
+    /// Move IDs that are restricted from user selection in the Battle tab move dropdowns.
+    /// A companion may already have one of these moves (e.g. from a save file), and it
+    /// will still be displayed with full detail, but the user cannot change a move slot
+    /// TO one of these IDs. This prevents assigning moves that the game restricts.
+    /// </summary>
+    internal static readonly string[] RestrictedMoveIds =
+    {
+        "REVIVE",
+    };
+    /// <summary>
     /// Known planetary biome types where companions can be found.
     /// Delegates to <see cref="CompanionDatabase.BiomeTypes"/>.
     /// </summary>

@@ -224,6 +224,7 @@ partial class CompanionPanel
             if (entry.Source != "Pet") return;
             CompanionLogic.SetSlotUnlocked(_playerState, entry.OriginalIndex, _unlockedCheck.Checked);
             RefreshListEntry();
+            RaiseDataModified();
         };
 
         // DateTimePickers
@@ -243,6 +244,7 @@ partial class CompanionPanel
             {
                 long unix = ((DateTimeOffset)_birthTimePicker.Value.ToUniversalTime()).ToUnixTimeSeconds();
                 comp.Set("BirthTime", unix);
+                RaiseDataModified();
             }
             catch { }
         };
@@ -263,6 +265,7 @@ partial class CompanionPanel
             {
                 long unix = ((DateTimeOffset)_lastEggTimePicker.Value.ToUniversalTime()).ToUnixTimeSeconds();
                 comp.Set("LastEggTime", unix);
+                RaiseDataModified();
             }
             catch { }
         };
@@ -576,7 +579,7 @@ partial class CompanionPanel
                 Text = "Reset",
                 AutoSize = true,
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                MinimumSize = new Size(50, 23),
+                MinimumSize = new Size(50, 0),
             };
             _accessoryResetBtns[slot].Click += (sender, e) => OnAccessoryReset(s);
 
