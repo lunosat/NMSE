@@ -189,12 +189,35 @@ public class AppConfig
     }
 
     /// <summary>Creates the config directory and loads settings from disk if available.</summary>
+    /// <remarks>
+    /// The configuration file is stored alongside the application executable so it survives
+    /// application updates (which copy new files but never delete existing ones in the app
+    /// directory). A one-time migration from the old <c>%AppData%\NMSE\NMSE.conf</c> location
+    /// is performed the first time this method runs with the new path.
+    /// </remarks>
     public void Initialize()
     {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string configDir = Path.Combine(appData, "NMSE");
-        Directory.CreateDirectory(configDir);
-        _configPath = Path.Combine(configDir, ConfigFileName);
+        string appDir = AppContext.BaseDirectory;
+        _configPath = Path.Combine(appDir, ConfigFileName);
+
+        // One-time migration: copy the old config from %AppData%\NMSE\ if the new
+        // path does not yet exist but the old one does.
+        if (!File.Exists(_configPath))
+        {
+            try
+            {
+                string oldConfigDir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "NMSE");
+                string oldConfigPath = Path.Combine(oldConfigDir, ConfigFileName);
+                if (File.Exists(oldConfigPath))
+                    File.Copy(oldConfigPath, _configPath, overwrite: false);
+            }
+            catch
+            {
+                // Migration is best-effort; start fresh if it fails.
+            }
+        }
 
         if (File.Exists(_configPath))
             Load();
