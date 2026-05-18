@@ -89,6 +89,8 @@ public partial class MainFormResources : Form
     private List<List<string>>? _xboxFileIdentifiers;
     /// <summary>For PS4 memory.dat: maps [slotComboIdx][fileComboIdx] to the memory.dat sub-slot index.</summary>
     private List<List<int>>? _ps4SubSlotIndices;
+    /// <summary>For PS4 SaveWizard streaming (.hg with NOMANSKY header): original file path for save-back.</summary>
+    private string? _ps4NomanSkyPath;
 
     // Deferred panel loading: track which tabs have had LoadData called
     private readonly HashSet<int> _loadedTabIndices = new();
@@ -163,6 +165,10 @@ public partial class MainFormResources : Form
         _cataloguePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _accountPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _basePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _mainStatsPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _milestonePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _settlementPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _companionPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _companionPanel.ExosuitCargoModified += OnCompanionExosuitCargoModified;
 
         // Wire up Save Utilities reload event
@@ -220,6 +226,10 @@ public partial class MainFormResources : Form
 
             Opacity = 1;
 
+            // Move focus to the tab control so the toolbar combos don't
+            // appear with their text highlighted on startup.
+            _tabControl.Focus();
+
             // Re-apply the icon AFTER the opacity change hack.
             // Setting Opacity from 0 to 1 removes WS_EX_LAYERED
             // from the native window style, which can cause Windows
@@ -255,6 +265,7 @@ public partial class MainFormResources : Form
         FormClosing += OnFormClosing;
         ResizeBegin += (_, _) => SuspendLayout();
         ResizeEnd += (_, _) => { ResumeLayout(true); Refresh(); };
+        Resize += OnFormResize;
 
         // Load the application icon for the window title bar and taskbar.
         // The icon is stored in _appIcon so it can be re-applied after the
@@ -888,6 +899,7 @@ public partial class MainFormResources : Form
         _saveFileCombo.Items.Clear();
         _xboxContainersIndexPath = null;
         _ps4MemoryDatPath = null;
+        _ps4NomanSkyPath = null;
         _platformSlotIdentifiers = null;
         _xboxFileIdentifiers = null;
         _ps4SubSlotIndices = null;
@@ -1385,8 +1397,21 @@ public partial class MainFormResources : Form
             _currentFilePath = filePath;
             string? saveDir = Path.GetDirectoryName(filePath);
 
-            // If the file was loaded directly (Open File), update the toolbar to reflect it
+            // If the file was loaded directly (Open File), update the toolbar to reflect it.
+            // This must come before the NOMANSKY check below because it may call
+            // PopulateSaveSlots() which resets _ps4NomanSkyPath.
             UpdateToolbarForLoadedFile(filePath);
+
+            // Track PS4 SaveWizard streaming files (NOMANSKY header .hg) for correct save-back.
+            // Must come after UpdateToolbarForLoadedFile() which may reset this field.
+            if (_detectedPlatform == SaveFileManager.Platform.PS4 && _ps4MemoryDatPath == null)
+            {
+                _ps4NomanSkyPath = SaveFileManager.IsNomanSkyFile(filePath) ? filePath : null;
+            }
+            else
+            {
+                _ps4NomanSkyPath = null;
+            }
 
             // Update panels - only load the currently active tab eagerly.
             // Other tabs are loaded on first selection (deferred loading).
@@ -1828,13 +1853,44 @@ public partial class MainFormResources : Form
             // Determine slot index for meta writing
             int metaSlotIdx = _saveSlotCombo.SelectedIndex >= 0 ? _saveSlotCombo.SelectedIndex : 0;
 
+// PS4 SaveWizard streaming (.hg with NOMANSKY header): write back in same format.
+            // Use _ps4NomanSkyPath (original file) for the header template since _currentFilePath
+            // may have been changed by Save As and the new file may not exist yet.
+            if (_ps4NomanSkyPath != null && _currentFilePath != null)
+            {
+                SaveFileManager.SaveNomanSkyFile(_ps4NomanSkyPath, _currentSaveData);
+
+                // Rename/copy to _currentFilePath if it differs from the original.
+                if (!string.Equals(_ps4NomanSkyPath, _currentFilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(_ps4NomanSkyPath, _currentFilePath, overwrite: true);
+                    // Update _ps4NomanSkyPath so subsequent saves target the new file.
+                    _ps4NomanSkyPath = _currentFilePath;
+                }
+
+                // Write account data file to disk (if loaded).
+                if (_accountPanel.AccountData != null && _accountPanel.AccountFilePath != null)
+                {
+                    _accountPanel.AccountData.NameMapper ??= JsonParser.GetDefaultMapper();
+                    SaveFileManager.SaveToFile(_accountPanel.AccountFilePath, _accountPanel.AccountData,
+                        compress: false, writeMeta: true, platform: _detectedPlatform, slotIndex: 0);
+                }
+
+                UpdateCurrentSlotLabel();
+                _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath));
+                _hasUnsavedChanges = false;
+                MessageBox.Show(this, UiStrings.Get("dialog.save_success"), UiStrings.Get("dialog.success"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
             // PS4 HTOS saves are plain uncompressed JSON (savedata*.hg without memory.dat).
             // Writing LZ4-compressed data would produce a file the PS4 game cannot read.
             bool isPs4Htos = _detectedPlatform == SaveFileManager.Platform.PS4 && _ps4MemoryDatPath == null;
             bool compress = !isPs4Htos;
 
             // Write save file to disk with platform-appropriate meta
-            SaveFileManager.SaveToFile(_currentFilePath, _currentSaveData,
+            SaveFileManager.SaveToFile(_currentFilePath!, _currentSaveData,
                 compress: compress, writeMeta: true, platform: _detectedPlatform, slotIndex: metaSlotIdx);
 
             // Write account data file to disk (if loaded).
@@ -1853,7 +1909,7 @@ public partial class MainFormResources : Form
                     compress: false, writeMeta: writeAccountMeta, platform: _detectedPlatform, slotIndex: 0);
             }
 
-            _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath));
+            _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath!));
             _hasUnsavedChanges = false;
             UpdateCurrentSlotLabel();
             MessageBox.Show(this, UiStrings.Get("dialog.save_success"), UiStrings.Get("dialog.success"),
@@ -2938,6 +2994,23 @@ public partial class MainFormResources : Form
         aboutForm.Controls.Add(tableLayout);
         aboutForm.AcceptButton = okButton;
         aboutForm.ShowDialog(this);
+    }
+
+    private void OnFormResize(object? sender, EventArgs e)
+    {
+        int halfWidth = ClientSize.Width / 2;
+        int thirdWidth = ClientSize.Width / 3;
+        _directoryCombo.Width = Math.Min(halfWidth, 1200);
+        _saveFileCombo.Width = Math.Min(thirdWidth, 800);
+        DeselectComboText(_directoryCombo);
+        DeselectComboText(_saveFileCombo);
+        DeselectComboText(_saveSlotCombo);
+    }
+
+    private static void DeselectComboText(ToolStripComboBox combo)
+    {
+        if (combo.ComboBox != null)
+            combo.ComboBox.SelectionLength = 0;
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
