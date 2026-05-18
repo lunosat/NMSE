@@ -301,6 +301,103 @@ public class IOLayerTests
         Assert.Equal(SaveFileManager.Platform.PS4, platform);
     }
 
+    // --- PS4 SaveWizard streaming (.hg with NOMANSKY header) tests ---------
+
+    [Fact]
+    public void SaveFileManager_IsNomanSkyFile_SaveWizardStreaming_ReturnsTrue()
+    {
+        var savePath = FindRefPath("_ref", "ps4", "ps4_other", "savedata02.hg");
+        if (savePath == null) return;
+
+        Assert.True(SaveFileManager.IsNomanSkyFile(savePath));
+    }
+
+    [Fact]
+    public void SaveFileManager_IsNomanSkyFile_HTOSPlainJson_ReturnsFalse()
+    {
+        var savePath = FindRefPath("_ref", "ps4", "savedata02.hg");
+        if (savePath == null) return;
+
+        Assert.False(SaveFileManager.IsNomanSkyFile(savePath));
+    }
+
+    [Fact]
+    public void SaveFileManager_LoadSaveFile_SaveWizardStreaming_ParsesJson()
+    {
+        var savePath = FindRefPath("_ref", "ps4", "ps4_other", "savedata02.hg");
+        if (savePath == null) return;
+
+        EnsureMapperLoaded();
+        var save = SaveFileManager.LoadSaveFile(savePath);
+        Assert.NotNull(save);
+        Assert.True(save.GetInt("Version") > 0, "SaveWizard streaming file should have Version");
+    }
+
+    [Fact]
+    public void SaveFileManager_SaveNomanSkyFile_RoundTripPreservesData()
+    {
+        var savePath = FindRefPath("_ref", "ps4", "ps4_other", "savedata02.hg");
+        if (savePath == null) return;
+
+        EnsureMapperLoaded();
+
+        // Load the original SaveWizard streaming file
+        var originalHeader = new byte[0x70];
+        using (var fs = new FileStream(savePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            fs.ReadExactly(originalHeader, 0, 0x70);
+
+        var save = SaveFileManager.LoadSaveFile(savePath);
+        Assert.NotNull(save);
+
+        // Save to a temporary file using SaveNomanSkyFile
+        string tmpFile = Path.Combine(Path.GetTempPath(), $"nmse_nomansky_test_{Guid.NewGuid():N}.hg");
+        try
+        {
+            // Copy the original file to temporary location so SaveNomanSkyFile can read its header
+            File.Copy(savePath, tmpFile, overwrite: true);
+
+            // Save the data back
+            SaveFileManager.SaveNomanSkyFile(tmpFile, save);
+
+            // Verify the saved file starts with NOMANSKY header
+            Assert.True(SaveFileManager.IsNomanSkyFile(tmpFile),
+                "Saved file should start with NOMANSKY header");
+
+            // Verify the saved file can be re-loaded
+            var reloaded = SaveFileManager.LoadSaveFile(tmpFile);
+            Assert.NotNull(reloaded);
+            Assert.Equal(save.GetInt("Version"), reloaded.GetInt("Version"));
+
+            // Verify the header is preserved (magic bytes, version, etc.)
+            byte[] savedHeader = new byte[0x70];
+            using (var fs = new FileStream(tmpFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+                fs.ReadExactly(savedHeader, 0, 0x70);
+
+            // First 8 bytes should be "NOMANSKY"
+            Assert.Equal((byte)'N', savedHeader[0]);
+            Assert.Equal((byte)'O', savedHeader[1]);
+            Assert.Equal((byte)'M', savedHeader[2]);
+            Assert.Equal((byte)'A', savedHeader[3]);
+            Assert.Equal((byte)'N', savedHeader[4]);
+            Assert.Equal((byte)'S', savedHeader[5]);
+            Assert.Equal((byte)'K', savedHeader[6]);
+            Assert.Equal((byte)'Y', savedHeader[7]);
+
+            // JSON size field at 0x5C should be reasonable (> 0)
+            int jsonSize = savedHeader[0x5C] | (savedHeader[0x5D] << 8) |
+                           (savedHeader[0x5E] << 16) | (savedHeader[0x5F] << 24);
+            Assert.True(jsonSize > 0, $"JSON size at 0x5C should be positive, got {jsonSize}");
+
+            // JSON size should match (file size - 0x70)
+            long fileSize = new FileInfo(tmpFile).Length;
+            Assert.Equal(jsonSize, (int)(fileSize - 0x70));
+        }
+        finally
+        {
+            try { File.Delete(tmpFile); } catch { }
+        }
+    }
+
     // --- Special character save file tests ----------------------------
 
     [Fact]

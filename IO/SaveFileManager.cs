@@ -325,6 +325,48 @@ public class SaveFileManager
         }
     }
 
+/// <summary>
+    /// Save JSON data back to a PS4 SaveWizard streaming (.hg with NOMANSKY header) file.
+    /// Preserves the original 0x70-byte header and writes the new JSON data after it.
+    /// Uses Latin-1 encoding consistent with all other save formats.
+    /// </summary>
+    /// <param name="filePath">Path to the NOMANSKY-header save file.</param>
+    /// <param name="data">The JSON save data to write.</param>
+    public static void SaveNomanSkyFile(string filePath, JsonObject data)
+    {
+        // Serialize JSON to Latin-1 bytes, consistent with all other save formats.
+        // Append a NUL terminator to match the original file format.
+        string json = data.ToString();
+        byte[] jsonBytes = Latin1.GetBytes(json);
+        byte[] dataBytes = new byte[jsonBytes.Length + 1];
+        Buffer.BlockCopy(jsonBytes, 0, dataBytes, 0, jsonBytes.Length);
+        // dataBytes[jsonBytes.Length] is already 0 (null terminator)
+
+        // Read the original header to preserve it
+        byte[] header;
+        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            if (fs.Length < 0x70)
+                throw new IOException("Corrupt NOMANSKY file: header too small");
+            header = new byte[0x70];
+            int read = fs.Read(header, 0, 0x70);
+            if (read < 0x70)
+                throw new IOException("Corrupt NOMANSKY file: could not read full header");
+        }
+
+        // Update JSON size field at offset 0x5C with the actual data size
+        int dataSize = dataBytes.Length;
+        header[0x5C] = (byte)(dataSize & 0xFF);
+        header[0x5D] = (byte)((dataSize >> 8) & 0xFF);
+        header[0x5E] = (byte)((dataSize >> 16) & 0xFF);
+        header[0x5F] = (byte)((dataSize >> 24) & 0xFF);
+
+        // Write header + JSON data
+using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        outFs.Write(header, 0, 0x70);
+        outFs.Write(dataBytes, 0, dataBytes.Length);
+    }
+
     /// <summary>
     /// Save JSON data back to an Xbox Game Pass save slot.
     /// Writes the compressed save data and meta to the blob directory,
@@ -565,6 +607,27 @@ public class SaveFileManager
     /// NOMANSKY magic header for PS4/PS5 save files.
     /// </summary>
     private static readonly byte[] NomanSkyMagic = "NOMANSKY"u8.ToArray();
+
+    /// <summary>
+    /// Checks if a file has the NOMANSKY header (PS4 SaveWizard streaming format).
+    /// </summary>
+    /// <param name="filePath">Path to the file to check.</param>
+    /// <returns>True if the file starts with the NOMANSKY magic bytes.</returns>
+    public static bool IsNomanSkyFile(string filePath)
+    {
+        try
+        {
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (fs.Length < 8) return false;
+            byte[] header = new byte[8];
+            int read = fs.Read(header, 0, 8);
+            return read >= 8 && IsNomanSkyHeader(header);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
     private static bool IsNomanSkyHeader(byte[] data)
     {
