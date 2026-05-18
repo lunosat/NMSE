@@ -197,15 +197,27 @@ partial class StarshipPanel
         _shipClass.Items.AddRange(StarshipLogic.ShipClasses);
         _classLabel = AddRow(leftPanel, "Class:", _shipClass, row++);
 
-        var seedPanel = new Panel { Dock = DockStyle.Fill, Height = 26 };
+        var seedPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        seedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _shipSeed = new TextBox { Dock = DockStyle.Fill };
         _generateSeedBtn = new Button
         {
             Text = "Generate",
-            Dock = DockStyle.Right,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(70, 0)
+            MinimumSize = new Size(70, 0),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom,
         };
         _generateSeedBtn.Click += (s, e) =>
         {
@@ -213,8 +225,8 @@ partial class StarshipPanel
             _rng.NextBytes(bytes);
             _shipSeed.Text = "0x" + BitConverter.ToString(bytes).Replace("-", "");
         };
-        seedPanel.Controls.Add(_shipSeed);
-        seedPanel.Controls.Add(_generateSeedBtn);
+        seedPanel.Controls.Add(_shipSeed, 0, 0);
+        seedPanel.Controls.Add(_generateSeedBtn, 1, 0);
         _seedLabel = AddRow(leftPanel, "Seed:", seedPanel, row++);
 
         // Right panel for base stats
@@ -542,5 +554,8 @@ partial class StarshipPanel
 
     // Tracks whether the Customisation tab may be navigated to
     private bool _customisationTabEnabled = true;
+
+    // Warning label next to Solar sail colour picker
+    private Label? _sailColourWarningLabel = null;
 }
 

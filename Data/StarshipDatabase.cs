@@ -2408,6 +2408,25 @@ public sealed class ShipCustomisationItem
 }
 
 /// <summary>
+/// Represents an additional colour channel beyond the standard five ship paint channels.
+/// For example, Solar ships have a <c>SailShip_Sails</c> colour channel for the sail fabric.
+/// </summary>
+public sealed class ShipCustomisationExtraColour
+{
+    /// <summary>The palette name used in the CCD Colours array, e.g. "SailShip_Sails".</summary>
+    public string PaletteName { get; init; } = "";
+    /// <summary>The colour alt used in the CCD Colours array, e.g. "Primary".</summary>
+    public string ColourAlt { get; init; } = "";
+    /// <summary>
+    /// The palette ID used to display the colour picker grid, e.g. "SailShip_Sails".
+    /// When empty, the palette selected in the paint palette combo is used.
+    /// </summary>
+    public string DisplayPaletteId { get; init; } = "";
+    /// <summary>Localisation key for the colour channel label, e.g. "starship.customisation_sail_colour".</summary>
+    public string LabelKey { get; init; } = "";
+}
+
+/// <summary>
 /// Represents a texture option group for a ship, with all available texture option names.
 /// </summary>
 public sealed class ShipCustomisationTextureGroup
@@ -2440,6 +2459,11 @@ public sealed class ShipCustomisationConfig
     /// Empty string represents "no specific palette".
     /// </summary>
     public IReadOnlyList<string> PaletteIDs { get; init; } = Array.Empty<string>();
+    /// <summary>
+    /// Additional colour channels beyond the standard five ship paint channels.
+    /// For Solar ships this includes the <c>SailShip_Sails</c> colour channel.
+    /// </summary>
+    public IReadOnlyList<ShipCustomisationExtraColour> ExtraColourChannels { get; init; } = Array.Empty<ShipCustomisationExtraColour>();
 }
 
 /// <summary>
@@ -2482,6 +2506,7 @@ public static class ShipCustomisationDatabase
                 var slots = ParseSlots(elem);
                 var textureGroups = ParseTextureGroups(elem);
                 var paletteIds = ParseStringArray(elem, "PaletteIDs");
+                var extraColours = ParseExtraColourChannels(elem);
 
                 loaded.Add(new ShipCustomisationConfig
                 {
@@ -2490,6 +2515,7 @@ public static class ShipCustomisationDatabase
                     Slots = slots,
                     TextureGroups = textureGroups,
                     PaletteIDs = paletteIds,
+                    ExtraColourChannels = extraColours,
                 });
             }
 
@@ -2590,6 +2616,37 @@ public static class ShipCustomisationDatabase
             });
         }
         return groups;
+    }
+
+    private static IReadOnlyList<ShipCustomisationExtraColour> ParseExtraColourChannels(JsonElement elem)
+    {
+        if (!elem.TryGetProperty("ExtraColourChannels", out var arr) ||
+            arr.ValueKind != JsonValueKind.Array)
+            return Array.Empty<ShipCustomisationExtraColour>();
+
+        var channels = new List<ShipCustomisationExtraColour>();
+        foreach (var chElem in arr.EnumerateArray())
+        {
+            string paletteName = chElem.TryGetProperty("PaletteName", out var pnP)
+                ? pnP.GetString() ?? "" : "";
+            string colourAlt = chElem.TryGetProperty("ColourAlt", out var caP)
+                ? caP.GetString() ?? "" : "";
+            string displayPaletteId = chElem.TryGetProperty("DisplayPaletteId", out var dpP)
+                ? dpP.GetString() ?? "" : "";
+            string labelKey = chElem.TryGetProperty("LabelKey", out var lkP)
+                ? lkP.GetString() ?? "" : "";
+
+            if (string.IsNullOrEmpty(paletteName) || string.IsNullOrEmpty(colourAlt)) continue;
+
+            channels.Add(new ShipCustomisationExtraColour
+            {
+                PaletteName = paletteName,
+                ColourAlt = colourAlt,
+                DisplayPaletteId = displayPaletteId,
+                LabelKey = labelKey,
+            });
+        }
+        return channels;
     }
 
     private static IReadOnlyList<string> ParseStringArray(JsonElement elem, string propertyName)

@@ -53,9 +53,10 @@ public partial class StarshipPanel : UserControl
     /// <summary>
     /// Colour channel swatch controls in the Customisation tab.
     /// Each entry holds the channel name (e.g. "Paint"), the colour alt (e.g. "Primary"),
-    /// and the clickable Panel swatch.
+    /// the display palette ID (empty for combo-selected palette, or a specific palette like
+    /// "SailShip_Sails"), and the clickable Panel swatch.
     /// </summary>
-    private readonly List<(string PaletteName, string ColourAlt, Panel Swatch)> _colourSwatches = new();
+    private readonly List<(string PaletteName, string ColourAlt, string DisplayPaletteId, Panel Swatch)> _colourSwatches = new();
 
     /// <summary>Active colour picker dropdown, disposed when a new one is opened.</summary>
     private ToolStripDropDown? _activeColourMenu;
@@ -184,6 +185,8 @@ public partial class StarshipPanel : UserControl
         _shipDetailsTabPage.Text = UiStrings.Get("starship.tab_ship_details");
         _customisationTabPage.Text = UiStrings.Get("starship.tab_customisation");
         _sceneLabelCtrl.Text = UiStrings.Get("starship.customisation_scene_label");
+        if (_sailColourWarningLabel != null)
+            _sailColourWarningLabel.Text = UiStrings.Get("starship.customisation_sail_warning");
 
         // Refresh ship type combo with localised display names
         RefreshShipTypeCombo();
@@ -1682,6 +1685,7 @@ public partial class StarshipPanel : UserControl
         _colourSwatches.Clear();
         _paletteLabelCtrl = null;
         _paletteCombo = null;
+        _sailColourWarningLabel = null;
 
         // Dispose any open colour picker menu from previous config
         _activeColourMenu?.Dispose();
@@ -1709,7 +1713,7 @@ public partial class StarshipPanel : UserControl
             Text = UiStrings.Get("starship.customisation_combo_warning"),
             AutoSize = true,
             ForeColor = Color.DarkOrange,
-            Font = new Font("Segoe UI Emoji", 8.5f),
+            Font = new Font("Segoe UI Emoji", 8.5f, FontStyle.Regular),
             Padding = new Padding(0, 4, 0, 6),
         };
         _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -1764,6 +1768,56 @@ public partial class StarshipPanel : UserControl
             }
         }
 
+        // Texture options (placed before colours so paint style choices appear first)
+        if (config.TextureGroups.Count > 0)
+        {
+            var texHeading = new Label
+            {
+                Text = UiStrings.Get("starship.customisation_texture_heading"),
+                AutoSize = true,
+                Padding = new Padding(0, 8, 0, 2),
+            };
+            FontManager.ApplyHeadingFont(texHeading, 10);
+            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _customisationContent.RowCount = nextRow + 1;
+            _customisationContent.Controls.Add(texHeading, 0, nextRow);
+            _customisationContent.SetColumnSpan(texHeading, 2);
+            nextRow++;
+
+            foreach (var tg in config.TextureGroups)
+            {
+                var lbl = new Label
+                {
+                    Text = UiStrings.Format("starship.customisation_paint_style_label", tg.GroupID),
+                    AutoSize = true,
+                    Anchor = AnchorStyles.Left,
+                    Padding = new Padding(0, 5, 10, 0),
+                };
+                var combo = new ComboBox
+                {
+                    Dock = DockStyle.Fill,
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                };
+                string noneLabel = UiStrings.Get("starship.customisation_none");
+                combo.Items.Add(noneLabel);
+                foreach (var opt in tg.Options)
+                {
+                    var friendly = GetTextureOptionFriendlyName(opt);
+                    if (friendly != opt)
+                        combo.Items.Add(new TextureOptionEntry(opt, friendly));
+                    else
+                        combo.Items.Add(opt);
+                }
+
+                _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _customisationContent.RowCount = nextRow + 1;
+                _customisationContent.Controls.Add(lbl, 0, nextRow);
+                _customisationContent.Controls.Add(combo, 1, nextRow);
+                _textureControls.Add((lbl, combo, tg.GroupID));
+                nextRow++;
+            }
+        }
+
         // Paint palette
         if (config.PaletteIDs.Count > 0)
         {
@@ -1782,8 +1836,16 @@ public partial class StarshipPanel : UserControl
             string noneLabel = UiStrings.Get("starship.customisation_none");
             paletteCombo.Items.Add(noneLabel);
             foreach (var pid in config.PaletteIDs)
+            {
                 if (!string.IsNullOrEmpty(pid))
-                    paletteCombo.Items.Add(pid);
+                {
+                    var friendly = GetPaletteFriendlyName(pid);
+                    if (friendly != pid)
+                        paletteCombo.Items.Add(new PaletteOptionEntry(pid, friendly));
+                    else
+                        paletteCombo.Items.Add(pid);
+                }
+            }
 
             _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _customisationContent.RowCount = nextRow + 1;
@@ -1808,20 +1870,20 @@ public partial class StarshipPanel : UserControl
             _customisationContent.SetColumnSpan(coloursHeading, 2);
             nextRow++;
 
-            // Each entry: (channel, colourAlt, localisationKey).
+            // Each entry: (channel, colourAlt, displayPaletteId, localisationKey).
             // Colour 3 targets Undercoat/Alternative1 for dense saves (320-entry arrays);
             // the read/write methods fall back to Undercoat/Primary for sparse saves.
-            (string Channel, string AltId, string LocKey)[] colourDefs =
+            (string Channel, string AltId, string DisplayPaletteId, string LocKey)[] colourDefs =
             [
-                ("Paint",     "Primary",      "starship.customisation_colour1"),
-                ("Paint",     "Alternative3", "starship.customisation_colour2"),
-                ("Undercoat", "Alternative1", "starship.customisation_colour3"),
-                ("Paint",     "Alternative1", "starship.customisation_decal1"),
-                ("Paint",     "Alternative2", "starship.customisation_decal2"),
+                ("Paint",     "Primary",      "", "starship.customisation_colour1"),
+                ("Paint",     "Alternative3", "", "starship.customisation_colour2"),
+                ("Undercoat", "Alternative1", "", "starship.customisation_colour3"),
+                ("Paint",     "Alternative1", "", "starship.customisation_decal1"),
+                ("Paint",     "Alternative2", "", "starship.customisation_decal2"),
             ];
             const int swatchSize = 28;
 
-            foreach (var (channel, altId, locKey) in colourDefs)
+            foreach (var (channel, altId, displayPaletteId, locKey) in colourDefs)
             {
                 var swatchLbl = new Label
                 {
@@ -1840,57 +1902,74 @@ public partial class StarshipPanel : UserControl
                 };
                 string capturedChannel = channel;
                 string capturedAlt = altId;
-                swatch.Click += (_, _) => OnShipColourSwatchClick(swatch, capturedChannel, capturedAlt);
+                string capturedDisplayPalette = displayPaletteId;
+                swatch.Click += (_, _) => OnShipColourSwatchClick(swatch, capturedChannel, capturedAlt, capturedDisplayPalette);
                 _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
                 _customisationContent.RowCount = nextRow + 1;
                 _customisationContent.Controls.Add(swatchLbl, 0, nextRow);
                 _customisationContent.Controls.Add(swatch, 1, nextRow);
-                _colourSwatches.Add((channel, altId, swatch));
+                _colourSwatches.Add((channel, altId, displayPaletteId, swatch));
                 nextRow++;
             }
-        }
 
-        // Texture options
-        if (config.TextureGroups.Count > 0)
-        {
-            var texHeading = new Label
+            // Extra colour channels (e.g. SailShip_Sails for Solar ships)
+            if (config.ExtraColourChannels.Count > 0)
             {
-                Text = UiStrings.Get("starship.customisation_texture_heading"),
-                AutoSize = true,
-                Padding = new Padding(0, 8, 0, 2),
-            };
-            FontManager.ApplyHeadingFont(texHeading, 10);
-            _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            _customisationContent.RowCount = nextRow + 1;
-            _customisationContent.Controls.Add(texHeading, 0, nextRow);
-            _customisationContent.SetColumnSpan(texHeading, 2);
-            nextRow++;
-
-            foreach (var tg in config.TextureGroups)
-            {
-                var lbl = new Label
+                foreach (var ec in config.ExtraColourChannels)
                 {
-                    Text = tg.GroupID + ":",
-                    AutoSize = true,
-                    Anchor = AnchorStyles.Left,
-                    Padding = new Padding(0, 5, 10, 0),
-                };
-                var combo = new ComboBox
-                {
-                    Dock = DockStyle.Fill,
-                    DropDownStyle = ComboBoxStyle.DropDownList,
-                };
-                string noneLabel = UiStrings.Get("starship.customisation_none");
-                combo.Items.Add(noneLabel);
-                foreach (var opt in tg.Options)
-                    combo.Items.Add(opt);
+                    var swatchLbl = new Label
+                    {
+                        Text = UiStrings.Get(ec.LabelKey) + ":",
+                        AutoSize = true,
+                        Anchor = AnchorStyles.Left,
+                        Padding = new Padding(0, 5, 10, 0),
+                    };
+                    var swatch = new Panel
+                    {
+                        Size = new Size(swatchSize, swatchSize),
+                        BackColor = SystemColors.Control,
+                        BorderStyle = BorderStyle.FixedSingle,
+                        Anchor = AnchorStyles.Left,
+                        Cursor = Cursors.Hand,
+                    };
+                    string capturedChannel = ec.PaletteName;
+                    string capturedAlt = ec.ColourAlt;
+                    string capturedDisplayPalette = ec.DisplayPaletteId;
+                    swatch.Click += (_, _) => OnShipColourSwatchClick(swatch, capturedChannel, capturedAlt, capturedDisplayPalette);
+                    _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    _customisationContent.RowCount = nextRow + 1;
+                    _customisationContent.Controls.Add(swatchLbl, 0, nextRow);
 
-                _customisationContent.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-                _customisationContent.RowCount = nextRow + 1;
-                _customisationContent.Controls.Add(lbl, 0, nextRow);
-                _customisationContent.Controls.Add(combo, 1, nextRow);
-                _textureControls.Add((lbl, combo, tg.GroupID));
-                nextRow++;
+                    if (string.Equals(ec.LabelKey, "starship.customisation_sail_colour", StringComparison.Ordinal))
+                    {
+                        // Wrap swatch + warning label in a FlowLayoutPanel for the sail colour row
+                        var rowPanel = new FlowLayoutPanel
+                        {
+                            AutoSize = true,
+                            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                            FlowDirection = FlowDirection.LeftToRight,
+                            WrapContents = false,
+                            Margin = Padding.Empty,
+                        };
+                        rowPanel.Controls.Add(swatch);
+                        _sailColourWarningLabel = new Label
+                        {
+                            Text = "⚠️Note: Sail colour changes are local only and not seen by other players.",
+                            AutoSize = true,
+                            ForeColor = Color.DarkOrange,
+                            Padding = new Padding(6, 5, 0, 0),
+                        };
+                        rowPanel.Controls.Add(_sailColourWarningLabel);
+                        _customisationContent.Controls.Add(rowPanel, 1, nextRow);
+                    }
+                    else
+                    {
+                        _customisationContent.Controls.Add(swatch, 1, nextRow);
+                    }
+
+                    _colourSwatches.Add((ec.PaletteName, ec.ColourAlt, ec.DisplayPaletteId, swatch));
+                    nextRow++;
+                }
             }
         }
 
@@ -1954,7 +2033,18 @@ public partial class StarshipPanel : UserControl
             if (string.IsNullOrEmpty(paletteId))
                 paletteId = "SHIP";
 
-            int idx = _paletteCombo.FindStringExact(paletteId);
+            int idx = -1;
+            for (int i = 0; i < _paletteCombo.Items.Count; i++)
+            {
+                string itemKey = _paletteCombo.Items[i] is PaletteOptionEntry poe
+                    ? poe.RawId
+                    : _paletteCombo.Items[i]?.ToString() ?? "";
+                if (string.Equals(itemKey, paletteId, StringComparison.OrdinalIgnoreCase))
+                {
+                    idx = i;
+                    break;
+                }
+            }
             _paletteCombo.SelectedIndex = idx >= 0 ? idx : 0;
         }
 
@@ -1984,7 +2074,18 @@ public partial class StarshipPanel : UserControl
                 string noneLabel = UiStrings.Get("starship.customisation_none");
                 if (texMap.TryGetValue(groupId, out string? optValue) && !string.IsNullOrEmpty(optValue))
                 {
-                    int idx = combo.FindStringExact(optValue);
+                    int idx = -1;
+                    for (int i = 0; i < combo.Items.Count; i++)
+                    {
+                        string itemKey = combo.Items[i] is TextureOptionEntry toe
+                            ? toe.RawId
+                            : combo.Items[i]?.ToString() ?? "";
+                        if (string.Equals(itemKey, optValue, StringComparison.OrdinalIgnoreCase))
+                        {
+                            idx = i;
+                            break;
+                        }
+                    }
                     combo.SelectedIndex = idx >= 0 ? idx : 0;
                 }
                 else
@@ -2000,7 +2101,7 @@ public partial class StarshipPanel : UserControl
         {
             var customData = ccd.GetObject("CustomData");
             var coloursArr = customData?.GetArray("Colours");
-            foreach (var (paletteName, colourAlt, swatch) in _colourSwatches)
+            foreach (var (paletteName, colourAlt, _, swatch) in _colourSwatches)
             {
                 Color swatchColour = ReadShipColourFromCcd(coloursArr, paletteName, colourAlt);
                 // Colour 3 targets Undercoat/Alternative1 for dense saves but sparse saves use
@@ -2060,7 +2161,11 @@ public partial class StarshipPanel : UserControl
             // "SHIP" is the game's default palette represented as an empty value (^).
             if (_paletteCombo != null)
             {
-                string palette = _paletteCombo.SelectedItem?.ToString() ?? "";
+                string palette;
+                if (_paletteCombo.SelectedItem is PaletteOptionEntry poe)
+                    palette = poe.RawId;
+                else
+                    palette = _paletteCombo.SelectedItem?.ToString() ?? "";
                 string noneLabel = UiStrings.Get("starship.customisation_none");
                 bool isDefault = palette == noneLabel
                     || string.IsNullOrEmpty(palette)
@@ -2081,7 +2186,11 @@ public partial class StarshipPanel : UserControl
                     string noneLabel = UiStrings.Get("starship.customisation_none");
                     foreach (var (_, combo, groupId) in _textureControls)
                     {
-                        string opt = combo.SelectedItem?.ToString() ?? "";
+                        string opt;
+                        if (combo.SelectedItem is TextureOptionEntry toe)
+                            opt = toe.RawId;
+                        else
+                            opt = combo.SelectedItem?.ToString() ?? "";
                         if (opt == noneLabel || string.IsNullOrEmpty(opt)) continue;
                         var texEntry = new JsonObject();
                         texEntry.Set("TextureOptionGroupName", "^" + groupId);
@@ -2265,15 +2374,32 @@ public partial class StarshipPanel : UserControl
 
     /// <summary>
     /// Handles a click on a ship paint colour swatch. Shows a popup grid of the
-    /// available colours from the currently selected ship palette (e.g. SHIP_METALLIC).
+    /// available colours from the appropriate palette. For standard paint channels
+    /// (Paint, Undercoat), the palette selected in the combo box is used.
+    /// For extra colour channels (e.g. SailShip_Sails), the <paramref name="displayPaletteId"/>
+    /// overrides the combo selection.
     /// Selecting a colour updates the swatch and writes the value to the CCD.
     /// </summary>
-    private void OnShipColourSwatchClick(Panel swatch, string paletteName, string colourAlt)
+    private void OnShipColourSwatchClick(Panel swatch, string paletteName, string colourAlt, string displayPaletteId = "")
     {
-        // Determine which palette colours to display
-        string paletteId = _paletteCombo?.SelectedItem?.ToString() ?? "";
-        var palette = NmsColourPalette.GetPaletteColours(paletteId)
-                      ?? NmsColourPalette.PaintPalette;
+        // Determine which palette colours to display.
+        // If the swatch has a specific display palette (e.g. SailShip_Sails), use that;
+        // otherwise use the palette selected in the combo box.
+        string paletteId;
+        NmsColourPalette.PaletteEntry[]? palette;
+        if (!string.IsNullOrEmpty(displayPaletteId))
+        {
+            paletteId = displayPaletteId;
+            palette = NmsColourPalette.GetPaletteColours(paletteId);
+        }
+        else
+        {
+            paletteId = _paletteCombo?.SelectedItem?.ToString() ?? "";
+            palette = NmsColourPalette.GetPaletteColours(paletteId);
+        }
+
+        if (palette == null || palette.Length == 0)
+            palette = NmsColourPalette.PaintPalette;
         if (palette.Length == 0) return;
 
         _activeColourMenu?.Dispose();
@@ -2344,6 +2470,64 @@ public partial class StarshipPanel : UserControl
         }
 
         public override string ToString() => _display;
+    }
+
+    /// <summary>
+    /// Wraps a palette option raw ID with a user-friendly display name.
+    /// </summary>
+    private sealed class PaletteOptionEntry
+    {
+        private readonly string _display;
+        internal string RawId { get; }
+
+        internal PaletteOptionEntry(string rawId, string display)
+        {
+            RawId = rawId;
+            _display = display;
+        }
+
+        public override string ToString() => _display;
+    }
+
+    /// <summary>
+    /// Wraps a texture option raw ID with a user-friendly display name.
+    /// </summary>
+    private sealed class TextureOptionEntry
+    {
+        private readonly string _display;
+        internal string RawId { get; }
+
+        internal TextureOptionEntry(string rawId, string display)
+        {
+            RawId = rawId;
+            _display = display;
+        }
+
+        public override string ToString() => _display;
+    }
+
+    /// <summary>Returns a localised user-friendly name for a paint palette raw ID.</summary>
+    private static string GetPaletteFriendlyName(string rawId)
+    {
+        return rawId switch
+        {
+            "SHIP" => UiStrings.Get("starship.palette_default"),
+            "SHIP_METALLIC" => UiStrings.Get("starship.palette_metallic"),
+            _ => rawId,
+        };
+    }
+
+    /// <summary>Returns a localised user-friendly name for a texture option raw ID.</summary>
+    private static string GetTextureOptionFriendlyName(string rawId)
+    {
+        return rawId switch
+        {
+            "COATING" => UiStrings.Get("starship.texture_coating"),
+            "PANELS" => UiStrings.Get("starship.texture_panels"),
+            "STEALTH" => UiStrings.Get("starship.texture_stealth"),
+            "METALBOLT" => UiStrings.Get("starship.texture_metalbolt"),
+            _ => rawId,
+        };
     }
 
 }

@@ -2199,6 +2199,14 @@
 		"PaletteIDs": [
 			"SHIP",
 			"SHIP_METALLIC"
+		],
+		"ExtraColourChannels": [
+			{
+				"PaletteName": "SailShip_Sails",
+				"ColourAlt": "Primary",
+				"DisplayPaletteId": "SailShip_Sails",
+				"LabelKey": "starship.customisation_sail_colour"
+			}
 		]
 	}
 ]
