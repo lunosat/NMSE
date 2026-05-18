@@ -170,15 +170,27 @@ partial class MultitoolPanel
         _toolClass.Items.AddRange(MultitoolLogic.ToolClasses);
         _classLabel = AddRow(leftPanel, "Class:", _toolClass, leftRow++);
 
-        var seedPanel = new Panel { Dock = DockStyle.Fill, Height = 26 };
+        var seedPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        seedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _toolSeed = new TextBox { Dock = DockStyle.Fill };
         _generateSeedBtn = new Button
         {
             Text = "Generate",
-            Dock = DockStyle.Right,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(70, 0)
+            MinimumSize = new Size(70, 0),
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom,
         };
         _generateSeedBtn.Click += (s, e) =>
         {
@@ -186,8 +198,8 @@ partial class MultitoolPanel
             _rng.NextBytes(bytes);
             _toolSeed.Text = "0x" + BitConverter.ToString(bytes).Replace("-", "");
         };
-        seedPanel.Controls.Add(_toolSeed);
-        seedPanel.Controls.Add(_generateSeedBtn);
+        seedPanel.Controls.Add(_toolSeed, 0, 0);
+        seedPanel.Controls.Add(_generateSeedBtn, 1, 0);
         _seedLabel = AddRow(leftPanel, "Seed:", seedPanel, leftRow++);
 
         // Right panel: Base Stats

@@ -58,7 +58,7 @@ partial class InventoryGridPanel
         _infoPanel = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 26,
+            AutoSize = true,
             Padding = new Padding(4, 4, 4, 0),
             Visible = false
         };
@@ -67,19 +67,17 @@ partial class InventoryGridPanel
         _toolbarPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 36,
-            MinimumSize = new Size(0, 36),
-            MaximumSize = new Size(int.MaxValue, 36),
             Padding = new Padding(4, 4, 4, 0),
             FlowDirection = FlowDirection.LeftToRight,
-            AutoSize = false,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             WrapContents = false
         };
         _resizeWidthLabel = new Label { Text = "Width:", AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(0, 4, 2, 0) };
         _resizeWidth = new InvariantNumericTextBox { Minimum = 1, Maximum = 20, NumericValue = 10, Width = 50, Dock = DockStyle.Left };
         _resizeHeightLabel = new Label { Text = "Height:", AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(8, 4, 2, 0) };
         _resizeHeight = new InvariantNumericTextBox { Minimum = 1, Maximum = 20, NumericValue = 6, Width = 50, Dock = DockStyle.Left };
-        _resizeButton = new Button { Text = "Resize", AutoSize = true, Size = new Size(75, 28), MinimumSize = new Size(75, 28), Margin = new Padding(8, 0, 0, 0) };
+        _resizeButton = new Button { Text = "Resize", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0), Margin = new Padding(8, 0, 0, 0) };
         _resizeButton.Click += OnResizeInventory;
         _sortModeLabel = new Label { Text = "Sort:", AutoSize = true, Dock = DockStyle.Left, Padding = new Padding(12, 4, 2, 0), Margin = new Padding(0, 2, 0, 0) };
         _sortModeCombo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 80, Margin = new Padding(0, 2, 0, 0) };
@@ -87,7 +85,7 @@ partial class InventoryGridPanel
         _autoStackToolStrip = new ToolStrip
         {
             AutoSize = true,
-            MinimumSize = new Size(60, 28),
+            MinimumSize = new Size(60, 0),
             GripStyle = ToolStripGripStyle.Hidden,
             CanOverflow = false,
             Padding = Padding.Empty,
@@ -102,9 +100,9 @@ partial class InventoryGridPanel
         _autoStackDropDownButton.DropDownItems.Add(_autoStackToStarshipButtonMenuItem);
         _autoStackDropDownButton.DropDownItems.Add(_autoStackToFreighterButtonMenuItem);
         _autoStackToolStrip.Items.Add(_autoStackDropDownButton);
-        _exportButton = new Button { Text = "Export", AutoSize = true, Size = new Size(75, 28), MinimumSize = new Size(75, 28), Margin = new Padding(8, 0, 0, 0) };
+        _exportButton = new Button { Text = "Export", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0), Margin = new Padding(8, 0, 0, 0) };
         _exportButton.Click += OnExportInventory;
-        _importButton = new Button { Text = "Import", AutoSize = true, Size = new Size(75, 28), MinimumSize = new Size(75, 28), Margin = new Padding(4, 0, 0, 0) };
+        _importButton = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0), Margin = new Padding(4, 0, 0, 0) };
         _importButton.Click += OnImportInventory;
         _toolbarPanel.Controls.Add(_resizeWidthLabel);
         _toolbarPanel.Controls.Add(_resizeWidth);
@@ -379,7 +377,8 @@ partial class InventoryGridPanel
         {
             Text = "Apply Changes",
             Dock = DockStyle.Fill,
-            Height = 30,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Enabled = false
         };
         _applyButton.Click += OnApplyChanges;
@@ -600,7 +599,8 @@ partial class InventoryGridPanel
         {
             Text = "Add Item",
             Dock = DockStyle.Fill,
-            Height = 30,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Enabled = false
         };
         _pickerApplyButton.Click += OnPickerApplyItem;
@@ -625,13 +625,24 @@ partial class InventoryGridPanel
         row++;
 
         // Search box
-        var searchPanel = new Panel { Dock = DockStyle.Fill, Height = 26 };
+        var searchPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        searchPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        searchPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         _searchBox = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "Search items..." };
-        _searchButton = new Button { Text = "Search", Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(60, 0) };
+        _searchButton = new Button { Text = "Search", Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         _searchButton.Click += OnSearch;
         _searchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) OnSearch(s, e); };
-        searchPanel.Controls.Add(_searchBox);
-        searchPanel.Controls.Add(_searchButton);
+        searchPanel.Controls.Add(_searchBox, 0, 0);
+        searchPanel.Controls.Add(_searchButton, 1, 0);
         _searchLabel = CreateLabel("Search:");
         detailLayout.Controls.Add(_searchLabel, 0, row);
         detailLayout.Controls.Add(searchPanel, 1, row);

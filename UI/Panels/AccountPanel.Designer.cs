@@ -33,6 +33,7 @@ partial class AccountPanel
         this._seasonRemoveAllBtn = new System.Windows.Forms.Button();
         this._seasonFilterLabel = new System.Windows.Forms.Label();
         this._seasonFilterBox = new System.Windows.Forms.TextBox();
+        this._seasonFilterClearBtn = new System.Windows.Forms.Button();
         this._seasonGrid = new System.Windows.Forms.DataGridView();
         this._seasonIconColumn = new System.Windows.Forms.DataGridViewImageColumn();
         this._seasonRewardIdColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -49,6 +50,7 @@ partial class AccountPanel
         this._twitchRemoveAllBtn = new System.Windows.Forms.Button();
         this._twitchFilterLabel = new System.Windows.Forms.Label();
         this._twitchFilterBox = new System.Windows.Forms.TextBox();
+        this._twitchFilterClearBtn = new System.Windows.Forms.Button();
         this._twitchGrid = new System.Windows.Forms.DataGridView();
         this._twitchIconColumn = new System.Windows.Forms.DataGridViewImageColumn();
         this._twitchRewardIdColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -69,6 +71,7 @@ partial class AccountPanel
         this._platformRemoveAllBtn = new System.Windows.Forms.Button();
         this._platformFilterLabel = new System.Windows.Forms.Label();
         this._platformFilterBox = new System.Windows.Forms.TextBox();
+        this._platformFilterClearBtn = new System.Windows.Forms.Button();
         this._platformGrid = new System.Windows.Forms.DataGridView();
         this._platformIconColumn = new System.Windows.Forms.DataGridViewImageColumn();
         this._platformRewardIdColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -161,6 +164,7 @@ partial class AccountPanel
         this._seasonToolbar.Controls.Add(this._seasonRemoveAllBtn);
         this._seasonToolbar.Controls.Add(this._seasonFilterLabel);
         this._seasonToolbar.Controls.Add(this._seasonFilterBox);
+        this._seasonToolbar.Controls.Add(this._seasonFilterClearBtn);
         //
         // _seasonUnlockAllBtn
         //
@@ -192,6 +196,14 @@ partial class AccountPanel
         // _seasonFilterBox
         //
         this._seasonFilterBox.Width = 200;
+        //
+        // _seasonFilterClearBtn
+        //
+        this._seasonFilterClearBtn.Text = "X";
+        this._seasonFilterClearBtn.AutoSize = true;
+        this._seasonFilterClearBtn.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+        this._seasonFilterClearBtn.MinimumSize = new System.Drawing.Size(26, 0);
+        this._seasonFilterClearBtn.Click += (_, _) => { this._seasonFilterBox.Clear(); };
         //
         // _seasonGrid
         //
@@ -272,6 +284,7 @@ partial class AccountPanel
         this._twitchToolbar.Controls.Add(this._twitchRemoveAllBtn);
         this._twitchToolbar.Controls.Add(this._twitchFilterLabel);
         this._twitchToolbar.Controls.Add(this._twitchFilterBox);
+        this._twitchToolbar.Controls.Add(this._twitchFilterClearBtn);
         //
         // _twitchUnlockAllBtn
         //
@@ -303,6 +316,14 @@ partial class AccountPanel
         // _twitchFilterBox
         //
         this._twitchFilterBox.Width = 200;
+        //
+        // _twitchFilterClearBtn
+        //
+        this._twitchFilterClearBtn.Text = "X";
+        this._twitchFilterClearBtn.AutoSize = true;
+        this._twitchFilterClearBtn.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+        this._twitchFilterClearBtn.MinimumSize = new System.Drawing.Size(26, 0);
+        this._twitchFilterClearBtn.Click += (_, _) => { this._twitchFilterBox.Clear(); };
         //
         // _twitchGrid
         //
@@ -417,6 +438,7 @@ partial class AccountPanel
         this._platformToolbar.Controls.Add(this._platformRemoveAllBtn);
         this._platformToolbar.Controls.Add(this._platformFilterLabel);
         this._platformToolbar.Controls.Add(this._platformFilterBox);
+        this._platformToolbar.Controls.Add(this._platformFilterClearBtn);
         //
         // _platformUnlockAllBtn
         //
@@ -448,6 +470,14 @@ partial class AccountPanel
         // _platformFilterBox
         //
         this._platformFilterBox.Width = 200;
+        //
+        // _platformFilterClearBtn
+        //
+        this._platformFilterClearBtn.Text = "X";
+        this._platformFilterClearBtn.AutoSize = true;
+        this._platformFilterClearBtn.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+        this._platformFilterClearBtn.MinimumSize = new System.Drawing.Size(26, 0);
+        this._platformFilterClearBtn.Click += (_, _) => { this._platformFilterBox.Clear(); };
         //
         // _platformGrid
         //
@@ -550,6 +580,12 @@ partial class AccountPanel
         _seasonGrid.CurrentCellDirtyStateChanged += OnGridCellDirty;
         _twitchGrid.CurrentCellDirtyStateChanged += OnGridCellDirty;
         _platformGrid.CurrentCellDirtyStateChanged += OnGridCellDirty;
+
+        // Raise DataModified when any checkbox cell value is committed so that
+        // MainForm can detect unsaved changes and prompt before close.
+        _seasonGrid.CellValueChanged += OnGridCellChanged;
+        _twitchGrid.CellValueChanged += OnGridCellChanged;
+        _platformGrid.CellValueChanged += OnGridCellChanged;
     }
 
     private static void OnGridCellDirty(object sender, EventArgs e)
@@ -557,6 +593,9 @@ partial class AccountPanel
         if (sender is DataGridView grid && grid.IsCurrentCellDirty)
             grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
     }
+
+    private void OnGridCellChanged(object sender, DataGridViewCellEventArgs e)
+        => DataModified?.Invoke(this, EventArgs.Empty);
 
     private System.Windows.Forms.TableLayoutPanel _mainLayout;
     private System.Windows.Forms.Label _statusLabel;
@@ -572,6 +611,7 @@ partial class AccountPanel
     private System.Windows.Forms.Button _seasonRemoveAllBtn;
     private System.Windows.Forms.Label _seasonFilterLabel;
     private System.Windows.Forms.TextBox _seasonFilterBox;
+    private System.Windows.Forms.Button _seasonFilterClearBtn;
     private System.Windows.Forms.DataGridView _seasonGrid;
     private System.Windows.Forms.DataGridViewImageColumn _seasonIconColumn;
     private System.Windows.Forms.DataGridViewTextBoxColumn _seasonRewardIdColumn;
@@ -588,6 +628,7 @@ partial class AccountPanel
     private System.Windows.Forms.Button _twitchRemoveAllBtn;
     private System.Windows.Forms.Label _twitchFilterLabel;
     private System.Windows.Forms.TextBox _twitchFilterBox;
+    private System.Windows.Forms.Button _twitchFilterClearBtn;
     private System.Windows.Forms.DataGridView _twitchGrid;
     private System.Windows.Forms.DataGridViewImageColumn _twitchIconColumn;
     private System.Windows.Forms.DataGridViewTextBoxColumn _twitchRewardIdColumn;
@@ -608,6 +649,7 @@ partial class AccountPanel
     private System.Windows.Forms.Button _platformRemoveAllBtn;
     private System.Windows.Forms.Label _platformFilterLabel;
     private System.Windows.Forms.TextBox _platformFilterBox;
+    private System.Windows.Forms.Button _platformFilterClearBtn;
     private System.Windows.Forms.DataGridView _platformGrid;
     private System.Windows.Forms.DataGridViewImageColumn _platformIconColumn;
     private System.Windows.Forms.DataGridViewTextBoxColumn _platformRewardIdColumn;

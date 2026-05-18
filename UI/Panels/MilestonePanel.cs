@@ -34,6 +34,11 @@ public partial class MilestonePanel : UserControl
 
     private static readonly Dictionary<string, string> SectionIconMap = MilestoneLogic.SectionIconMap;
 
+    private bool _loading;
+
+    /// <summary>Raised when the user modifies any milestone stat value.</summary>
+    public event EventHandler? DataModified;
+
     public MilestonePanel()
     {
         InitializeComponent();
@@ -65,7 +70,6 @@ public partial class MilestonePanel : UserControl
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowOnly,
-            AutoScroll = true,
             Dock = DockStyle.Top,
             ColumnCount = columnCount,
             RowCount = 1,
@@ -73,7 +77,7 @@ public partial class MilestonePanel : UserControl
             Padding = new Padding(0),
         };
         for (int i = 0; i < columnCount; i++)
-            section.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
+            section.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         for (int i = 0; i < columnCount; i++)
@@ -88,7 +92,7 @@ public partial class MilestonePanel : UserControl
                 Padding = new Padding(4),
                 Margin = new Padding(0),
             };
-            col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+            col.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
             section.Controls.Add(col, i, 0);
         }
@@ -107,7 +111,7 @@ public partial class MilestonePanel : UserControl
     private void AddSectionTitle(TableLayoutPanel panel, string title, string? locKey = null)
     {
         int row = panel.RowCount++;
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var container = new FlowLayoutPanel
         {
@@ -133,7 +137,6 @@ public partial class MilestonePanel : UserControl
         var label = new Label
         {
             Text = locKey != null ? UiStrings.Get(locKey) : title,
-            Font = new Font(Control.DefaultFont.FontFamily, 9, FontStyle.Bold),
             AutoSize = true,
             Padding = new Padding(0, 2, 0, 0),
         };
@@ -159,18 +162,16 @@ public partial class MilestonePanel : UserControl
     private void AddField(TableLayoutPanel panel, string locKey, string statId)
     {
         int row = panel.RowCount++;
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var label = new Label
         {
             Text = UiStrings.Get(locKey),
-            AutoSize = false,
+            AutoSize = true,
             TextAlign = ContentAlignment.MiddleLeft,
             Anchor = AnchorStyles.Left,
             Margin = new Padding(0),
-            Padding = new Padding(4, 0, 0, 0),
-            Height = 22,
-            Width = 150,
+            Padding = new Padding(4, 2, 0, 2),
         };
         _localisedLabels.Add((label, locKey));
         panel.Controls.Add(label, 0, row);
@@ -179,10 +180,9 @@ public partial class MilestonePanel : UserControl
         {
             Minimum = int.MinValue,
             Maximum = int.MaxValue,
-            Height = 22,
             Width = 110,
             Anchor = AnchorStyles.Left,
-            Margin = new Padding(0),
+            Margin = new Padding(0, 2, 0, 2),
         };
         panel.Controls.Add(nud, 1, row);
         RegisterField(statId, nud);
@@ -197,18 +197,16 @@ public partial class MilestonePanel : UserControl
     {
         // Row: label | value | rank
         int row = panel.RowCount++;
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var label = new Label
         {
             Text = UiStrings.Get(locKey),
-            AutoSize = false,
+            AutoSize = true,
             TextAlign = ContentAlignment.MiddleLeft,
             Anchor = AnchorStyles.Left,
             Margin = new Padding(0),
-            Padding = new Padding(4, 0, 0, 0),
-            Height = 22,
-            Width = 130,
+            Padding = new Padding(4, 2, 0, 2),
         };
         _localisedLabels.Add((label, locKey));
         panel.Controls.Add(label, 0, row);
@@ -217,10 +215,9 @@ public partial class MilestonePanel : UserControl
         {
             Minimum = int.MinValue,
             Maximum = int.MaxValue,
-            Height = 22,
             Width = 80,
             Anchor = AnchorStyles.Left,
-            Margin = new Padding(0),
+            Margin = new Padding(0, 2, 0, 2),
         };
         panel.Controls.Add(nud, 1, row);
         RegisterField(statId, nud);
@@ -229,29 +226,27 @@ public partial class MilestonePanel : UserControl
         var rankLabel = new Label
         {
             Text = $"0 / {maxRank}",
-            AutoSize = false,
+            AutoSize = true,
             TextAlign = ContentAlignment.MiddleLeft,
             Anchor = AnchorStyles.Left,
-            Margin = new Padding(4, 0, 0, 0),
-            Height = 22,
+            Margin = new Padding(4, 2, 0, 2),
         };
         panel.Controls.Add(rankLabel, 2, row);
         _guildRankLabels[(statId, GuildLabelKindRank)] = rankLabel;
 
         // Row: "Promotion In" label (col 0) | value (col 1 only, aligned with value box)
         int promoRow = panel.RowCount++;
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         var promoNameLabel = new Label
         {
             Text = UiStrings.Get("milestone.guild_promo_in"),
-            AutoSize = false,
+            AutoSize = true,
             TextAlign = ContentAlignment.MiddleLeft,
             ForeColor = SystemColors.GrayText,
             Anchor = AnchorStyles.Left,
             Margin = new Padding(0),
-            Padding = new Padding(12, 0, 0, 0),
-            Height = 20,
+            Padding = new Padding(12, 1, 0, 1),
         };
         _guildLocalisedLabels.Add((promoNameLabel, "milestone.guild_promo_in"));
         panel.Controls.Add(promoNameLabel, 0, promoRow);
@@ -259,13 +254,12 @@ public partial class MilestonePanel : UserControl
         var promoValLabel = new Label
         {
             Text = "-",
-            AutoSize = false,
+            AutoSize = true,
             TextAlign = ContentAlignment.MiddleLeft,
             ForeColor = SystemColors.GrayText,
             Anchor = AnchorStyles.Left,
             Margin = new Padding(0),
-            Padding = new Padding(0),
-            Height = 20,
+            Padding = new Padding(0, 1, 0, 1),
         };
         panel.Controls.Add(promoValLabel, 1, promoRow);
         _guildRankLabels[(statId, GuildLabelKindPromo)] = promoValLabel;
@@ -283,6 +277,11 @@ public partial class MilestonePanel : UserControl
             _fields[statId] = list;
         }
         list.Add(nud);
+        nud.NumericValueChanged += (_, _) =>
+        {
+            if (!_loading)
+                DataModified?.Invoke(this, EventArgs.Empty);
+        };
     }
 
     /// <summary>Updates the rank progress label and Promotion In label for a guild stat.</summary>
@@ -305,6 +304,7 @@ public partial class MilestonePanel : UserControl
 
     public void LoadData(JsonObject saveData)
     {
+        _loading = true;
         SuspendLayout();
         try
         {
@@ -341,6 +341,7 @@ public partial class MilestonePanel : UserControl
         }
         finally
         {
+            _loading = false;
             ResumeLayout(true);
         }
     }

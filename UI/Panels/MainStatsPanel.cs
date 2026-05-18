@@ -40,6 +40,17 @@ public partial class MainStatsPanel : UserControl
     private JsonObject? _saveData;
     private JsonObject? _accountData;
 
+    private bool _loading;
+
+    /// <summary>Raised whenever the user modifies a player stat or game-state field.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified()
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     public MainStatsPanel()
     {
         InitializeComponent();
@@ -48,7 +59,6 @@ public partial class MainStatsPanel : UserControl
 
     /// <summary>Sets the icon manager for loading guide topic icons.</summary>
     public void SetIconManager(IconManager? iconManager) => _iconManager = iconManager;
-
 
     private static Label AddRow(TableLayoutPanel layout, string label, Control field, int row)
     {
@@ -117,6 +127,7 @@ public partial class MainStatsPanel : UserControl
     public void LoadData(JsonObject saveData)
     {
         _saveData = saveData;
+        _loading = true;
         SuspendLayout();
         try
         {
@@ -203,6 +214,7 @@ public partial class MainStatsPanel : UserControl
         catch { }
         finally
         {
+            _loading = false;
             ResumeLayout(true);
         }
     }
@@ -422,8 +434,13 @@ public partial class MainStatsPanel : UserControl
     public void LoadAccountData(JsonObject accountData)
     {
         _accountData = accountData;
-        LoadGuides(accountData);
-        LoadTitles(accountData);
+        _loading = true;
+        try
+        {
+            LoadGuides(accountData);
+            LoadTitles(accountData);
+        }
+        finally { _loading = false; }
     }
 
     public void SetSaveFilePath(string path)
@@ -677,7 +694,10 @@ public partial class MainStatsPanel : UserControl
             {
                 var playerState = _saveData.GetObject("PlayerStateData");
                 if (playerState != null)
+                {
                     SaveCoordinatesToJson(playerState);
+                    RaiseDataModified();
+                }
             }
             catch { }
         }
@@ -790,6 +810,7 @@ public partial class MainStatsPanel : UserControl
 
             MessageBox.Show(this, UiStrings.Get("player.space_battle_triggered"), UiStrings.Get("player.space_battle_title"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RaiseDataModified();
         }
         catch { }
     }
@@ -986,6 +1007,7 @@ public partial class MainStatsPanel : UserControl
                     try { if (arr.GetString(i) == topicId) { arr.RemoveAt(i); break; } } catch { }
                 }
             }
+            RaiseDataModified();
         }
         catch { }
     }
@@ -998,6 +1020,7 @@ public partial class MainStatsPanel : UserControl
                 grid.Rows[i].Cells["Seen"].Value = true;
                 grid.Rows[i].Cells["Unlocked"].Value = true;
             }
+        RaiseDataModified();
     }
 
     private void OnLockAllGuides(object? sender, EventArgs e)
@@ -1008,6 +1031,7 @@ public partial class MainStatsPanel : UserControl
                 grid.Rows[i].Cells["Seen"].Value = false;
                 grid.Rows[i].Cells["Unlocked"].Value = false;
             }
+        RaiseDataModified();
     }
 
     private void OnGuidesFilterChanged(object? sender, EventArgs e)
@@ -1121,6 +1145,7 @@ public partial class MainStatsPanel : UserControl
             // Add with ^ prefix to match save file format
             if (isUnlocked && !found)
                 unlockedTitles.Add(saveTitleId);
+            RaiseDataModified();
         }
         catch { }
     }
@@ -1129,12 +1154,14 @@ public partial class MainStatsPanel : UserControl
     {
         for (int i = 0; i < _titlesGrid.Rows.Count; i++)
             _titlesGrid.Rows[i].Cells["Unlocked"].Value = true;
+        RaiseDataModified();
     }
 
     private void OnLockAllTitles(object? sender, EventArgs e)
     {
         for (int i = 0; i < _titlesGrid.Rows.Count; i++)
             _titlesGrid.Rows[i].Cells["Unlocked"].Value = false;
+        RaiseDataModified();
     }
 
     public void ApplyUiLocalisation()

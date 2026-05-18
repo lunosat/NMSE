@@ -35,6 +35,7 @@ public static class FontManager
     /// Creates a Font using the embedded NMS GeoSans font at the given size and style.
     /// Falls back to the default control font family if the embedded font could not be loaded.
     /// </summary>
+    /// <param name="size">Font size in points.</param>
     public static Font CreateFont(float size, FontStyle style = FontStyle.Regular)
     {
         EnsureInitialized();
@@ -56,6 +57,7 @@ public static class FontManager
     /// Creates a Font using the embedded NMS portal glyph font at the given size.
     /// Falls back to Consolas if the embedded font could not be loaded.
     /// </summary>
+    /// <param name="size">Font size in points.</param>
     public static Font CreateGlyphFont(float size)
     {
         EnsureGlyphInitialized();
@@ -101,7 +103,7 @@ public static class FontManager
     }
 
     /// <summary>
-    /// Ensures the embedded glyph font is loaded once.
+    /// Ensures the glyph font is loaded once.
     /// </summary>
     private static void EnsureGlyphInitialized()
     {

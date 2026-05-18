@@ -34,19 +34,18 @@ partial class MilestonePanel
         {
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowOnly,
-            AutoScroll = true,
             Dock = DockStyle.Top,
             ColumnCount = 3,
             RowCount = 1,
             Margin = new Padding(0, 0, 0, 8),
             Padding = new Padding(0),
         };
-        section1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
-        section1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300));
-        section1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 600));
+        section1.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        section1.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        section1.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         section1.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        // Helper: create a standard 2-sub-col inner panel (160px label + 120px value)
+        // Helper: create a standard 2-sub-col inner panel (AutoSize label + fixed value)
         static TableLayoutPanel MakeStdCol()
         {
             var col = new TableLayoutPanel
@@ -59,12 +58,12 @@ partial class MilestonePanel
                 Padding = new Padding(4),
                 Margin = new Padding(0),
             };
-            col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+            col.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
             return col;
         }
 
-        // Helper: create a 3-sub-col guild inner panel (130 label + 76 value + 86 rank)
+        // Helper: create a 3-sub-col guild inner panel (AutoSize label + value + rank)
         static TableLayoutPanel MakeGuildCol()
         {
             var col = new TableLayoutPanel
@@ -77,9 +76,9 @@ partial class MilestonePanel
                 Padding = new Padding(4),
                 Margin = new Padding(0),
             };
-            col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
-            col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 76));
-            col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
+            col.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            col.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            col.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             return col;
         }
 

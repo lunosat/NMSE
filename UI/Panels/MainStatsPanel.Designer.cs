@@ -152,6 +152,25 @@ partial class MainStatsPanel
         _guidesFilter.TextChanged += OnGuidesFilterChanged;
 
         InitializeLayout();
+
+        // Wire up all editable fields so that user changes set the unsaved-changes flag.
+        _healthField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _shieldField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _energyField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _unitsField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _nanitesField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _quicksilverField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _saveNameField.TextChanged += (s, e) => RaiseDataModified();
+        _saveSummaryField.TextChanged += (s, e) => RaiseDataModified();
+        _thirdPersonCharCam.CheckedChanged += (s, e) => RaiseDataModified();
+        _currentPresetCombo.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _easiestPresetCombo.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _hardestPresetCombo.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _playerStateField.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _portalInterference.CheckedChanged += (s, e) => RaiseDataModified();
+        _purpleWarpEnabled.CheckedChanged += (s, e) => RaiseDataModified();
+        _warpsToNextBattleField.NumericValueChanged += (s, e) => RaiseDataModified();
+
         ResumeLayout(false);
         PerformLayout();
     }

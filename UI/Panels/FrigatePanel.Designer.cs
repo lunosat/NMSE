@@ -251,7 +251,9 @@ partial class FrigatePanel
         // _repairBtn
         //
         this._repairBtn.Text = "Repair";
-        this._repairBtn.Width = 60;
+        this._repairBtn.AutoSize = true;
+        this._repairBtn.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+        this._repairBtn.MinimumSize = new System.Drawing.Size(60, 0);
         //
         // _statsPanel
         //

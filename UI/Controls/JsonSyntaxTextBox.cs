@@ -223,8 +223,8 @@ internal sealed class JsonSyntaxTextBox : UserControl
                | ControlStyles.ResizeRedraw
                | ControlStyles.Selectable, true);
 
-        _codeFont = new Font("Consolas", 10f);
-        _gutterFont = new Font(_codeFont.FontFamily, _codeFont.Size * 0.85f);
+        _codeFont = new Font("Consolas", 10f, FontStyle.Regular);
+        _gutterFont = new Font(_codeFont.FontFamily, _codeFont.Size * 0.85f, FontStyle.Regular);
         _foldLinePen = new Pen(Color.FromArgb(200, 200, 200), 1f) { DashStyle = DashStyle.Dot };
         CacheFontMetrics();
 

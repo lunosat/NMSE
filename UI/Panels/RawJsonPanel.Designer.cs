@@ -94,7 +94,7 @@ partial class RawJsonPanel
         _searchButton = new Button { Text = "Find", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(50, 0) };
         _searchButton.Click += (_, _) => OnSearch();
 
-        _clearSearchButton = new Button { Text = "X", Width = 30 };
+        _clearSearchButton = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(30, 0) };
         _clearSearchButton.Click += (_, _) => { _searchBox.Text = ""; ClearHighlights(); };
 
         toolbarRow1.Controls.AddRange([_fileSelector, fileSep, _exportButton, _importButton, _diffButton,

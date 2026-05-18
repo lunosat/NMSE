@@ -474,7 +474,7 @@ public partial class InventoryGridPanel : UserControl
                 AutoSize = true,
                 ForeColor = Color.Red,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 12f, FontStyle.Bold, GraphicsUnit.Pixel),
                 Margin = new Padding(8, 8, 0, 0)
             };
 
@@ -4086,9 +4086,9 @@ public partial class InventoryGridPanel : UserControl
         // Shared fonts reduce GDI object allocation per cell.
         // These live for the application lifetime (3 GDI objects) and must NOT be disposed.
         // If you are disposing of these, you are going to have a bad time.
-        private static readonly Font SharedNameFont = new Font("Segoe UI", 9f, FontStyle.Regular);
-        private static readonly Font SharedAmountFont = new Font("Segoe UI", 9f, FontStyle.Bold);
-        private static readonly Font SharedElementBadgeFont = new Font("Segoe UI", 16f, FontStyle.Bold);
+        private static readonly Font SharedNameFont = new Font("Segoe UI", 12f, FontStyle.Regular, GraphicsUnit.Pixel);
+        private static readonly Font SharedAmountFont = new Font("Segoe UI", 12f, FontStyle.Bold, GraphicsUnit.Pixel);
+        private static readonly Font SharedElementBadgeFont = new Font("Segoe UI", 21f, FontStyle.Bold, GraphicsUnit.Pixel);
 
         // Layout constants matching the old child-control arrangement
         private const int NameBarHeight = 18;

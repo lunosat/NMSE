@@ -848,7 +848,8 @@ public partial class RawJsonPanel : UserControl
         using var g = Graphics.FromImage(bmp);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
-        using var font = new Font("Consolas", 9f, FontStyle.Bold);
+        // Pixel unit is intentional: rendering into a fixed 16×16 bitmap, not UI text.
+        using var font = new Font("Consolas", 12f, FontStyle.Bold, GraphicsUnit.Pixel);
         using var brush = new SolidBrush(color);
         var size = g.MeasureString(text, font);
         float x = (16 - size.Width) / 2;

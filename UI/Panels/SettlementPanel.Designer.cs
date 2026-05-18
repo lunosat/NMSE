@@ -149,7 +149,7 @@ partial class SettlementPanel
             AutoSize = true,
             Padding = new Padding(0, 0, 0, 10)
         };
-        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 340));
+        formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 510));
         formPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         // === Left Column ===
@@ -170,17 +170,29 @@ partial class SettlementPanel
         _nameLabel = AddRow(leftPanel, "Name:", _settlementName, leftRow++);
 
         // 2. Seed (with Generate button)
-        var seedPanel = new Panel { Dock = DockStyle.Fill, Height = 23 };
+        var seedPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        seedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _seedField = new TextBox { Dock = DockStyle.Fill };
-        _generateSeedBtn = new Button { Text = "Generate", Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 23) };
+        _generateSeedBtn = new Button { Text = "Generate", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0), Anchor = AnchorStyles.Top | AnchorStyles.Bottom };
         _generateSeedBtn.Click += (s, e) =>
         {
             byte[] bytes = new byte[8];
             _rng.NextBytes(bytes);
             _seedField.Text = "0x" + BitConverter.ToString(bytes).Replace("-", "");
         };
-        seedPanel.Controls.Add(_seedField);
-        seedPanel.Controls.Add(_generateSeedBtn);
+        seedPanel.Controls.Add(_seedField, 0, 0);
+        seedPanel.Controls.Add(_generateSeedBtn, 1, 0);
         _seedLabel = AddRow(leftPanel, "Seed:", seedPanel, leftRow++);
 
         // 3. NPC Race
@@ -318,16 +330,28 @@ partial class SettlementPanel
         _lastDecisionLabel = AddRow(leftPanel, "Last Decision:", _lastDecisionTimeField, leftRow++);
 
         // 20. Mission Seed (with Generate button)
-        var missionSeedPanel = new Panel { Dock = DockStyle.Fill, Height = 23 };
+        var missionSeedPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        missionSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        missionSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        missionSeedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _missionSeedField = new TextBox { Dock = DockStyle.Fill };
-        _generateMissionSeedBtn = new Button { Text = "Generate", Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 23) };
+        _generateMissionSeedBtn = new Button { Text = "Generate", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0), Anchor = AnchorStyles.Top | AnchorStyles.Bottom };
         _generateMissionSeedBtn.Click += (s, e) =>
         {
             _missionSeedField.Text = _rng.Next(0, int.MaxValue)
                 .ToString(System.Globalization.CultureInfo.InvariantCulture);
         };
-        missionSeedPanel.Controls.Add(_missionSeedField);
-        missionSeedPanel.Controls.Add(_generateMissionSeedBtn);
+        missionSeedPanel.Controls.Add(_missionSeedField, 0, 0);
+        missionSeedPanel.Controls.Add(_generateMissionSeedBtn, 1, 0);
         _missionSeedLabel = AddRow(leftPanel, "Mission Seed:", missionSeedPanel, leftRow++);
 
         // 21. Mini Mission Start Time
@@ -380,14 +404,26 @@ partial class SettlementPanel
             combo.DrawItem += OnPerkComboDrawItem;
             _perkCombos[i] = combo;
 
-            // Width accommodates seed TextBox (~130px) + Generate Button (~60px)
-            var perkSeedContainer = new Panel { Width = 190, Height = 23, Visible = false };
+            // Seed TextBox + Generate Button in a TableLayoutPanel for DPI-safe scaling
+            var perkSeedContainer = new TableLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                ColumnCount = 2,
+                RowCount = 1,
+                Visible = false,
+                Padding = Padding.Empty,
+                Margin = Padding.Empty,
+            };
+            perkSeedContainer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            perkSeedContainer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            perkSeedContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             var perkSeedField = new TextBox { Dock = DockStyle.Fill };
-            var perkGenBtn = new Button { Text = "Generate", Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(60, 23) };
+            var perkGenBtn = new Button { Text = "Generate", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(60, 0), Anchor = AnchorStyles.Top | AnchorStyles.Bottom };
             int genSlot = i;
             perkGenBtn.Click += (s, e) => GeneratePerkSeed(genSlot);
-            perkSeedContainer.Controls.Add(perkSeedField);
-            perkSeedContainer.Controls.Add(perkGenBtn);
+            perkSeedContainer.Controls.Add(perkSeedField, 0, 0);
+            perkSeedContainer.Controls.Add(perkGenBtn, 1, 0);
             _perkSeedFields[i] = perkSeedField;
             _perkSeedPanels[i] = perkSeedContainer;
             _perkSeedGenerateButtons[i] = perkGenBtn;
@@ -446,10 +482,13 @@ partial class SettlementPanel
         {
             Name = "Icon",
             HeaderText = "🏭",
-            Width = 30,
+            Width = 36,
             ImageLayout = DataGridViewImageCellLayout.Zoom,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
         });
+        if (_productionGrid.Columns["Icon"] is DataGridViewColumn prodIconCol)
+            prodIconCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
         _productionGrid.Columns.Add(new DataGridViewTextBoxColumn
         {
             Name = "ItemName",
@@ -480,6 +519,7 @@ partial class SettlementPanel
             FillWeight = 20,
         });
         _productionGrid.CellContentClick += OnProductionGridCellClick;
+        _productionGrid.CellValueChanged += (s, e) => RaiseDataModified();
         productionLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         productionLayout.Controls.Add(_productionGrid, 0, 1);
         productionLayout.RowCount = 2;
@@ -863,6 +903,19 @@ partial class SettlementPanel
 
         scrollPanel.Controls.Add(mainLayout);
         Controls.Add(scrollPanel);
+
+        // Wire up fields that don't already raise DataModified through the main stat/population color methods.
+        _seedField.Leave += (s, e) => RaiseDataModified();
+        _missionSeedField.Leave += (s, e) => RaiseDataModified();
+        _raceField.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _decisionTypeField.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        foreach (var picker in new[]
+        {
+            _lastBugAttackTimeField, _lastAlertTimeField, _lastDebtTimeField,
+            _lastUpkeepTimeField, _lastPopulationTimeField, _lastDecisionTimeField,
+            _miniMissionStartTimeField
+        })
+            picker.ValueChanged += (s, e) => RaiseDataModified();
 
         ResumeLayout(false);
         PerformLayout();

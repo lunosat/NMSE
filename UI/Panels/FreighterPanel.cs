@@ -11,11 +11,18 @@ public partial class FreighterPanel : UserControl
     /// <summary>Raised when inventory data is modified by the user.</summary>
     public event EventHandler? DataModified;
 
+    private void RaiseDataModified()
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     private static string[] FreighterClasses => FreighterLogic.FreighterClasses;
 
     private JsonObject? _playerState;
     private JsonObject? _freighterBase;
     private readonly Random _rng = new();
+    private bool _loading;
 
     /// <summary>Raw (unclamped) freighter stat values read from JSON at load time.</summary>
     private Dictionary<string, double>? _rawFreighterStatValues;
@@ -52,6 +59,7 @@ public partial class FreighterPanel : UserControl
 
     public void LoadData(JsonObject saveData)
     {
+        _loading = true;
         SuspendLayout();
         try
         {
@@ -140,6 +148,7 @@ public partial class FreighterPanel : UserControl
         catch { }
         finally
         {
+            _loading = false;
             ResumeLayout(true);
         }
     }

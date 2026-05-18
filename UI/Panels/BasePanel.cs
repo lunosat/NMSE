@@ -338,12 +338,46 @@ internal class BasesSubPanel : UserControl
         _npcRaceCombo.SelectedIndexChanged += OnNpcRaceChanged;
         _raceLabel = AddRow(rightLayout, UiStrings.Get("base.npc_race_label"), _npcRaceCombo, row); row++;
 
-        var seedPanel = new Panel { Dock = DockStyle.Fill, Height = 26 };
+        var seedPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        seedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _npcSeed = new TextBox { Dock = DockStyle.Fill };
-        _generateNpcSeedBtn = new Button { Text = UiStrings.Get("common.generate"), Dock = DockStyle.Right, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0) };
+        _npcSeed.Leave += (s, e) =>
+        {
+            // Immediately apply seed change to underlying data and fire DataModified
+            if (_npcSelector.SelectedItem is NpcWorkerItem npcItem)
+            {
+                try
+                {
+                    var normalizedNpcSeed = SeedHelper.NormalizeSeed(_npcSeed.Text);
+                    if (normalizedNpcSeed != null)
+                    {
+                        var seedArr = npcItem.Data.GetArray("ResourceElement.Seed")
+                                      ?? npcItem.Data.GetObject("ResourceElement")?.GetArray("Seed");
+                        if (seedArr != null && seedArr.Length > 1)
+                        {
+                            seedArr.Set(1, normalizedNpcSeed);
+                            DataModified?.Invoke(this, EventArgs.Empty);
+                        }
+                    }
+                }
+                catch { }
+            }
+        };
+        _generateNpcSeedBtn = new Button { Text = UiStrings.Get("common.generate"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0), Anchor = AnchorStyles.Top | AnchorStyles.Bottom };
         _generateNpcSeedBtn.Click += OnGenerateNpcSeed;
-        seedPanel.Controls.Add(_npcSeed);
-        seedPanel.Controls.Add(_generateNpcSeedBtn);
+        seedPanel.Controls.Add(_npcSeed, 0, 0);
+        seedPanel.Controls.Add(_generateNpcSeedBtn, 1, 0);
         _seedLabel = AddRow(rightLayout, UiStrings.Get("base.npc_seed_label"), seedPanel, row); row++;
 
         // Summon NPC worker to selected base
@@ -632,6 +666,7 @@ internal class BasesSubPanel : UserControl
                     resourceElement.Set("Filename", filename);
                 else
                     item.Data.Set("ResourceElement.Filename", filename);
+                DataModified?.Invoke(this, EventArgs.Empty);
             }
         }
     }
@@ -651,7 +686,10 @@ internal class BasesSubPanel : UserControl
                 var seedArr = item.Data.GetArray("ResourceElement.Seed")
                               ?? item.Data.GetObject("ResourceElement")?.GetArray("Seed");
                 if (seedArr != null && seedArr.Length > 1)
+                {
                     seedArr.Set(1, newSeed);
+                    DataModified?.Invoke(this, EventArgs.Empty);
+                }
             }
             catch { }
         }
@@ -707,6 +745,7 @@ internal class BasesSubPanel : UserControl
             MessageBox.Show(this, 
                 UiStrings.Format("base.summon_complete_msg", npcItem.ToString(), baseItem.DisplayName),
                 UiStrings.Get("base.summon_complete_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            DataModified?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -784,7 +823,9 @@ internal class BasesSubPanel : UserControl
     private void OnBaseNameChanged(object? sender, EventArgs e)
     {
         if (_baseList.SelectedItem is not BaseInfoItem item) return;
-        _pendingBaseName = _baseName.Text.Trim();
+        string newName = _baseName.Text.Trim();
+        if (newName == _pendingBaseName) return;
+        _pendingBaseName = newName;
         // Update list display immediately
         if (!string.IsNullOrEmpty(_pendingBaseName))
         {
@@ -796,6 +837,7 @@ internal class BasesSubPanel : UserControl
             _baseList.SelectedIndex = idx;
             _baseList.SelectedIndexChanged += OnBaseSelected;
         }
+        DataModified?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnExport(object? sender, EventArgs e)
@@ -870,6 +912,7 @@ internal class BasesSubPanel : UserControl
 
             // Refresh display
             OnBaseSelected(this, EventArgs.Empty);
+            DataModified?.Invoke(this, EventArgs.Empty);
             MessageBox.Show(this, UiStrings.Get("base.import_success"), UiStrings.Get("base.import_title"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -975,6 +1018,7 @@ internal class BasesSubPanel : UserControl
             // Perform the full coordinate system transformation and position swap
             BaseLogic.MoveBaseComputer(item.Data, baseFlag, target.Data);
             OnBaseSelected(this, EventArgs.Empty);
+            DataModified?.Invoke(this, EventArgs.Empty);
             MessageBox.Show(this, UiStrings.Get("base.move_basecomp_success"), UiStrings.Get("base.move_basecomp_success_title"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -1175,6 +1219,7 @@ internal class BasesSubPanel : UserControl
         previous.DataIndex = oldSelected;
 
         RefreshBaseList(selected);
+        DataModified?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -1202,6 +1247,7 @@ internal class BasesSubPanel : UserControl
         next.DataIndex = oldSelected;
 
         RefreshBaseList(selected);
+        DataModified?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -1232,6 +1278,7 @@ internal class BasesSubPanel : UserControl
         }
 
         RefreshBaseList(selected);
+        DataModified?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -1262,6 +1309,7 @@ internal class BasesSubPanel : UserControl
         }
 
         RefreshBaseList(selected);
+        DataModified?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

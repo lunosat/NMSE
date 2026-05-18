@@ -98,7 +98,8 @@ public class ItemPickerDialog : Form
         _addManualButton = new Button
         {
             Text = UiStrings.Get("item_picker.add_manual"),
-            Width = 120,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Margin = new Padding(12, 0, 12, 4)
         };
         _addManualButton.Click += (s, e) =>

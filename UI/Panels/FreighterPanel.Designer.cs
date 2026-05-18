@@ -36,7 +36,7 @@ partial class FreighterPanel
         _classLabel = new Label();
         _freighterClass = new ComboBox();
         _homeSeedLabel = new Label();
-        _homeSeedPanel = new Panel();
+        _homeSeedPanel = new TableLayoutPanel();
         _homeSeed = new TextBox();
         _generateHomeSeedBtn = new Button();
         _crewRaceLabel = new Label();
@@ -49,11 +49,11 @@ partial class FreighterPanel
         _baseItemsLabel = new Label();
         _baseItemsField = new TextBox();
         _modelSeedLabel = new Label();
-        _modelSeedPanel = new Panel();
+        _modelSeedPanel = new TableLayoutPanel();
         _modelSeed = new TextBox();
         _generateModelSeedBtn = new Button();
         _crewSeedLabel = new Label();
-        _crewSeedPanel = new Panel();
+        _crewSeedPanel = new TableLayoutPanel();
         _crewSeedField = new TextBox();
         _generateCrewSeedBtn = new Button();
         _buttonPanel = new FlowLayoutPanel();
@@ -265,28 +265,34 @@ partial class FreighterPanel
         // 
         // _homeSeedPanel
         // 
-        _homeSeedPanel.Controls.Add(_homeSeed);
-        _homeSeedPanel.Controls.Add(_generateHomeSeedBtn);
+        _homeSeedPanel.ColumnCount = 2;
+        _homeSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _homeSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _homeSeedPanel.Controls.Add(_homeSeed, 0, 0);
+        _homeSeedPanel.Controls.Add(_generateHomeSeedBtn, 1, 0);
         _homeSeedPanel.Dock = DockStyle.Fill;
-        _homeSeedPanel.Location = new Point(90, 90);
+        _homeSeedPanel.RowCount = 1;
+        _homeSeedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _homeSeedPanel.AutoSize = true;
+        _homeSeedPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _homeSeedPanel.Padding = Padding.Empty;
+        _homeSeedPanel.Margin = Padding.Empty;
         _homeSeedPanel.Name = "_homeSeedPanel";
-        _homeSeedPanel.Size = new Size(573, 23);
         _homeSeedPanel.TabIndex = 7;
         // 
         // _homeSeed
         // 
         _homeSeed.Dock = DockStyle.Fill;
-        _homeSeed.Location = new Point(0, 0);
         _homeSeed.Name = "_homeSeed";
-        _homeSeed.Size = new Size(503, 23);
         _homeSeed.TabIndex = 0;
         // 
         // _generateHomeSeedBtn
         // 
-        _generateHomeSeedBtn.Dock = DockStyle.Right;
-        _generateHomeSeedBtn.Location = new Point(503, 0);
+        _generateHomeSeedBtn.Anchor = AnchorStyles.Top | AnchorStyles.Bottom;
         _generateHomeSeedBtn.Name = "_generateHomeSeedBtn";
-        _generateHomeSeedBtn.Size = new Size(70, 23);
+        _generateHomeSeedBtn.AutoSize = true;
+        _generateHomeSeedBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _generateHomeSeedBtn.MinimumSize = new Size(70, 0);
         _generateHomeSeedBtn.TabIndex = 1;
         _generateHomeSeedBtn.Text = "Generate";
         // 
@@ -409,28 +415,34 @@ partial class FreighterPanel
         // 
         // _modelSeedPanel
         // 
-        _modelSeedPanel.Controls.Add(_modelSeed);
-        _modelSeedPanel.Controls.Add(_generateModelSeedBtn);
+        _modelSeedPanel.ColumnCount = 2;
+        _modelSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _modelSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _modelSeedPanel.Controls.Add(_modelSeed, 0, 0);
+        _modelSeedPanel.Controls.Add(_generateModelSeedBtn, 1, 0);
         _modelSeedPanel.Dock = DockStyle.Fill;
-        _modelSeedPanel.Location = new Point(127, 90);
+        _modelSeedPanel.RowCount = 1;
+        _modelSeedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _modelSeedPanel.AutoSize = true;
+        _modelSeedPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _modelSeedPanel.Padding = Padding.Empty;
+        _modelSeedPanel.Margin = Padding.Empty;
         _modelSeedPanel.Name = "_modelSeedPanel";
-        _modelSeedPanel.Size = new Size(536, 23);
         _modelSeedPanel.TabIndex = 7;
         // 
         // _modelSeed
         // 
         _modelSeed.Dock = DockStyle.Fill;
-        _modelSeed.Location = new Point(0, 0);
         _modelSeed.Name = "_modelSeed";
-        _modelSeed.Size = new Size(466, 23);
         _modelSeed.TabIndex = 0;
         // 
         // _generateModelSeedBtn
         // 
-        _generateModelSeedBtn.Dock = DockStyle.Right;
-        _generateModelSeedBtn.Location = new Point(466, 0);
+        _generateModelSeedBtn.Anchor = AnchorStyles.Top | AnchorStyles.Bottom;
         _generateModelSeedBtn.Name = "_generateModelSeedBtn";
-        _generateModelSeedBtn.Size = new Size(70, 23);
+        _generateModelSeedBtn.AutoSize = true;
+        _generateModelSeedBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _generateModelSeedBtn.MinimumSize = new Size(70, 0);
         _generateModelSeedBtn.TabIndex = 1;
         _generateModelSeedBtn.Text = "Generate";
         // 
@@ -447,28 +459,34 @@ partial class FreighterPanel
         // 
         // _crewSeedPanel
         // 
-        _crewSeedPanel.Controls.Add(_crewSeedField);
-        _crewSeedPanel.Controls.Add(_generateCrewSeedBtn);
+        _crewSeedPanel.ColumnCount = 2;
+        _crewSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _crewSeedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _crewSeedPanel.Controls.Add(_crewSeedField, 0, 0);
+        _crewSeedPanel.Controls.Add(_generateCrewSeedBtn, 1, 0);
         _crewSeedPanel.Dock = DockStyle.Fill;
-        _crewSeedPanel.Location = new Point(127, 119);
+        _crewSeedPanel.RowCount = 1;
+        _crewSeedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _crewSeedPanel.AutoSize = true;
+        _crewSeedPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _crewSeedPanel.Padding = Padding.Empty;
+        _crewSeedPanel.Margin = Padding.Empty;
         _crewSeedPanel.Name = "_crewSeedPanel";
-        _crewSeedPanel.Size = new Size(536, 23);
         _crewSeedPanel.TabIndex = 9;
         // 
         // _crewSeedField
         // 
         _crewSeedField.Dock = DockStyle.Fill;
-        _crewSeedField.Location = new Point(0, 0);
         _crewSeedField.Name = "_crewSeedField";
-        _crewSeedField.Size = new Size(466, 23);
         _crewSeedField.TabIndex = 0;
         // 
         // _generateCrewSeedBtn
         // 
-        _generateCrewSeedBtn.Dock = DockStyle.Right;
-        _generateCrewSeedBtn.Location = new Point(466, 0);
+        _generateCrewSeedBtn.Anchor = AnchorStyles.Top;
         _generateCrewSeedBtn.Name = "_generateCrewSeedBtn";
-        _generateCrewSeedBtn.Size = new Size(70, 23);
+        _generateCrewSeedBtn.AutoSize = true;
+        _generateCrewSeedBtn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        _generateCrewSeedBtn.MinimumSize = new Size(70, 0);
         _generateCrewSeedBtn.TabIndex = 1;
         _generateCrewSeedBtn.Text = "Generate";
         // 
@@ -615,24 +633,38 @@ partial class FreighterPanel
             byte[] bytes = new byte[8];
             _rng.NextBytes(bytes);
             _homeSeed.Text = "0x" + BitConverter.ToString(bytes).Replace("-", "");
+            RaiseDataModified();
         };
         _generateModelSeedBtn.Click += (s, e) =>
         {
             byte[] bytes = new byte[8];
             _rng.NextBytes(bytes);
             _modelSeed.Text = "0x" + BitConverter.ToString(bytes).Replace("-", "");
+            RaiseDataModified();
         };
         _generateCrewSeedBtn.Click += (s, e) =>
         {
             byte[] bytes = new byte[8];
             _rng.NextBytes(bytes);
             _crewSeedField.Text = "0x" + BitConverter.ToString(bytes).Replace("-", "");
+            RaiseDataModified();
         };
         _exportBtn.Click += OnBackup;
         _importBtn.Click += OnRestore;
 
         _generalGrid.DataModified += (s, e) => DataModified?.Invoke(this, e);
         _techGrid.DataModified += (s, e) => DataModified?.Invoke(this, e);
+
+        // Wire non-inventory field changes to raise DataModified
+        _freighterName.Leave += (s, e) => RaiseDataModified();
+        _freighterType.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _freighterClass.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _homeSeed.Leave += (s, e) => RaiseDataModified();
+        _modelSeed.Leave += (s, e) => RaiseDataModified();
+        _crewSeedField.Leave += (s, e) => RaiseDataModified();
+        _crewRaceCombo.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        _hyperdriveField.NumericValueChanged += (s, e) => RaiseDataModified();
+        _fleetField.NumericValueChanged += (s, e) => RaiseDataModified();
 
         _techGrid.SetIsTechInventory(true);
         _generalGrid.SetIsCargoInventory(true);
@@ -656,9 +688,9 @@ partial class FreighterPanel
     private System.Windows.Forms.TableLayoutPanel _detailsPanel;
     private System.Windows.Forms.TableLayoutPanel _statsPanel;
     private System.Windows.Forms.FlowLayoutPanel _buttonPanel;
-    private System.Windows.Forms.Panel _homeSeedPanel;
-    private System.Windows.Forms.Panel _modelSeedPanel;
-    private System.Windows.Forms.Panel _crewSeedPanel;
+    private System.Windows.Forms.TableLayoutPanel _homeSeedPanel;
+    private System.Windows.Forms.TableLayoutPanel _modelSeedPanel;
+    private System.Windows.Forms.TableLayoutPanel _crewSeedPanel;
     private System.Windows.Forms.Label _nameLabel;
     private System.Windows.Forms.Label _typeLabel;
     private System.Windows.Forms.Label _classLabel;

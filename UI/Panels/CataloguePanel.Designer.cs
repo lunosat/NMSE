@@ -1,4 +1,5 @@
 using NMSE.Data;
+using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
 
@@ -54,7 +55,7 @@ partial class CataloguePanel
         };
         _techFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by name, category or ID..." };
         _techFilterBox.TextChanged += (s, e) => ApplyFilter(_techGrid!, _techFilterBox.Text);
-        _techFilterClearButton = new Button { Text = "X", Width = 28, Height = 23 };
+        _techFilterClearButton = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
         _techFilterClearButton.Click += (s, e) => { _techFilterBox.Text = ""; };
         techFilterPanel.Controls.Add(_techFilterBox);
         techFilterPanel.Controls.Add(_techFilterClearButton);
@@ -106,7 +107,7 @@ partial class CataloguePanel
         };
         _productFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by name, category or ID..." };
         _productFilterBox.TextChanged += (s, e) => ApplyFilter(_productGrid!, _productFilterBox.Text);
-        _productFilterClearButton = new Button { Text = "X", Width = 28, Height = 23 };
+        _productFilterClearButton = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
         _productFilterClearButton.Click += (s, e) => { _productFilterBox.Text = ""; };
         productFilterPanel.Controls.Add(_productFilterBox);
         productFilterPanel.Controls.Add(_productFilterClearButton);
@@ -159,7 +160,7 @@ partial class CataloguePanel
         };
         _specialsFilterBox = new TextBox { Width = 200, PlaceholderText = UiStrings.Get("discovery.filter_placeholder") };
         _specialsFilterBox.TextChanged += (s, e) => ApplyFilter(_specialsGrid!, _specialsFilterBox.Text);
-        _specialsFilterClearButton = new Button { Text = "X", Width = 28, Height = 23 };
+        _specialsFilterClearButton = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
         _specialsFilterClearButton.Click += (s, e) => { _specialsFilterBox.Text = ""; };
         specialsFilterPanel.Controls.Add(_specialsFilterBox);
         specialsFilterPanel.Controls.Add(_specialsFilterClearButton);
@@ -213,7 +214,7 @@ partial class CataloguePanel
         };
         _wordFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by word..." };
         _wordFilterBox.TextChanged += (s, e) => ApplyWordFilter();
-        var wordFilterClearBtn = new Button { Text = "X", Width = 28, Height = 23 };
+        var wordFilterClearBtn = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
         wordFilterClearBtn.Click += (s, e) => { _wordFilterBox.Text = ""; };
         wordFilterPanel.Controls.Add(_wordFilterBox);
         wordFilterPanel.Controls.Add(wordFilterClearBtn);
@@ -223,7 +224,8 @@ partial class CataloguePanel
         var raceIconPanel = new Panel
         {
             Dock = DockStyle.Fill,
-            Height = 100,
+            AutoSize = true,
+            MinimumSize = new Size(0, 100),
         };
         string[] raceIconFiles = { "UI-GEK.PNG", "UI-VYKEEN.PNG", "UI-KORVAX.PNG", "UI-ATLAS.PNG", "UI-KORVAX.PNG" };
         string[] raceLabels = { "Gek", "Vy'keen", "Korvax", "Atlas", "Autophage" };
@@ -242,17 +244,19 @@ partial class CataloguePanel
             {
                 Text = raceLabels[i],
                 AutoSize = true,
-                Font = new Font(Font.FontFamily, 9, FontStyle.Bold),
             };
+            FontManager.ApplyFont(_raceLabels[i], 9, FontStyle.Bold);
             int raceOrdinal = RaceColumns[i].Index;
             _raceLearnButtons[i] = new Button
             {
                 Text = "✓",
-                Width = 28, Height = 22,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                MinimumSize = new Size(28, 0),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(60, 140, 60),
                 ForeColor = Color.White,
-                Font = new Font(Font.FontFamily, 7),
+                Font = FontManager.CreateFont(7),
             };
             _raceLearnButtons[i].FlatAppearance.BorderSize = 0;
             _raceLearnButtons[i].Click += (s, e) => LearnAllForRace(raceOrdinal);
@@ -260,11 +264,13 @@ partial class CataloguePanel
             _raceUnlearnButtons[i] = new Button
             {
                 Text = "✗",
-                Width = 28, Height = 22,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                MinimumSize = new Size(28, 0),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(160, 60, 60),
                 ForeColor = Color.White,
-                Font = new Font(Font.FontFamily, 7),
+                Font = FontManager.CreateFont(7),
             };
             _raceUnlearnButtons[i].FlatAppearance.BorderSize = 0;
             _raceUnlearnButtons[i].Click += (s, e) => UnlearnAllForRace(raceOrdinal);
@@ -423,7 +429,7 @@ partial class CataloguePanel
         var locFilterPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
         _locFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by name, portal code..." };
         _locFilterBox.TextChanged += (s, e) => ApplyLocationFilter();
-        var locFilterClearBtn = new Button { Text = "X", Width = 28, Height = 23 };
+        var locFilterClearBtn = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
         locFilterClearBtn.Click += (s, e) => { _locFilterBox.Text = ""; };
         locFilterPanel.Controls.Add(_locFilterBox);
         locFilterPanel.Controls.Add(locFilterClearBtn);
@@ -526,7 +532,7 @@ partial class CataloguePanel
         };
         _fishFilterBox = new TextBox { Width = 200, PlaceholderText = "Filter by name or ID..." };
         _fishFilterBox.TextChanged += (s, e) => ApplyFishFilter();
-        _fishFilterClearBtn = new Button { Text = "X", Width = 28, Height = 23 };
+        _fishFilterClearBtn = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
         _fishFilterClearBtn.Click += (s, e) => { _fishFilterBox.Text = ""; };
         fishFilterPanel.Controls.Add(_fishFilterBox);
         fishFilterPanel.Controls.Add(_fishFilterClearBtn);
@@ -546,10 +552,13 @@ partial class CataloguePanel
         {
             Name = "Icon",
             HeaderText = "🐟",
-            Width = 30,
+            Width = 36,
             ImageLayout = DataGridViewImageCellLayout.Zoom,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+            DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter },
         });
+        if (_fishGrid.Columns["Icon"] is DataGridViewColumn fishIconCol)
+            fishIconCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
         _fishGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "CaughtFish", HeaderText = "Caught Fish", ReadOnly = true, FillWeight = 20 });
         _fishGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Name", HeaderText = "Name", ReadOnly = true, FillWeight = 25 });
         _fishGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Count", HeaderText = "Count", ReadOnly = false, FillWeight = 12 });

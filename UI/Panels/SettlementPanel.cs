@@ -41,6 +41,16 @@ public partial class SettlementPanel : UserControl
     private int[]? _rawBuildingStates;
     private bool _hasBuildingStates;
     private bool _editorUpdating;
+    private bool _loading;
+
+    /// <summary>Raised when the user modifies any settlement field.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified()
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
 
     public void SetDatabase(GameItemDatabase? database)
     {
@@ -151,6 +161,7 @@ public partial class SettlementPanel : UserControl
         _perkSeedPanels[slot].Visible = showSeed;
         if (!showSeed)
             _perkSeedFields[slot].Text = "";
+        RaiseDataModified();
     }
 
     /// <summary>
@@ -235,12 +246,14 @@ public partial class SettlementPanel : UserControl
             _settlementSelector.SelectedIndex = Math.Min(selIdx, _settlementSelector.Items.Count - 1);
         else
             ClearFields();
+        RaiseDataModified();
     }
 
     // --- Load / Save / Clear ---
 
     public void LoadData(JsonObject saveData)
     {
+        _loading = true;
         SuspendLayout();
         _settlementSelector.BeginUpdate();
         try
@@ -286,6 +299,7 @@ public partial class SettlementPanel : UserControl
         }
         finally
         {
+            _loading = false;
             _settlementSelector.EndUpdate();
             ResumeLayout(true);
         }
@@ -421,6 +435,7 @@ public partial class SettlementPanel : UserControl
 
     private void OnSettlementSelected(object? sender, EventArgs e)
     {
+        _loading = true;
         ClearFields();
         try
         {
@@ -543,6 +558,7 @@ public partial class SettlementPanel : UserControl
             }
         }
         catch { }
+        finally { _loading = false; }
     }
 
     private void OnSettlementNameChanged(object? sender, EventArgs e)
@@ -558,6 +574,7 @@ public partial class SettlementPanel : UserControl
         _settlementSelector.Items.Insert(idx, $"[{dataIdx}] {newName}");
         _settlementSelector.SelectedIndex = idx;
         _settlementSelector.SelectedIndexChanged += OnSettlementSelected;
+        RaiseDataModified();
     }
 
     private void ClearFields()
@@ -688,6 +705,7 @@ public partial class SettlementPanel : UserControl
             var dbItem = _database.GetItem(rawId);
             gridRow.Cells["ItemName"].Value = dbItem?.Name ?? rawId;
             gridRow.Cells["Icon"].Value = GetProductionIcon(rawId) ?? (object)_placeholderIcon;
+            RaiseDataModified();
         }
     }
 
@@ -774,6 +792,7 @@ public partial class SettlementPanel : UserControl
 
                 OnSettlementSelected(this, EventArgs.Empty);
             }
+            RaiseDataModified();
         }
         catch (Exception ex)
         {
@@ -964,6 +983,7 @@ public partial class SettlementPanel : UserControl
             }
         }
         finally { _editorUpdating = false; }
+        RaiseDataModified();
     }
 
     private void OnBuildingStateComboChanged(int slot)
@@ -1002,6 +1022,7 @@ public partial class SettlementPanel : UserControl
             }
         }
         finally { _editorUpdating = false; }
+        RaiseDataModified();
     }
 
     /// <summary>Populates a building state ComboBox with known milestone values.</summary>
@@ -1157,6 +1178,7 @@ public partial class SettlementPanel : UserControl
             OnBuildingStateChanged(slot);
         }
         finally { _editorUpdating = false; }
+        RaiseDataModified();
     }
 
     /// <summary>
@@ -1174,6 +1196,7 @@ public partial class SettlementPanel : UserControl
             _statFields[index].ForeColor = Color.Tomato;
         else
             _statFields[index].ForeColor = SystemColors.WindowText;
+        RaiseDataModified();
     }
 
     /// <summary>
@@ -1190,6 +1213,7 @@ public partial class SettlementPanel : UserControl
             _populationField.ForeColor = Color.Tomato;
         else
             _populationField.ForeColor = SystemColors.WindowText;
+        RaiseDataModified();
     }
 
     private static readonly string[] StatLocKeys =

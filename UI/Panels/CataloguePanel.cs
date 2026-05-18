@@ -126,7 +126,7 @@ public partial class CataloguePanel : UserControl
 
             // Position label below icon, also centered
             _raceLabels[i].Left = centerX - _raceLabels[i].Width / 2;
-            _raceLabels[i].Top = 36;
+            _raceLabels[i].Top = _raceIcons[i].Top + _raceIcons[i].Height + 2;
 
             // Position learn/unlearn buttons side by side below label
             if (_raceLearnButtons != null && i < _raceLearnButtons.Length)
@@ -134,9 +134,9 @@ public partial class CataloguePanel : UserControl
                 int btnPairWidth = _raceLearnButtons[i].Width + _raceUnlearnButtons[i].Width + 2;
                 int btnLeft = centerX - btnPairWidth / 2;
                 _raceLearnButtons[i].Left = btnLeft;
-                _raceLearnButtons[i].Top = 55;
+                _raceLearnButtons[i].Top = _raceLabels[i].Top + _raceLabels[i].Height + 2;
                 _raceUnlearnButtons[i].Left = btnLeft + _raceLearnButtons[i].Width + 2;
-                _raceUnlearnButtons[i].Top = 55;
+                _raceUnlearnButtons[i].Top = _raceLearnButtons[i].Top;
             }
         }
     }
@@ -233,10 +233,11 @@ public partial class CataloguePanel : UserControl
         {
             Name = "Icon",
             HeaderText = "⚙️",
-            Width = 30,
+            Width = 36,
             ImageLayout = DataGridViewImageCellLayout.Zoom,
             AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
         };
+        iconCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
         grid.Columns.Add(iconCol);
         grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Name", HeaderText = "Name" });
         grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Category", HeaderText = "Category" });

@@ -19,7 +19,7 @@ internal sealed class SplashForm : Form
 
         FormBorderStyle = FormBorderStyle.None;
         StartPosition = FormStartPosition.CenterScreen;
-        Size = new Size(420, 170);
+        Size = new Size(420, 190);
         BackColor = Color.FromArgb(30, 30, 30);
         ShowInTaskbar = true;
         TopMost = true;
@@ -61,7 +61,8 @@ internal sealed class SplashForm : Form
             Font = _titleFont,
             TextAlign = ContentAlignment.BottomCenter,
             Dock = DockStyle.Top,
-            Height = 70,
+            AutoSize = false,
+            Height = 80,
         };
 
         _loadingLabel = new Label
@@ -71,7 +72,8 @@ internal sealed class SplashForm : Form
             Font = _loadingFont,
             TextAlign = ContentAlignment.TopCenter,
             Dock = DockStyle.Top,
-            Height = 30,
+            AutoSize = false,
+            Height = 36,
             Padding = new Padding(0, 8, 0, 0),
         };
 
