@@ -161,15 +161,26 @@ public class SaveFileManager
     }
 
     /// <summary>
-    /// Creates a timestamped zip backup of the save directory, retaining up to 10 backups.
-    /// Excludes *.dds files from the cache sub-folder to reduce backup size.
+    /// Creates a timestamped zip backup of all .hg files in the save directory,
+    /// retaining up to 10 backups.  Falls back to the system temp directory if
+    /// the exe-relative backup folder cannot be created (e.g. under Wine).
     /// </summary>
     /// <param name="saveDirectory">The save directory to back up.</param>
     public static void BackupSaveDirectory(string saveDirectory)
     {
         string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+
+        // If the primary backup location isn't writable, try Temp
         string backupRoot = Path.Combine(exeDir, "Save Backups");
-        Directory.CreateDirectory(backupRoot);
+        try
+        {
+            Directory.CreateDirectory(backupRoot);
+        }
+        catch
+        {
+            backupRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
+            Directory.CreateDirectory(backupRoot);
+        }
 
         string dirName = new DirectoryInfo(saveDirectory).Name;
         string backupPattern = $"{dirName}_*.zip";
@@ -196,27 +207,64 @@ public class SaveFileManager
     }
 
     /// <summary>
-    /// Creates a zip from a directory, excluding *.dds files inside any "cache" sub-folder.
+    /// Creates a zip containing all .hg files in the given directory tree.
     /// </summary>
     private static void CreateFilteredZip(string sourceDir, string zipPath)
     {
         using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         string basePath = Path.GetFullPath(sourceDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        foreach (string filePath in Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories))
+        foreach (string filePath in EnumerateHgFilesSafe(sourceDir))
         {
             string fullFilePath = Path.GetFullPath(filePath);
             if (!fullFilePath.StartsWith(basePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                continue; // Skip files outside the source directory
-
-            string relativePath = fullFilePath[(basePath.Length + 1)..];
-
-            // Exclude *.dds files inside cache folders
-            if (relativePath.EndsWith(".dds", StringComparison.OrdinalIgnoreCase) &&
-                relativePath.Contains($"cache{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
                 continue;
 
+            string relativePath = fullFilePath[(basePath.Length + 1)..];
             zip.CreateEntryFromFile(filePath, relativePath, CompressionLevel.Fastest);
+        }
+    }
+
+    /// <summary>
+    /// Recursively enumerates *.hg files, skipping subdirectories that cannot be accessed.
+    /// This prevents the backup from failing on platforms (e.g. Wine) where permission
+    /// checks behave differently, or when the source directory contains protected system
+    /// folders (e.g. loading a .hg from the desktop).
+    /// </summary>
+    private static IEnumerable<string> EnumerateHgFilesSafe(string root)
+    {
+        var dirs = new Queue<string>();
+        dirs.Enqueue(root);
+
+        while (dirs.Count > 0)
+        {
+            string dir = dirs.Dequeue();
+
+            string[] files;
+            try
+            {
+                files = Directory.GetFiles(dir, "*.hg", SearchOption.TopDirectoryOnly);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (string file in files)
+                yield return file;
+
+            string[] subDirs;
+            try
+            {
+                subDirs = Directory.GetDirectories(dir);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (string subDir in subDirs)
+                dirs.Enqueue(subDir);
         }
     }
 

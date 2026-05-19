@@ -452,7 +452,7 @@ public class IOLayerTests
     // --- Backup filtered zip test ------------------------------------
 
     [Fact]
-    public void SaveFileManager_BackupSaveDirectory_ExcludesDdsFromCache()
+    public void SaveFileManager_BackupSaveDirectory_OnlyIncludesHgFiles()
     {
         string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}");
         string cacheDir = Path.Combine(tmpDir, "cache");
@@ -460,10 +460,11 @@ public class IOLayerTests
 
         try
         {
-            // Create test files: a normal save and a cache .dds file
+            // Create test files: .hg files should be included, everything else excluded
             File.WriteAllText(Path.Combine(tmpDir, "save.hg"), "test save data");
+            File.WriteAllText(Path.Combine(cacheDir, "other.hg"), "nested hg");
             File.WriteAllText(Path.Combine(cacheDir, "texture.dds"), "fake dds");
-            File.WriteAllText(Path.Combine(cacheDir, "other.bin"), "other cache data");
+            File.WriteAllText(Path.Combine(cacheDir, "random.bin"), "should be excluded");
 
             // Use reflection to call CreateFilteredZip since it's private
             string zipPath = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}.zip");
@@ -471,7 +472,7 @@ public class IOLayerTests
             {
                 var method = typeof(SaveFileManager).GetMethod("CreateFilteredZip",
                     System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-                if (method == null) return; // skip if method not found
+                if (method == null) return;
 
                 method.Invoke(null, new object[] { tmpDir, zipPath });
 
@@ -480,8 +481,9 @@ public class IOLayerTests
                 var entryNames = archive.Entries.Select(e => e.FullName).ToList();
 
                 Assert.Contains(entryNames, e => e.Contains("save.hg"));
-                Assert.Contains(entryNames, e => e.Contains("other.bin"));
+                Assert.Contains(entryNames, e => e.Contains("other.hg"));
                 Assert.DoesNotContain(entryNames, e => e.EndsWith(".dds", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(entryNames, e => e.EndsWith(".bin", StringComparison.OrdinalIgnoreCase));
             }
             finally
             {
