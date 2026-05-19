@@ -1853,7 +1853,7 @@ public partial class MainFormResources : Form
             // Determine slot index for meta writing
             int metaSlotIdx = _saveSlotCombo.SelectedIndex >= 0 ? _saveSlotCombo.SelectedIndex : 0;
 
-// PS4 SaveWizard streaming (.hg with NOMANSKY header): write back in same format.
+			// PS4 SaveWizard streaming (.hg with NOMANSKY header): write back in same format.
             // Use _ps4NomanSkyPath (original file) for the header template since _currentFilePath
             // may have been changed by Save As and the new file may not exist yet.
             if (_ps4NomanSkyPath != null && _currentFilePath != null)
