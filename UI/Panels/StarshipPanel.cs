@@ -31,6 +31,9 @@ public partial class StarshipPanel : UserControl
     /// <summary>Raw (unclamped) ship stat values read from JSON for the currently selected ship.</summary>
     private Dictionary<string, double>? _rawShipStatValues;
 
+    /// <summary>True while the panel is performing an initial data load; suppresses UI side-effects.</summary>
+    private bool _loading;
+
     /// <summary>Class index loaded from the save for the current ship, used to detect user changes.</summary>
     private int _originalClassIndex = -1;
 
@@ -89,6 +92,35 @@ public partial class StarshipPanel : UserControl
         string ownerType = StarshipLogic.GetOwnerTypeForShip(selectedType);
         _techGrid.SetInventoryOwnerType(ownerType);
         _inventoryGrid.SetInventoryOwnerType(ownerType);
+
+        // Update the underlying ship data and dependent UI controls.
+        if (_shipOwnership != null && _shipSelector.SelectedIndex >= 0)
+        {
+            var item = (StarshipLogic.ShipListItem)_shipSelector.Items[_shipSelector.SelectedIndex]!;
+            int idx = item.DataIndex;
+            if (idx < _shipOwnership.Length)
+            {
+                var ship = _shipOwnership.GetObject(idx);
+                if (ship != null)
+                {
+                    var resource = ship.GetObject("Resource");
+                    if (resource != null && !string.IsNullOrEmpty(filename))
+                        resource.Set("Filename", filename);
+
+                    if (!_loading)
+                    {
+                        // Refresh the ship selector display name so the type prefix updates
+                        OnShipNameChanged(null, EventArgs.Empty);
+
+                        // Reload the customisation tab with the new scene resource
+                        bool isCorvette = StarshipLogic.IsCorvette(filename);
+                        LoadCustomisationTab(isCorvette, filename, idx);
+
+                        DataModified?.Invoke(this, EventArgs.Empty);
+                    }
+                }
+            }
+        }
     }
 
     public StarshipPanel()
@@ -268,7 +300,15 @@ public partial class StarshipPanel : UserControl
                         break;
                     }
                 }
-                _shipSelector.SelectedIndex = selectIdx;
+                _loading = true;
+                try
+                {
+                    _shipSelector.SelectedIndex = selectIdx;
+                }
+                finally
+                {
+                    _loading = false;
+                }
             }
         }
         catch { }
@@ -1659,6 +1699,11 @@ public partial class StarshipPanel : UserControl
     {
         _customisationContent.SuspendLayout();
 
+        // Detach the permanent info label before the disposal sweep so it is
+        // not caught and disposed along with dynamic controls.
+        if (_customisationInfoLabel.Parent != null)
+            _customisationContent.Controls.Remove(_customisationInfoLabel);
+
         // Remove all rows after row 0 (the static scene row).
         // Dispose controls from row 1 onwards to avoid resource leaks.
         var toRemove = _customisationContent.Controls.Cast<Control>()
@@ -1700,10 +1745,6 @@ public partial class StarshipPanel : UserControl
             _customisationContent.ResumeLayout(true);
             return;
         }
-
-        // Remove info label while showing real controls
-        if (_customisationInfoLabel.Parent != null)
-            _customisationContent.Controls.Remove(_customisationInfoLabel);
 
         int nextRow = 1;
 
