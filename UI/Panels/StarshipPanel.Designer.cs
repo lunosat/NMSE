@@ -187,6 +187,10 @@ partial class StarshipPanel
 
         _shipName = new TextBox { Dock = DockStyle.Fill };
         _shipName.Leave += OnShipNameChanged;
+        _shipName.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _shipName.Parent?.Focus(); }
+        };
         _nameLabel = AddRow(leftPanel, "Name:", _shipName, row++);
 
         _shipType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -211,6 +215,10 @@ partial class StarshipPanel
         seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         seedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _shipSeed = new TextBox { Dock = DockStyle.Fill };
+        _shipSeed.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _shipSeed.Parent?.Focus(); }
+        };
         _generateSeedBtn = new Button
         {
             Text = "Generate",

@@ -159,18 +159,38 @@ partial class CompanionPanel
 
         _nameField = new TextBox { Dock = DockStyle.Fill };
         _nameField.Leave += (s, e) => WriteName();
+        _nameField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _nameField.Parent?.Focus(); }
+        };
 
         _creatureSeedField = new TextBox { Dock = DockStyle.Fill };
         _creatureSeedField.Leave += (s, e) => WriteCreatureSeed();
+        _creatureSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _creatureSeedField.Parent?.Focus(); }
+        };
 
         _secondarySeedField = new TextBox { Dock = DockStyle.Fill };
         _secondarySeedField.Leave += (s, e) => WriteSecondarySeed();
+        _secondarySeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _secondarySeedField.Parent?.Focus(); }
+        };
 
         _speciesSeedField = new TextBox { Dock = DockStyle.Fill };
         _speciesSeedField.Leave += (s, e) => WriteSpeciesSeed();
+        _speciesSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _speciesSeedField.Parent?.Focus(); }
+        };
 
         _genusSeedField = new TextBox { Dock = DockStyle.Fill };
         _genusSeedField.Leave += (s, e) => WriteGenusSeed();
+        _genusSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _genusSeedField.Parent?.Focus(); }
+        };
 
         _predatorField = new CheckBox { Text = "", AutoSize = true };
         _predatorField.CheckedChanged += (s, e) => { if (!_loading) WritePredator(); };
@@ -191,9 +211,17 @@ partial class CompanionPanel
 
         _boneScaleSeedField = new TextBox { Dock = DockStyle.Fill };
         _boneScaleSeedField.Leave += (s, e) => WriteBoneScaleSeed();
+        _boneScaleSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _boneScaleSeedField.Parent?.Focus(); }
+        };
 
         _colourBaseSeedField = new TextBox { Dock = DockStyle.Fill };
         _colourBaseSeedField.Leave += (s, e) => WriteColourBaseSeed();
+        _colourBaseSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _colourBaseSeedField.Parent?.Focus(); }
+        };
 
         _hasFurField = new CheckBox { Text = "", AutoSize = true };
         _hasFurField.CheckedChanged += (s, e) => { if (!_loading) WriteHasFur(); };
@@ -272,6 +300,10 @@ partial class CompanionPanel
 
         _customSpeciesNameField = new TextBox { Dock = DockStyle.Fill };
         _customSpeciesNameField.Leave += (s, e) => WriteCustomSpeciesName();
+        _customSpeciesNameField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _customSpeciesNameField.Parent?.Focus(); }
+        };
 
         _eggModifiedField = new CheckBox { Text = "", AutoSize = true };
         _eggModifiedField.CheckedChanged += (s, e) => { if (!_loading) WriteEggModified(); };
@@ -284,6 +316,10 @@ partial class CompanionPanel
 
         _uaField = new TextBox { Dock = DockStyle.Fill };
         _uaField.Leave += (s, e) => WriteUA();
+        _uaField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _uaField.Parent?.Focus(); }
+        };
         _uaHexCheck = new CheckBox { Text = "Hex", AutoSize = true, Dock = DockStyle.Right };
         _uaHexCheck.CheckedChanged += (s, e) => { if (!_loading) OnUAHexCheckChanged(); };
         _uaFieldPanel = new Panel { Dock = DockStyle.Fill, Height = _uaField.Height };

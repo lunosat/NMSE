@@ -657,11 +657,27 @@ partial class FreighterPanel
 
         // Wire non-inventory field changes to raise DataModified
         _freighterName.Leave += (s, e) => RaiseDataModified();
+        _freighterName.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _freighterName.Parent?.Focus(); }
+        };
         _freighterType.SelectedIndexChanged += (s, e) => RaiseDataModified();
         _freighterClass.SelectedIndexChanged += (s, e) => RaiseDataModified();
         _homeSeed.Leave += (s, e) => RaiseDataModified();
+        _homeSeed.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _homeSeed.Parent?.Focus(); }
+        };
         _modelSeed.Leave += (s, e) => RaiseDataModified();
+        _modelSeed.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _modelSeed.Parent?.Focus(); }
+        };
         _crewSeedField.Leave += (s, e) => RaiseDataModified();
+        _crewSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _crewSeedField.Parent?.Focus(); }
+        };
         _crewRaceCombo.SelectedIndexChanged += (s, e) => RaiseDataModified();
         _hyperdriveField.NumericValueChanged += (s, e) => RaiseDataModified();
         _fleetField.NumericValueChanged += (s, e) => RaiseDataModified();

@@ -435,6 +435,12 @@ public class InvariantNumericTextBox : UserControl, ISupportInitialize
     {
         if (e.KeyCode == Keys.Up) { Step(1); e.Handled = true; }
         else if (e.KeyCode == Keys.Down) { Step(-1); e.Handled = true; }
+        else if (e.KeyCode == Keys.Enter)
+        {
+            TryCommit();
+            e.SuppressKeyPress = true;
+            _textBox.Parent?.Focus();
+        }
     }
 
     /// <summary>

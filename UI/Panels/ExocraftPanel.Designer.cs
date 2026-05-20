@@ -111,6 +111,10 @@ partial class ExocraftPanel
         // _nameField
         // 
         _nameField.Dock = DockStyle.Fill;
+        _nameField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _nameField.Parent?.Focus(); }
+        };
         _layout.Controls.Add(_nameLabel, 0, 2);
         _layout.Controls.Add(_nameField, 1, 2);
 

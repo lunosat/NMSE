@@ -160,6 +160,10 @@ partial class MultitoolPanel
 
         _toolName = new TextBox { Dock = DockStyle.Fill };
         _toolName.Leave += OnToolNameChanged;
+        _toolName.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _toolName.Parent?.Focus(); }
+        };
         _nameLabel = AddRow(leftPanel, "Name:", _toolName, leftRow++);
 
         _toolType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
@@ -184,6 +188,10 @@ partial class MultitoolPanel
         seedPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         seedPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         _toolSeed = new TextBox { Dock = DockStyle.Fill };
+        _toolSeed.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _toolSeed.Parent?.Focus(); }
+        };
         _generateSeedBtn = new Button
         {
             Text = "Generate",

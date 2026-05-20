@@ -447,6 +447,10 @@ partial class FrigatePanel
         _expeditionStartTimeField.ValueChanged += OnExpeditionStartTimeChanged;
 
         _nameField.Leave += (s, e) => SaveCurrentField("CustomName", _nameField.Text);
+        _nameField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _nameField.Parent?.Focus(); }
+        };
         _typeField.SelectedIndexChanged += (s, e) =>
         {
             if (_loading) return;
@@ -515,7 +519,15 @@ partial class FrigatePanel
             try { frigate.GetObject("Race")?.Set("AlienRace", internalRace); } catch { }
         };
         _homeSeedField.Leave += (s, e) => SaveSeedField("HomeSystemSeed", _homeSeedField.Text);
+        _homeSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _homeSeedField.Parent?.Focus(); }
+        };
         _modelSeedField.Leave += (s, e) => SaveSeedField("ResourceSeed", _modelSeedField.Text);
+        _modelSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _modelSeedField.Parent?.Focus(); }
+        };
 
         for (int i = 0; i < _traitFields.Length; i++)
         {

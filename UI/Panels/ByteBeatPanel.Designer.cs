@@ -240,6 +240,22 @@ partial class ByteBeatPanel
         _dataLabels = new Label[8];
 
         _sectionDetailsLabel = AddSectionHeader(_detailLayout, "Song Details", row++);
+        _nameField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _nameField.Parent?.Focus(); }
+        };
+        _authorUsernameField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _authorUsernameField.Parent?.Focus(); }
+        };
+        _authorOnlineIdField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _authorOnlineIdField.Parent?.Focus(); }
+        };
+        _authorPlatformField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _authorPlatformField.Parent?.Focus(); }
+        };
         _nameLabel = AddRow(_detailLayout, "Name:", _nameField, row++);
         _authorUsernameLabel = AddRow(_detailLayout, "Author Username:", _authorUsernameField, row++);
         _authorOnlineIdLabel = AddRow(_detailLayout, "Author Online ID:", _authorOnlineIdField, row++);
@@ -248,6 +264,11 @@ partial class ByteBeatPanel
         _sectionDataLabel = AddSectionHeader(_detailLayout, "Data (8 channels)", row++);
         for (int i = 0; i < 8; i++)
         {
+            int idx = i;
+            _dataFields[i].KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _dataFields[idx].Parent?.Focus(); }
+            };
             _dataLabels[i] = AddRow(_detailLayout, $"Data [{i}]:", _dataFields[i], row++);
         }
 

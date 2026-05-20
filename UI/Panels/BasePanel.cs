@@ -374,6 +374,10 @@ internal class BasesSubPanel : UserControl
                 catch { }
             }
         };
+        _npcSeed.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _npcSeed.Parent?.Focus(); }
+        };
         _generateNpcSeedBtn = new Button { Text = UiStrings.Get("common.generate"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0), Anchor = AnchorStyles.Top | AnchorStyles.Bottom };
         _generateNpcSeedBtn.Click += OnGenerateNpcSeed;
         seedPanel.Controls.Add(_npcSeed, 0, 0);
@@ -406,6 +410,10 @@ internal class BasesSubPanel : UserControl
 
         _baseName = new TextBox { Dock = DockStyle.Fill };
         _baseName.Leave += OnBaseNameChanged;
+        _baseName.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _baseName.Parent?.Focus(); }
+        };
         _nameLabel = AddRow(rightLayout, UiStrings.Get("base.name_label"), _baseName, row); row++;
 
         _baseItems = new TextBox { Dock = DockStyle.Fill, ReadOnly = true };
@@ -826,9 +834,10 @@ internal class BasesSubPanel : UserControl
         string newName = _baseName.Text.Trim();
         if (newName == _pendingBaseName) return;
         _pendingBaseName = newName;
-        // Update list display immediately
+        // Write to underlying data immediately so it survives base switching / tab switching
         if (!string.IsNullOrEmpty(_pendingBaseName))
         {
+            item.Data.Set("Name", _pendingBaseName);
             item.DisplayName = _pendingBaseName;
             int idx = _baseList.SelectedIndex;
             _baseList.SelectedIndexChanged -= OnBaseSelected;
@@ -1567,6 +1576,14 @@ internal class ChestsSubPanel : UserControl
             int chestIndex = i; // Capture for closure
             _chestRenameButtons[i].Click += (_, _) => RenameChest(chestIndex);
             _chestClearButtons[i].Click += (_, _) => ClearChestName(chestIndex);
+            _chestNameFields[i].KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    _chestRenameButtons[chestIndex].PerformClick();
+                }
+            };
         }
 
         // Lazy-load grids when tab is selected

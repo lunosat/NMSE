@@ -152,14 +152,26 @@ partial class SquadronPanel
 
         _npcSeedField = new TextBox { Dock = DockStyle.Fill };
         _npcSeedField.Leave += (s, e) => { if (!_loading) WriteNpcSeed(); };
+        _npcSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _npcSeedField.Parent?.Focus(); }
+        };
         _npcSeedLabel = AddSeedRow(detailLayout, "NPC Seed:", _npcSeedField, WriteNpcSeed, row++);
 
         _shipSeedField = new TextBox { Dock = DockStyle.Fill };
         _shipSeedField.Leave += (s, e) => { if (!_loading) WriteShipSeed(); };
+        _shipSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _shipSeedField.Parent?.Focus(); }
+        };
         _shipSeedLabel = AddSeedRow(detailLayout, "Ship Seed:", _shipSeedField, WriteShipSeed, row++);
 
         _traitsSeedField = new TextBox { Dock = DockStyle.Fill };
         _traitsSeedField.Leave += (s, e) => { if (!_loading) WriteTraitsSeed(); };
+        _traitsSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _traitsSeedField.Parent?.Focus(); }
+        };
         _traitsSeedLabel = AddSeedRow(detailLayout, "Traits Seed:", _traitsSeedField, WriteTraitsSeed, row++);
 
         _npcResourceField = new TextBox { Dock = DockStyle.Fill, ReadOnly = true};
@@ -171,6 +183,10 @@ partial class SquadronPanel
             try { pilot.GetObject("NPCResource")?.Set("Filename", _npcResourceField.Text); } catch { }
             RefreshListEntry();
         };
+        _npcResourceField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _npcResourceField.Parent?.Focus(); }
+        };
         _npcResourceLabel = AddRow(detailLayout, "NPC Resource:", _npcResourceField, row++);
 
         _shipResourceField = new TextBox { Dock = DockStyle.Fill, ReadOnly = true };
@@ -181,6 +197,10 @@ partial class SquadronPanel
             if (pilot == null) return;
             try { pilot.GetObject("ShipResource")?.Set("Filename", _shipResourceField.Text); } catch { }
             RefreshListEntry();
+        };
+        _shipResourceField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _shipResourceField.Parent?.Focus(); }
         };
         _shipResourceLabel = AddRow(detailLayout, "Ship Resource:", _shipResourceField, row++);
 

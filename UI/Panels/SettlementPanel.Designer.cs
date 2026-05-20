@@ -167,6 +167,10 @@ partial class SettlementPanel
         // 1. Name
         _settlementName = new TextBox { Dock = DockStyle.Fill };
         _settlementName.Leave += OnSettlementNameChanged;
+        _settlementName.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _settlementName.Parent?.Focus(); }
+        };
         _nameLabel = AddRow(leftPanel, "Name:", _settlementName, leftRow++);
 
         // 2. Seed (with Generate button)
@@ -419,6 +423,10 @@ partial class SettlementPanel
             perkSeedContainer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             perkSeedContainer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             var perkSeedField = new TextBox { Dock = DockStyle.Fill };
+            perkSeedField.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; perkSeedField.Parent?.Focus(); }
+            };
             var perkGenBtn = new Button { Text = "Generate", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(60, 0), Anchor = AnchorStyles.Top | AnchorStyles.Bottom };
             int genSlot = i;
             perkGenBtn.Click += (s, e) => GeneratePerkSeed(genSlot);
@@ -906,7 +914,15 @@ partial class SettlementPanel
 
         // Wire up fields that don't already raise DataModified through the main stat/population color methods.
         _seedField.Leave += (s, e) => RaiseDataModified();
+        _seedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _seedField.Parent?.Focus(); }
+        };
         _missionSeedField.Leave += (s, e) => RaiseDataModified();
+        _missionSeedField.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _missionSeedField.Parent?.Focus(); }
+        };
         _raceField.SelectedIndexChanged += (s, e) => RaiseDataModified();
         _decisionTypeField.SelectedIndexChanged += (s, e) => RaiseDataModified();
         foreach (var picker in new[]

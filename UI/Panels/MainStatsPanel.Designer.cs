@@ -137,6 +137,10 @@ partial class MainStatsPanel
         _applyCoordinatesBtn.Click += OnApplyCoordinates;
 
         _portalHexInput = new TextBox { Width = 150, MaxLength = 12 };
+        _portalHexInput.KeyDown += (s, e) =>
+        {
+            if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _convertPortalBtn.PerformClick(); }
+        };
         _convertPortalBtn = new Button { Text = "Convert to Coords", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         _convertPortalBtn.Click += OnConvertPortalCode;
 
