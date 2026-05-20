@@ -1,8 +1,41 @@
-## NMSE — No Man's Save Editor v1.1.64 (preview)
+## NMSE — No Man's Save Editor v1.1.79 (preview)
 
 > This is a preview build. Please practice safe backup practices and expect some bugs.
 
 ### Changelog
+
+#### Features:
+
+- AppConfig (`NMSE.conf`) moved to be alongside the executable - attempts a one time best effort config transition from the old directory. (per FR #86)
+- Sails for Solar ships added to the Customisation tab (the colour change is local only as the game shows default blue in multiplayer for fabricated ships). (per FR #90)
+- Ship Customisation tab UI rearranged and some names changed to better match in-game names. (per FR #91)
+- Pet Battle ability list has a restricted move system to support abilities that HG remove from the UI but keep in the data. (per Issue #82)
+    - `REVIVE` is now no longer selectable as a new ability and only displayed for companions that currently have it assigned. It was removed by HG and forwarded to a STUB ability.
+- The application now subscribes to per-monitor DPI settings. (per Issue #88)
+- Some localisation strings updated across different languages.
+- Updater pattern changed for potentially better handling when run in synced folders (OneDrive, Dropbox, Drive, iCloud, Box, pCloud, SugarSync, etc.). (per Issue #85)
+    - Updater call methods hardened.
+    - Folder checks for known sync folders.
+    - Back-off and timeout update options to help with file lock during sync hashing.
+- Updated additional PS4 format support (HTOS .hg, SW bin-wrap .hg). The 6x PS4 formats still need proper user testing for the non `.dat` formats.
+- Improved backup management under restricted environments and compatibility layers.
+
+#### Bug Fixes:
+
+- Fixed companion pet body part descriptors not being deep copied to an egg when it is induced. (per Issue #89)
+- Numerous buttons and fields updated for high res high scale setups (such as 4K @ 150%). (per Issue #88)
+- Some DataModified events weren't being captured to notify the user to save changes if they were closing after changes. These are now fixed. (per Issue #87)
+- ZIP backups now only check and include `.hg` files specifically, instead of the current directory, helping with backups when users load a save file from a weird place with many files, such as sitting on a bloated desktop, or in the root of a drive.
+- Fixed some name updates not refreshing from the underlying JSON layer when changed. Including Base name not being reflected until reload. (per Issue #92)
+- Fixed ship type change not being refreshed visually in the prefix in the ship list, or in the scene resource field despite the underlying data being modified successfully.
+- Pressing <kbd>Enter</kbd> in a field now commits the data immediately to the in memory data and ends focus in the field, instead of only clicking to change focus, or using <kbd>Tab</kbd>. (per Issue #92)
+
+<br />
+
+<details>
+<summary>Previous Changelogs</summary>
+
+### Changelog 1.1.64 (preview)
 
 #### Features:
 
@@ -24,9 +57,6 @@
 - Syncing of `Seen*` arrays removed from the rewards sync process so catalogued seen items aren't affected by items that aren't unlocked. Will be used for a future "seen" panel.
 
 <br />
-
-<details>
-<summary>Previous Changelogs</summary>
 
 ### Changelog 1.1.61 (preview)
 
