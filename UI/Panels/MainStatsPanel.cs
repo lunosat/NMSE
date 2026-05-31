@@ -173,24 +173,73 @@ public partial class MainStatsPanel : UserControl
                 // UsedDiscoveryOwnersV2 is a direct child of CommonStateData, NOT under SeasonData
                 var owners = commonState?.GetArray("UsedDiscoveryOwnersV2");
                 if (owners != null && owners.Length > 0)
-                    usn = owners.GetObject(0)?.GetString("USN") ?? "";
-                if (string.IsNullOrEmpty(usn))
                 {
-                    // Fallback: try persistent base owners
-                    var bases = playerState.GetArray("PersistentPlayerBases");
-                    if (bases != null)
+                    var names = new List<string>();
+                    for (int i = 0; i < owners.Length; i++)
                     {
-                        for (int i = 0; i < bases.Length && string.IsNullOrEmpty(usn); i++)
+                        try
                         {
-                            try { usn = bases.GetObject(i)?.GetObject("Owner")?.GetString("USN") ?? ""; } catch { }
+                            var name = owners.GetObject(i).GetString("USN") ?? "";
+                            if (!string.IsNullOrEmpty(name))
+                                names.Add(name);
+                        }
+                        catch { }
+                    }
+
+                    if (names.Count > 0)
+                    {
+                        usn = string.Join(" / ", names);
+                    }
+                    else
+                    {
+                        // Fallback: match by UID through PersistentPlayerBases
+                        var uids = new List<string>();
+                        for (int i = 0; i < owners.Length; i++)
+                        {
+                            try
+                            {
+                                var uid = owners.GetObject(i).GetString("UID") ?? "";
+                                if (!string.IsNullOrEmpty(uid))
+                                    uids.Add(uid);
+                            }
+                            catch { }
+                        }
+
+                        if (uids.Count > 0)
+                        {
+                            var bases = playerState.GetArray("PersistentPlayerBases");
+                            if (bases != null)
+                            {
+                                var fallbackNames = new List<string>();
+                                for (int i = 0; i < bases.Length; i++)
+                                {
+                                    try
+                                    {
+                                        var owner = bases.GetObject(i).GetObject("Owner");
+                                        if (owner != null)
+                                        {
+                                            var ownerUid = owner.GetString("UID") ?? "";
+                                            if (!string.IsNullOrEmpty(ownerUid) && uids.Contains(ownerUid))
+                                            {
+                                                var ownerUsn = owner.GetString("USN") ?? "";
+                                                if (!string.IsNullOrEmpty(ownerUsn))
+                                                    fallbackNames.Add(ownerUsn);
+                                            }
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                if (fallbackNames.Count > 0)
+                                    usn = string.Join(" / ", fallbackNames);
+                            }
                         }
                     }
                 }
-                string displayName = string.IsNullOrEmpty(usn) ? UiStrings.Get("player.explorer_default") : usn;
+                string displayName = string.IsNullOrEmpty(usn) ? UiStrings.Get("player.name_fallback") : usn;
                 _accountNameField.Text = displayName;
                 PlayerName = displayName;
             }
-            catch { _accountNameField.Text = UiStrings.Get("player.explorer_default"); }
+            catch { _accountNameField.Text = UiStrings.Get("player.name_fallback"); }
 
             // Difficulty presets
             try
