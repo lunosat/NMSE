@@ -1,3 +1,4 @@
+using System.Globalization;
 using NMSE.Core;
 using NMSE.Core.Utilities;
 using NMSE.Data;
@@ -17,6 +18,18 @@ public partial class ExocraftPanel : UserControl
     private JsonObject? _saveData;
     private JsonObject? _savedPlayerState;
     private readonly List<int> _addedVehicleIndices = new();
+
+    // Station data
+    private JsonArray? _baseBuildingObjects;
+    private JsonArray? _persistentPlayerBases;
+    private readonly List<JsonObject> _individualStations = new();
+    private readonly List<(JsonObject BaseEntry, JsonObject ObjectEntry, int ObjectIndex, int BaseIndex)> _baseStations = new();
+    private int _currentRealityIndex;
+    private GameItemDatabase? _database;
+
+    // Track which list is currently selected
+    private enum StationListType { None, Individual, Base }
+    private StationListType _activeStationList = StationListType.None;
 
     public ExocraftPanel()
     {
@@ -63,6 +76,7 @@ public partial class ExocraftPanel : UserControl
     {
         _inventoryGrid.SetDatabase(database);
         _techGrid.SetDatabase(database);
+        _database = database;
     }
 
     public void SetIconManager(IconManager? iconManager)
@@ -110,6 +124,28 @@ public partial class ExocraftPanel : UserControl
             try { _minotaurAI.Checked = playerState.GetBool("VehicleAIControlEnabled"); } catch { _minotaurAI.Checked = false; }
         }
         catch { }
+
+        // Load station data
+        try
+        {
+            var playerState = saveData.GetObject("PlayerStateData");
+            if (playerState != null)
+            {
+                _currentRealityIndex = 0;
+                try
+                {
+                    var universeAddr = playerState.GetObject("UniverseAddress");
+                    if (universeAddr != null)
+                        _currentRealityIndex = universeAddr.GetInt("RealityIndex");
+                }
+                catch { }
+
+                _baseBuildingObjects = playerState.GetArray("BaseBuildingObjects");
+                _persistentPlayerBases = playerState.GetArray("PersistentPlayerBases");
+            }
+        }
+        catch { }
+        PopulateStationsLists();
         }
         finally
         {
@@ -379,6 +415,403 @@ public partial class ExocraftPanel : UserControl
         }
     }
 
+    // ===================== Station Logic =====================
+
+    private void PopulateStationsLists()
+    {
+        _individualStationsList.BeginUpdate();
+        _baseStationsList.BeginUpdate();
+        try
+        {
+            _individualStations.Clear();
+            _individualStationsList.Items.Clear();
+            _baseStations.Clear();
+            _baseStationsList.Items.Clear();
+
+            // Individual stations from BaseBuildingObjects
+            if (_baseBuildingObjects != null)
+            {
+                for (int i = 0; i < _baseBuildingObjects.Length; i++)
+                {
+                    var obj = _baseBuildingObjects.GetObject(i);
+                    string? objectId = obj?.GetString("ObjectID");
+                    if (objectId != null && objectId.Contains("GARAGE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _individualStations.Add(obj!);
+                        string displayName = GetStationDisplayName(objectId);
+                        _individualStationsList.Items.Add(displayName);
+                    }
+                }
+            }
+
+            // Stations from PersistentPlayerBases.Objects
+            if (_persistentPlayerBases != null)
+            {
+                for (int baseIdx = 0; baseIdx < _persistentPlayerBases.Length; baseIdx++)
+                {
+                    var baseEntry = _persistentPlayerBases.GetObject(baseIdx);
+                    if (baseEntry == null) continue;
+                    var objects = baseEntry.GetArray("Objects");
+                    if (objects == null) continue;
+
+                    for (int objIdx = 0; objIdx < objects.Length; objIdx++)
+                    {
+                        var obj = objects.GetObject(objIdx);
+                        string? objectId = obj?.GetString("ObjectID");
+                        if (objectId != null && objectId.Contains("GARAGE", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _baseStations.Add((baseEntry, obj!, objIdx, baseIdx));
+                            string displayName = GetStationDisplayName(objectId);
+                            _baseStationsList.Items.Add(displayName);
+                        }
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _individualStationsList.EndUpdate();
+            _baseStationsList.EndUpdate();
+        }
+    }
+
+    private string GetStationDisplayName(string objectId)
+    {
+        string lookupId = objectId.StartsWith("^", StringComparison.Ordinal) ? objectId[1..] : objectId;
+        if (_database != null)
+        {
+            var item = _database.GetItem(lookupId);
+            if (item != null)
+                return item.Name;
+        }
+        return objectId;
+    }
+
+    /// <summary>
+    /// Extracts the 12-hex-digit portal code from a normalised GalacticAddress hex string.
+    /// Handles both 12-digit (portal code format) and 14-digit (UniverseAddress format with RealityIndex).
+    /// </summary>
+    private static string ExtractPortalCode(string galacticAddrHex)
+    {
+        if (string.IsNullOrEmpty(galacticAddrHex) || !galacticAddrHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return "";
+
+        string raw = galacticAddrHex[2..];
+        if (raw.Length == 12)
+            return raw;
+        if (raw.Length == 14)
+            return string.Concat(raw.AsSpan(0, 4), raw.AsSpan(6, 8));
+        return "";
+    }
+
+    private static string FormatTimestamp(long timestamp)
+    {
+        if (timestamp <= 0) return UiStrings.Get("common.unknown");
+        try
+        {
+            var dt = DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime;
+            return dt.ToString("g", CultureInfo.CurrentCulture);
+        }
+        catch
+        {
+            return timestamp.ToString(CultureInfo.CurrentCulture);
+        }
+    }
+
+    private static string FormatPosition(JsonArray? positionArray)
+    {
+        if (positionArray == null || positionArray.Length < 3)
+            return UiStrings.Get("common.unknown");
+
+        try
+        {
+            double x = positionArray.GetDouble(0);
+            double y = positionArray.GetDouble(1);
+            double z = positionArray.GetDouble(2);
+            return $"X: {x.ToString("F2", CultureInfo.CurrentCulture)}, Y: {y.ToString("F2", CultureInfo.CurrentCulture)}, Z: {z.ToString("F2", CultureInfo.CurrentCulture)}";
+        }
+        catch
+        {
+            return UiStrings.Get("common.unknown");
+        }
+    }
+
+    private void ClearStationDetail()
+    {
+        _stationNameValue.Text = "";
+        _stationTimestampValue.Text = "";
+        _stationBaseNameValue.Text = "";
+        _stationGalacticAddrValue.Text = "";
+        _stationRegionSeedLabel.Visible = true;
+        _stationRegionSeedValue.Text = "";
+        _stationRegionSeedValue.Visible = true;
+        _stationPositionValue.Text = "";
+        _stationGalaxyValue.Text = "";
+        _stationGalaxyDotLabel.Image?.Dispose();
+        _stationGalaxyDotLabel.Image = null;
+        _stationPortalCodeValue.Text = "";
+        _stationPortalCodeDecValue.Text = "";
+        _stationSignalBoosterValue.Text = "";
+        CoordinateHelper.UpdateGlyphPanel(_stationGlyphPanel, "");
+        _stationVoxelXValue.Text = "";
+        _stationVoxelYValue.Text = "";
+        _stationVoxelZValue.Text = "";
+        _stationSolarSystemValue.Text = "";
+        _stationPlanetValue.Text = "";
+        _deleteStationBtn.Enabled = false;
+    }
+
+    private void PopulateStationDetail(
+        string objectId,
+        long timestamp,
+        string baseName,
+        string galacticAddrHex,
+        string? regionSeedDisplay,
+        JsonArray? positionArray,
+        string portalCode,
+        int vx, int vy, int vz, int si, int pi,
+        bool showRegionSeed)
+    {
+        _stationNameValue.Text = GetStationDisplayName(objectId);
+        _stationTimestampValue.Text = FormatTimestamp(timestamp);
+        _stationBaseNameValue.Text = baseName;
+        _stationGalacticAddrValue.Text = galacticAddrHex;
+        _stationRegionSeedLabel.Visible = showRegionSeed;
+        _stationRegionSeedValue.Visible = showRegionSeed;
+        _stationRegionSeedValue.Text = regionSeedDisplay ?? UiStrings.Get("common.unknown");
+        _stationPositionValue.Text = FormatPosition(positionArray);
+
+        // Galaxy display
+        string galaxyType = GalaxyDatabase.GetGalaxyType(_currentRealityIndex);
+        _stationGalaxyValue.Text = $"{GalaxyDatabase.GetGalaxyDisplayName(_currentRealityIndex)} ({galaxyType})";
+        GalaxyDisplayHelper.ConfigureGalaxyDotLabel(_stationGalaxyDotLabel, _currentRealityIndex);
+
+        // Portal code
+        _stationPortalCodeValue.Text = portalCode;
+        _stationPortalCodeDecValue.Text = CoordinateHelper.PortalHexToDec(portalCode);
+        _stationSignalBoosterValue.Text = CoordinateHelper.VoxelToSignalBooster(vx, vy, vz, si);
+        CoordinateHelper.UpdateGlyphPanel(_stationGlyphPanel, portalCode);
+
+        // Voxel / solar / planet
+        _stationVoxelXValue.Text = vx.ToString(CultureInfo.CurrentCulture);
+        _stationVoxelYValue.Text = vy.ToString(CultureInfo.CurrentCulture);
+        _stationVoxelZValue.Text = vz.ToString(CultureInfo.CurrentCulture);
+        _stationSolarSystemValue.Text = si.ToString(CultureInfo.CurrentCulture);
+        _stationPlanetValue.Text = pi.ToString(CultureInfo.CurrentCulture);
+
+        _deleteStationBtn.Enabled = true;
+    }
+
+    private void OnIndividualStationSelected(object? sender, EventArgs e)
+    {
+        // Deselect the other list
+        _baseStationsList.SelectedIndexChanged -= OnBaseStationSelected;
+        _baseStationsList.ClearSelected();
+        _baseStationsList.SelectedIndexChanged += OnBaseStationSelected;
+
+        int idx = _individualStationsList.SelectedIndex;
+        if (idx < 0 || idx >= _individualStations.Count)
+        {
+            _activeStationList = StationListType.None;
+            ClearStationDetail();
+            return;
+        }
+
+        _activeStationList = StationListType.Individual;
+        var entry = _individualStations[idx];
+
+        string? objectId = "";
+        long timestamp = 0;
+        try { objectId = entry.GetString("ObjectID") ?? ""; } catch { }
+        try { timestamp = entry.GetLong("Timestamp"); } catch { try { timestamp = entry.GetInt("Timestamp"); } catch { } }
+
+        string galacticAddrHex = "";
+        string portalCode = "";
+        int vx = 0, vy = 0, vz = 0, si = 0, pi = 0;
+
+        try
+        {
+            var addr = entry.Get("GalacticAddress");
+            galacticAddrHex = CoordinateHelper.NormalizeGalacticAddress(addr);
+            portalCode = ExtractPortalCode(galacticAddrHex);
+            var parsed = ExocraftLogic.ParseGalacticAddressToVoxel(addr);
+            if (parsed.HasValue)
+            {
+                vx = parsed.Value.VoxelX;
+                vy = parsed.Value.VoxelY;
+                vz = parsed.Value.VoxelZ;
+                si = parsed.Value.SolarSystemIndex;
+                pi = parsed.Value.PlanetIndex;
+            }
+        }
+        catch { }
+
+        string? regionSeedStr = null;
+        try
+        {
+            var rs = entry.Get("RegionSeed");
+            regionSeedStr = rs?.ToString();
+        }
+        catch { }
+
+        JsonArray? positionArray = null;
+        try { positionArray = entry.GetArray("Position"); } catch { }
+
+        PopulateStationDetail(objectId, timestamp, UiStrings.Get("exocraft.station_not_in_base"), galacticAddrHex, regionSeedStr, positionArray,
+            portalCode, vx, vy, vz, si, pi, showRegionSeed: true);
+    }
+
+    private void OnBaseStationSelected(object? sender, EventArgs e)
+    {
+        // Deselect the other list
+        _individualStationsList.SelectedIndexChanged -= OnIndividualStationSelected;
+        _individualStationsList.ClearSelected();
+        _individualStationsList.SelectedIndexChanged += OnIndividualStationSelected;
+
+        int idx = _baseStationsList.SelectedIndex;
+        if (idx < 0 || idx >= _baseStations.Count)
+        {
+            _activeStationList = StationListType.None;
+            ClearStationDetail();
+            return;
+        }
+
+        _activeStationList = StationListType.Base;
+        var (baseEntry, objEntry, _, _) = _baseStations[idx];
+
+        string? objectId = "";
+        long timestamp = 0;
+        try { objectId = objEntry.GetString("ObjectID") ?? ""; } catch { }
+        try { timestamp = objEntry.GetLong("Timestamp"); } catch { try { timestamp = objEntry.GetInt("Timestamp"); } catch { } }
+
+        // GalacticAddress comes from the base entry, not the object
+        string galacticAddrHex = "";
+        string portalCode = "";
+        int vx = 0, vy = 0, vz = 0, si = 0, pi = 0;
+
+        try
+        {
+            var addr = baseEntry.Get("GalacticAddress");
+            galacticAddrHex = CoordinateHelper.NormalizeGalacticAddress(addr);
+            portalCode = ExtractPortalCode(galacticAddrHex);
+            var parsed = ExocraftLogic.ParseGalacticAddressToVoxel(addr);
+            if (parsed.HasValue)
+            {
+                vx = parsed.Value.VoxelX;
+                vy = parsed.Value.VoxelY;
+                vz = parsed.Value.VoxelZ;
+                si = parsed.Value.SolarSystemIndex;
+                pi = parsed.Value.PlanetIndex;
+            }
+        }
+        catch { }
+
+        JsonArray? positionArray = null;
+        try { positionArray = objEntry.GetArray("Position"); } catch { }
+
+        // Resolve base name
+        string baseName = "";
+        try
+        {
+            string? rawName = baseEntry.GetString("Name");
+            if (!string.IsNullOrEmpty(rawName))
+                baseName = rawName;
+            else
+                baseName = UiStrings.Format("base.fallback_base_name", _baseStations[idx].BaseIndex + 1);
+        }
+        catch
+        {
+            baseName = UiStrings.Format("base.fallback_base_name", _baseStations[idx].BaseIndex + 1);
+        }
+
+        PopulateStationDetail(objectId, timestamp, baseName, galacticAddrHex, null, positionArray,
+            portalCode, vx, vy, vz, si, pi, showRegionSeed: false);
+    }
+
+    private void OnDeleteStation(object? sender, EventArgs e)
+    {
+        switch (_activeStationList)
+        {
+            case StationListType.Individual:
+                DeleteIndividualStation();
+                break;
+            case StationListType.Base:
+                DeleteBaseStation();
+                break;
+            default:
+                MessageBox.Show(this, UiStrings.Get("exocraft.no_station_selected"), UiStrings.Get("common.error"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                break;
+        }
+    }
+
+    private void DeleteIndividualStation()
+    {
+        int idx = _individualStationsList.SelectedIndex;
+        if (idx < 0 || idx >= _individualStations.Count || _baseBuildingObjects == null) return;
+
+        var result = MessageBox.Show(this, UiStrings.Get("exocraft.delete_station_confirm"),
+            UiStrings.Get("exocraft.delete_station_title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (result != DialogResult.Yes) return;
+
+        try
+        {
+            // Find the index in the actual BaseBuildingObjects array
+            var target = _individualStations[idx];
+            int arrIdx = -1;
+            for (int i = 0; i < _baseBuildingObjects.Length; i++)
+            {
+                if (_baseBuildingObjects.GetObject(i) == target)
+                {
+                    arrIdx = i;
+                    break;
+                }
+            }
+
+            if (arrIdx >= 0)
+            {
+                _baseBuildingObjects.RemoveAt(arrIdx);
+                _individualStationsList.ClearSelected();
+                _activeStationList = StationListType.None;
+                ClearStationDetail();
+                PopulateStationsLists();
+                DataModified?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        catch { }
+    }
+
+    private void DeleteBaseStation()
+    {
+        int idx = _baseStationsList.SelectedIndex;
+        if (idx < 0 || idx >= _baseStations.Count) return;
+
+        var (baseEntry, _, objectIndex, _) = _baseStations[idx];
+
+        var result = MessageBox.Show(this, UiStrings.Get("exocraft.delete_base_station_confirm"),
+            UiStrings.Get("exocraft.delete_station_title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (result != DialogResult.Yes) return;
+
+        try
+        {
+            var objects = baseEntry.GetArray("Objects");
+            if (objects != null && objectIndex >= 0 && objectIndex < objects.Length)
+            {
+                objects.RemoveAt(objectIndex);
+                _baseStationsList.ClearSelected();
+                _activeStationList = StationListType.None;
+                ClearStationDetail();
+                PopulateStationsLists();
+                DataModified?.Invoke(this, EventArgs.Empty);
+            }
+        }
+        catch { }
+    }
+
+    // ===================== Localisation =====================
+
     public void ApplyUiLocalisation()
     {
         _titleLabel.Text = UiStrings.Get("exocraft.title");
@@ -393,6 +826,30 @@ public partial class ExocraftPanel : UserControl
         _techPage.Text = UiStrings.Get("common.technology");
         _primaryVehicleCheck.Text = UiStrings.Get("exocraft.primary_vehicle");
         _undeployBtn.Text = UiStrings.Get("exocraft.undeploy_title");
+
+        // Tab page localisation
+        _exocraftsTabPage.Text = UiStrings.Get("exocraft.tab_exocrafts");
+        _stationsTabPage.Text = UiStrings.Get("exocraft.tab_stations");
+        _individualStationsLabel.Text = UiStrings.Get("exocraft.individual_stations");
+        _baseStationsLabel.Text = UiStrings.Get("exocraft.part_of_bases");
+        _stationNameLabel.Text = UiStrings.Get("exocraft.station_name");
+        _stationTimestampLabel.Text = UiStrings.Get("exocraft.station_timestamp");
+        _stationBaseNameLabel.Text = UiStrings.Get("exocraft.station_base_name");
+        _stationGalacticAddrLabel.Text = UiStrings.Get("exocraft.station_galactic_address");
+        _stationRegionSeedLabel.Text = UiStrings.Get("exocraft.station_region_seed");
+        _stationPositionLabel.Text = UiStrings.Get("exocraft.station_position");
+        _coordSectionLabel.Text = UiStrings.Get("exocraft.station_coordinates");
+        _stationGalaxyLabel.Text = UiStrings.Get("exocraft.station_galaxy");
+        _stationPortalCodeLabel.Text = UiStrings.Get("exocraft.station_portal_code");
+        _stationPortalCodeDecLabel.Text = UiStrings.Get("exocraft.station_portal_code_dec");
+        _stationSignalBoosterLabel.Text = UiStrings.Get("exocraft.station_signal_booster");
+        _stationVoxelXLabel.Text = UiStrings.Get("exocraft.station_voxel_x");
+        _stationVoxelYLabel.Text = UiStrings.Get("exocraft.station_voxel_y");
+        _stationVoxelZLabel.Text = UiStrings.Get("exocraft.station_voxel_z");
+        _stationSolarSystemLabel.Text = UiStrings.Get("exocraft.station_solar_system");
+        _stationPlanetLabel.Text = UiStrings.Get("exocraft.station_planet");
+        _deleteStationBtn.Text = UiStrings.Get("exocraft.delete_station");
+
         RefreshVehicleCombo();
         _inventoryGrid.ApplyUiLocalisation();
         _techGrid.ApplyUiLocalisation();

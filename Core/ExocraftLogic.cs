@@ -1,3 +1,4 @@
+using NMSE.Core.Utilities;
 using NMSE.Data;
 
 namespace NMSE.Core;
@@ -82,5 +83,38 @@ internal static class ExocraftLogic
     {
         string safeName = (vehicleName ?? "vehicle").Replace(' ', '_');
         return $"{safeName}_vehicle.json";
+    }
+
+    /// <summary>
+    /// Parses a GalacticAddress value (hex string or integer) from BaseBuildingObjects
+    /// or PersistentPlayerBases into VoxelX, VoxelY, VoxelZ, SolarSystemIndex, PlanetIndex.
+    /// Returns null if the address cannot be parsed.
+    /// The GalacticAddress may be either:
+    ///   - 12 hex digits (portal code format): {planet:1}{system:3}{y:2}{z:3}{x:3}
+    ///   - 14 hex digits (UniverseAddress format): {planet:1}{system:3}{reality:2}{y:2}{z:3}{x:3}
+    /// For 14-digit addresses, the 2-digit RealityIndex is stripped to obtain the portal code.
+    /// </summary>
+    internal static (int VoxelX, int VoxelY, int VoxelZ, int SolarSystemIndex, int PlanetIndex)? ParseGalacticAddressToVoxel(object? galacticAddressValue)
+    {
+        string normalised = CoordinateHelper.NormalizeGalacticAddress(galacticAddressValue);
+        if (string.IsNullOrEmpty(normalised) || normalised.Length < 14)
+            return null;
+
+        string portalCode = normalised.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? normalised[2..]
+            : normalised;
+
+        // 14-hex-digit UniverseAddress format includes a 2-digit RealityIndex
+        // between SolarSystemIndex and VoxelY — strip it to get the 12-digit portal code.
+        if (portalCode.Length == 14)
+            portalCode = string.Concat(portalCode.AsSpan(0, 4), portalCode.AsSpan(6, 8));
+
+        if (portalCode.Length != 12)
+            return null;
+
+        if (CoordinateHelper.PortalCodeToVoxel(portalCode, out int vx, out int vy, out int vz, out int si, out int pi))
+            return (vx, vy, vz, si, pi);
+
+        return null;
     }
 }
