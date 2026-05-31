@@ -20,6 +20,7 @@ public partial class MainFormResources : Form
     public const string ReleaseNotesUrl = "https://github.com/vectorcmdr/NMSE/releases/latest";
     public const string SponsorUrl = "https://github.com/sponsors/vectorcmdr";
     public const string GitHubCreatorUrl = "https://github.com/vectorcmdr";
+    public const string UserGuideUrl = "https://github.com/vectorcmdr/NMSE/blob/main/docs/user/README.md";
 
     // Strips + buttons
     private readonly MenuStrip _menuStrip;
@@ -35,6 +36,7 @@ public partial class MainFormResources : Form
     private ToolStripMenuItem _helpSponsorItem = null!;
     private ToolStripMenuItem _helpCheckUpdatesItem = null!;
     private ToolStripMenuItem _helpReleaseNotesItem = null!;
+    private ToolStripMenuItem _helpUserGuideItem = null!;
     private ToolStripMenuItem _helpAboutItem = null!;
     private readonly ToolStripStatusLabel _statusLabel;
     private readonly ToolStripStatusLabel _itemCountLabel;
@@ -374,11 +376,13 @@ public partial class MainFormResources : Form
         // Help menu (store item references for robust localisation)
         _helpMenu = new ToolStripMenuItem("&Help");
         _helpGitHubItem = new ToolStripMenuItem("&GitHub Page", null, OnGitHub);
+        _helpUserGuideItem = new ToolStripMenuItem("&User Guide", null, OnUserGuide);
         _helpSponsorItem = new ToolStripMenuItem("&Sponsor Development", null, OnSponsor);
         _helpCheckUpdatesItem = new ToolStripMenuItem("Check for &Updates...", null, OnCheckForUpdates);
         _helpReleaseNotesItem = new ToolStripMenuItem("&Release Notes", null, OnReleaseNotes);
         _helpAboutItem = new ToolStripMenuItem("&About", null, OnAbout);
         _helpMenu.DropDownItems.Add(_helpGitHubItem);
+        _helpMenu.DropDownItems.Add(_helpUserGuideItem);
         _helpMenu.DropDownItems.Add(new ToolStripSeparator());
         _helpMenu.DropDownItems.Add(_helpSponsorItem);
         _helpMenu.DropDownItems.Add(new ToolStripSeparator());
@@ -1941,7 +1945,11 @@ public partial class MainFormResources : Form
 
     private void OnReload(object? sender, EventArgs e)
     {
-        if (_currentFilePath != null) LoadSaveData(_currentFilePath);
+        if (_currentFilePath != null)
+        {
+            PopulateSaveSlots();
+            LoadSaveData(_currentFilePath);
+        }
     }
 
     private void OnRestoreBackup(object? sender, EventArgs e)
@@ -2260,6 +2268,22 @@ public partial class MainFormResources : Form
     }
 
     /// <summary>
+    /// Opens the user guide page in the default browser.
+    /// </summary>
+    private void OnUserGuide(object? sender, EventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = UserGuideUrl,
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    /// <summary>
     /// Applies the saved language preference (or default en-GB) on startup.
     /// Must be called after LoadDatabase() so that the localisation service
     /// has its lang directory set and all databases are loaded.
@@ -2507,6 +2531,7 @@ public partial class MainFormResources : Form
             // Help (use stored field references to avoid fragile hardcoded indices)
             _helpMenu.Text = UiStrings.Get("menu.help");
             _helpGitHubItem.Text = UiStrings.Get("menu.help.github");
+            _helpUserGuideItem.Text = UiStrings.Get("menu.help.user_guide");
             _helpSponsorItem.Text = UiStrings.Get("menu.help.sponsor");
             _helpCheckUpdatesItem.Text = UiStrings.Get("menu.help.check_updates");
             _helpReleaseNotesItem.Text = UiStrings.Get("menu.help.release_notes");
