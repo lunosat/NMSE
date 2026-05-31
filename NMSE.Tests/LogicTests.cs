@@ -1492,7 +1492,7 @@ public class LogicTests
                         ""PrimaryMode"": 1,
                         ""SecondaryMode"": 2,
                         ""UseLegacyColours"": false,
-                        ""Resource"": { ""Filename"": ""MODELS/COMMON/WEAPONS/MULTITOOL/YOURALIENMULTITOOL.SCENE.MBIN"", ""Seed"": [true, ""0xB2""], ""AltId"": ""alien1"", ""ProceduralTexture"": { ""Samplers"": [{ ""x"": 42 }] } },
+                        ""Resource"": { ""Filename"": ""MODELS/COMMON/WEAPONS/MULTITOOL/MULTITOOL.SCENE.MBIN"", ""Seed"": [true, ""0xB2""], ""AltId"": ""alien1"", ""ProceduralTexture"": { ""Samplers"": [{ ""x"": 42 }] } },
                         ""Store"": { ""Slots"": [{ ""Id"": ""^SCAN1"" }, { ""Id"": ""^LASER"" }, { ""Id"": ""^STRONGLASER"" }], ""ValidSlotIndices"": [{ ""X"": 0 }, { ""X"": 1 }, { ""X"": 2 }], ""BaseStatValues"": [{ ""BaseStatID"": ""^WEAPON_DAMAGE"", ""Value"": 80.0 }, { ""BaseStatID"": ""^WEAPON_MINING"", ""Value"": 50.0 }], ""SpecialSlots"": [{ ""Type"": 1 }], ""Class"": { ""InventoryClass"": ""S"" } },
                         ""Store_TechOnly"": { ""Slots"": [{ ""Id"": ""^TERRAINEDITOR"" }], ""ValidSlotIndices"": [{ ""X"": 0 }], ""BaseStatValues"": [{ ""BaseStatID"": ""^WEAPON_SCAN"", ""Value"": 30.0 }], ""SpecialSlots"": [] }
                     }
@@ -9489,6 +9489,113 @@ public class LogicTests
 
         double savedDamage = StatHelper.ReadBaseStatValue(tool.GetObject("Store"), "^WEAPON_DAMAGE");
         Assert.Equal(999.0, savedDamage);
+    }
+
+    // --- IsLarge write behaviour in SaveToolData --------------------------------
+
+    // Helper: build a minimal tool JsonObject with a Resource sub-object and an existing IsLarge
+    private static JsonObject BuildMinimalToolWithIsLarge(bool existingIsLarge)
+    {
+        var tool = new JsonObject();
+        tool.Add("Name", "");
+        var seedArr = new JsonArray();
+        seedArr.Add(true);
+        seedArr.Add("0x0");
+        tool.Add("Seed", seedArr);
+        var resource = new JsonObject();
+        resource.Add("Filename", MultitoolLogic.ToolTypes[0].Filename);
+        tool.Add("Resource", resource);
+        tool.Add("IsLarge", existingIsLarge);
+        var store = new JsonObject();
+        store.Add("BaseStatValues", new JsonArray());
+        store.Add("Class", new JsonObject());
+        tool.Add("Store", store);
+        tool.Add("Store_TechOnly", new JsonObject());
+        return tool;
+    }
+
+    [Fact]
+    public void SaveToolData_Standard_WritesIsLargeTrue()
+    {
+        // Arrange: tool originally has IsLarge=false (e.g. came from a Rifle).
+        // IsLargeIndex=0 simulates the UI combobox selecting "1" (true), which the
+        // OnToolTypeChanged handler sets automatically when Standard is chosen.
+        var tool = BuildMinimalToolWithIsLarge(false);
+        int standardIdx = Array.FindIndex(MultitoolLogic.ToolTypes, t => t.Name == "Standard");
+        var values = new MultitoolLogic.ToolSaveValues { Name = "T", TypeIndex = standardIdx, IsLargeIndex = 0 };
+
+        // Act
+        MultitoolLogic.SaveToolData(tool, null, values, false);
+
+        // Assert: Standard must always use the pistol body (IsLarge = true)
+        Assert.True(tool.GetBool("IsLarge"));
+    }
+
+    [Fact]
+    public void SaveToolData_Rifle_WritesIsLargeFalse()
+    {
+        // Arrange: tool originally has IsLarge=true (e.g. came from a Standard).
+        // IsLargeIndex=1 simulates the UI combobox selecting "2" (false), which the
+        // OnToolTypeChanged handler sets automatically when Rifle is chosen.
+        var tool = BuildMinimalToolWithIsLarge(true);
+        int rifleIdx = Array.FindIndex(MultitoolLogic.ToolTypes, t => t.Name == "Rifle");
+        var values = new MultitoolLogic.ToolSaveValues { Name = "T", TypeIndex = rifleIdx, IsLargeIndex = 1 };
+
+        // Act
+        MultitoolLogic.SaveToolData(tool, null, values, false);
+
+        // Assert: Rifle must always use the rifle body (IsLarge = false)
+        Assert.False(tool.GetBool("IsLarge"));
+    }
+
+    [Theory]
+    [InlineData("Alien",        false)]
+    [InlineData("Alien",        true)]
+    [InlineData("Pristine",     false)]
+    [InlineData("Pristine",     true)]
+    [InlineData("Experimental", false)]
+    [InlineData("Experimental", true)]
+    public void SaveToolData_SharedModelNonCanonical_PreservesIsLarge(string typeName, bool originalIsLarge)
+    {
+        // Alien and Pristine share the same resource file as Standard/Rifle.
+        // Their IsLarge value is purely cosmetic; SaveToolData must NOT overwrite it
+        // when IsLargeIndex is -1 (no combobox selection override).
+        var tool = BuildMinimalToolWithIsLarge(originalIsLarge);
+        int typeIdx = Array.FindIndex(MultitoolLogic.ToolTypes, t => t.Name == typeName);
+        var values = new MultitoolLogic.ToolSaveValues { Name = "T", TypeIndex = typeIdx, IsLargeIndex = -1 };
+
+        MultitoolLogic.SaveToolData(tool, null, values, false);
+
+        Assert.Equal(originalIsLarge, tool.GetBool("IsLarge"));
+    }
+
+    [Theory]
+    [InlineData("Royal",               false)]
+    [InlineData("Royal",               true)]
+    [InlineData("Sentinel",            false)]
+    [InlineData("Sentinel",            true)]
+    [InlineData("Sentinel B",          false)]
+    [InlineData("Switch",              true)]
+    [InlineData("Staff",               false)]
+    [InlineData("Staff NPC",           true)]
+    [InlineData("Staff Ruin",          false)]
+    [InlineData("Staff Bone",          true)]
+    [InlineData("Atlantid",            false)]
+    [InlineData("Voltaic Staff",       true)]
+    [InlineData("Direwasp Disintegrator", false)]
+    public void SaveToolData_UniqueModelType_PreservesIsLarge(string typeName, bool originalIsLarge)
+    {
+        // Unique-model types have their own dedicated resource file; IsLarge has no meaningful
+        // visual effect for them and must be left exactly as it was in the save.
+        var tool = BuildMinimalToolWithIsLarge(originalIsLarge);
+        int typeIdx = Array.FindIndex(MultitoolLogic.ToolTypes, t => t.Name == typeName);
+        // Guard: catch InlineData typos early so failures point at the test data, not production code.
+        Assert.True(typeIdx >= 0, $"Type '{typeName}' not found in ToolTypes — check InlineData spelling");
+        var values = new MultitoolLogic.ToolSaveValues { Name = "T", TypeIndex = typeIdx, IsLargeIndex = -1 };
+
+        MultitoolLogic.SaveToolData(tool, null, values, false);
+
+        Assert.Equal(originalIsLarge, tool.GetBool("IsLarge"));
     }
 
     [Fact]

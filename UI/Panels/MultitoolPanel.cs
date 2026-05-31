@@ -57,6 +57,7 @@ public partial class MultitoolPanel : UserControl
         _nameLabel.Text = UiStrings.Get("multitool.name");
         _toolName.PlaceholderText = UiStrings.Get("common.procedural_no_name");
         _typeLabel.Text = UiStrings.Get("multitool.type");
+        _sizeLabel.Text = UiStrings.Get("multitool.size");
         _classLabel.Text = UiStrings.Get("multitool.class");
         _seedLabel.Text = UiStrings.Get("multitool.seed");
         _damageLabel.Text = UiStrings.Get("multitool.damage");
@@ -71,6 +72,7 @@ public partial class MultitoolPanel : UserControl
         _archiveImportBtn.Text = UiStrings.Get("multitool.archive_import_btn");
         _storeGrid.SetMaxSupportedLabel(UiStrings.Format("common.max_supported", "10x6"));
         RefreshToolTypeCombo();
+        RefreshToolSizeCombo();
         _storeGrid.ApplyUiLocalisation();
     }
 
@@ -186,6 +188,7 @@ public partial class MultitoolPanel : UserControl
                     OriginalClassIndex = _originalClassIndex,
                     TypeIndex = GetSelectedToolTypeIndex(),
                     Seed = _toolSeed.Text,
+                    IsLargeIndex = _toolSize.SelectedIndex,
                     // Use raw values for unmodified fields to prevent any
                     // precision loss from the UI control text round-trip.
                     Damage = _damageField.UserModified
@@ -239,6 +242,7 @@ public partial class MultitoolPanel : UserControl
 
                 _toolName.Text = data.Name;
                 SelectToolTypeByIndex(data.TypeIndex);
+                SetToolSizeFromIsLarge(data.IsLarge);
                 _toolClass.SelectedIndex = data.ClassIndex;
                 _originalClassIndex = data.ClassIndex;
                 _toolSeed.Text = data.Seed;
@@ -714,6 +718,36 @@ public partial class MultitoolPanel : UserControl
             }
         }
         _toolType.SelectedIndex = -1;
+    }
+
+    private void RefreshToolSizeCombo()
+    {
+        int selIdx = _toolSize.SelectedIndex;
+        _toolSize.Items.Clear();
+        _toolSize.Items.AddRange(MultitoolLogic.GetToolSizeItems());
+        if (selIdx >= 0 && selIdx < _toolSize.Items.Count)
+            _toolSize.SelectedIndex = selIdx;
+    }
+
+    /// <summary>Sets the IsLarge combobox selection from a nullable bool loaded from the save.</summary>
+    private void SetToolSizeFromIsLarge(bool? isLarge)
+    {
+        if (!isLarge.HasValue)
+        {
+            _toolSize.SelectedIndex = -1;
+            return;
+        }
+        _toolSize.SelectedIndex = isLarge.Value ? 0 : 1;
+    }
+
+    private void OnToolTypeChanged(object? sender, EventArgs e)
+    {
+        int typeIdx = GetSelectedToolTypeIndex();
+        if (typeIdx < 0) return;
+        string typeName = MultitoolLogic.ToolTypes[typeIdx].Name;
+        int canonical = MultitoolLogic.GetCanonicalIsLargeIndex(typeName);
+        if (canonical >= 0)
+            _toolSize.SelectedIndex = canonical;
     }
 
 }

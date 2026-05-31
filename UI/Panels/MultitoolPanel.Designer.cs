@@ -135,16 +135,18 @@ partial class MultitoolPanel
         mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent) { Width = 50 });
         mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent) { Width = 50 });
 
-        // Left panel: name, type, class, seed
+        // Left panel: name, type+size, class, seed
         var leftPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             ColumnCount = 2,
-            RowCount = 4,
+            RowCount = 5,
             AutoSize = true
         };
         leftPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         leftPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        for (int i = 0; i < 5; i++)
+            leftPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         int leftRow = 0;
 
         _detailsLabel = new Label
@@ -168,7 +170,33 @@ partial class MultitoolPanel
 
         _toolType = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
         _toolType.Items.AddRange(MultitoolLogic.GetToolTypeItems());
-        _typeLabel = AddRow(leftPanel, "Type:", _toolType, leftRow++);
+        _toolType.SelectedIndexChanged += OnToolTypeChanged;
+
+        _toolSize = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        _toolSize.Items.AddRange(MultitoolLogic.GetToolSizeItems());
+
+        // Type and Size share one row, following the same pattern as the Seed row:
+        // "Type:" label goes into leftPanel col 0 (via AddRow), and a flat inner panel
+        // containing [TypeCombo | SizeLabel | SizeCombo] goes into leftPanel col 1.
+        var typeSizePanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        };
+        typeSizePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
+        typeSizePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        typeSizePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
+        typeSizePanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _sizeLabel = new Label { Text = "Size:", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, Padding = new Padding(6, 0, 10, 0) };
+        typeSizePanel.Controls.Add(_toolType, 0, 0);
+        typeSizePanel.Controls.Add(_sizeLabel, 1, 0);
+        typeSizePanel.Controls.Add(_toolSize, 2, 0);
+        _typeLabel = AddRow(leftPanel, "Type:", typeSizePanel, leftRow++);
 
         _toolClass = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
         _toolClass.Items.AddRange(MultitoolLogic.ToolClasses);
@@ -314,4 +342,6 @@ partial class MultitoolPanel
     private InvariantNumericTextBox _scanField;
     private InventoryGridPanel _storeGrid;
     private ComboBox _toolType;
+    private ComboBox _toolSize;
+    private Label _sizeLabel;
 }

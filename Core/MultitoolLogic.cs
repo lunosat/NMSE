@@ -1,6 +1,7 @@
 using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
+using System.Reflection;
 
 namespace NMSE.Core;
 
@@ -17,13 +18,17 @@ internal static class MultitoolLogic
     /// <summary>
     /// Known multitool types with their display names and corresponding resource filenames.
     /// </summary>
+    /// <summary>Resource path used by all non-unique-model multitools.</summary>
+    private const string SharedModelResource = "MODELS/COMMON/WEAPONS/MULTITOOL/MULTITOOL.SCENE.MBIN";
+
     internal static readonly (string Name, string Filename)[] ToolTypes = new[]
     {
-        ("Standard", "MODELS/COMMON/WEAPONS/MULTITOOL/MULTITOOL.SCENE.MBIN"),
-        ("Rifle", "MODELS/COMMON/WEAPONS/MULTITOOL/YOURRIFLETEST.SCENE.MBIN"),
+        ("Standard", SharedModelResource),
+        ("Rifle", SharedModelResource),
         ("Royal", "MODELS/COMMON/WEAPONS/MULTITOOL/ROYALMULTITOOL.SCENE.MBIN"),
-        ("Alien", "MODELS/COMMON/WEAPONS/MULTITOOL/YOURALIENMULTITOOL.SCENE.MBIN"),
-        ("Pristine", "MODELS/COMMON/WEAPONS/MULTITOOL/YOURPRISTINEMULTITOOL.SCENE.MBIN"),
+        ("Alien", SharedModelResource),
+        ("Pristine", SharedModelResource),
+        ("Experimental", SharedModelResource),
         ("Sentinel", "MODELS/COMMON/WEAPONS/MULTITOOL/SENTINELMULTITOOL.SCENE.MBIN"),
         ("Sentinel B", "MODELS/COMMON/WEAPONS/MULTITOOL/SENTINELMULTITOOLB.SCENE.MBIN"),
         ("Switch", "MODELS/COMMON/WEAPONS/MULTITOOL/SWITCHMULTITOOL.SCENE.MBIN"),
@@ -31,8 +36,9 @@ internal static class MultitoolLogic
         ("Staff NPC", "MODELS/COMMON/WEAPONS/MULTITOOL/STAFFNPCMULTITOOL.SCENE.MBIN"),
         ("Staff Ruin", "MODELS/COMMON/WEAPONS/MULTITOOL/STAFFMULTITOOLRUIN.SCENE.MBIN"),
         ("Staff Bone", "MODELS/COMMON/WEAPONS/MULTITOOL/STAFFMULTITOOLBONE.SCENE.MBIN"),
-        ("Atlas", "MODELS/COMMON/WEAPONS/MULTITOOL/ATLASMULTITOOL.SCENE.MBIN"),
-        ("Atlas Scepter", "MODELS/COMMON/WEAPONS/MULTITOOL/STAFFMULTITOOLATLAS.SCENE.MBIN"),
+        ("Atlantid", "MODELS/COMMON/WEAPONS/MULTITOOL/ATLASMULTITOOL.SCENE.MBIN"),
+        ("Voltaic Staff", "MODELS/COMMON/WEAPONS/MULTITOOL/STAFFMULTITOOLATLAS.SCENE.MBIN"),
+        ("Direwasp Disintegrator", "MODELS/COMMON/WEAPONS/MULTITOOL/SWARMMULTITOOL.SCENE.MBIN"),
     };
 
     internal static readonly Dictionary<string, string> ToolTypeLocKeys = new(StringComparer.OrdinalIgnoreCase)
@@ -42,6 +48,7 @@ internal static class MultitoolLogic
         ["Royal"] = "multitool.type_royal",
         ["Alien"] = "multitool.type_alien",
         ["Pristine"] = "multitool.type_pristine",
+        ["Experimental"] = "multitool.type_experimental",
         ["Sentinel"] = "multitool.type_sentinel",
         ["Sentinel B"] = "multitool.type_sentinel_b",
         ["Switch"] = "multitool.type_switch",
@@ -49,9 +56,10 @@ internal static class MultitoolLogic
         ["Staff NPC"] = "multitool.type_staff_npc",
         ["Staff Ruin"] = "multitool.type_staff_ruin",
         ["Staff Bone"] = "multitool.type_staff_bone",
-        ["Atlas"] = "multitool.type_atlas",
-        ["Atlas Scepter"] = "multitool.type_atlas_scepter",
-    };
+        ["Atlantid"] = "multitool.type_atlantid",
+        ["Voltaic Staff"] = "multitool.type_voltaic_staff",
+		["Direwasp Disintegrator"] = "multitool.type_direwasp",
+	};
 
     internal static string GetLocalisedToolTypeName(string internalName)
     {
@@ -71,6 +79,28 @@ internal static class MultitoolLogic
     internal static ToolTypeItem[] GetToolTypeItems()
     {
         return ToolTypes.Select(t => new ToolTypeItem(t.Name, GetLocalisedToolTypeName(t.Name))).ToArray();
+    }
+
+    /// <summary>
+    /// Returns the canonical IsLarge combobox index for the given type name,
+    /// or -1 when the type does not prescribe a specific value.
+    /// Index 0 = "1" = <c>true</c>; index 1 = "2" = <c>false</c>.
+    /// </summary>
+    internal static int GetCanonicalIsLargeIndex(string typeName)
+    {
+        if (string.Equals(typeName, "Standard", StringComparison.Ordinal)) return 0; // IsLarge = true
+        if (string.Equals(typeName, "Rifle", StringComparison.Ordinal)) return 1;    // IsLarge = false
+        return -1;
+    }
+
+    /// <summary>Returns the two localised display strings for the IsLarge combobox.</summary>
+    internal static string[] GetToolSizeItems()
+    {
+        return new[]
+        {
+            UiStrings.Get("multitool.size_1"),
+            UiStrings.Get("multitool.size_2"),
+        };
     }
 
     /// <summary>
@@ -151,8 +181,58 @@ internal static class MultitoolLogic
         try { mining = StatHelper.ReadBaseStatValue(toolStore, "^WEAPON_MINING"); miningText = StatHelper.ReadBaseStatText(toolStore, "^WEAPON_MINING"); } catch { }
         try { scan = StatHelper.ReadBaseStatValue(toolStore, "^WEAPON_SCAN"); scanText = StatHelper.ReadBaseStatText(toolStore, "^WEAPON_SCAN"); } catch { }
 
+        // Shared-model type detection: when filename matches MULTITOOL.SCENE.MBIN,
+        // Standard (0), Rifle (1), Alien (3), and Pristine (4) all share the same resource.
+        // Uses damage/mining/scan against known per-class BaseStat ranges from the game database.
+        //   Pistol.C.DAMAGE.Min = 0     Rifle.C.MINING.Min  = 0
+        //   Rifle.C.SCAN.Max    = 5     Pistol.C.SCAN.Max   = 20
+        //   Pristine.C.SCAN.Min = 40    Pristine.A.SCAN.Min = 80
+        if (typeIndex == 0 && string.Equals(filename, SharedModelResource, StringComparison.OrdinalIgnoreCase) && classIndex >= 0)
+        {
+            if (damage == 0.0)
+            {
+                if (classIndex == 0) // C class
+                {
+                    if (mining == 0.0)
+                        typeIndex = 1; // Rifle
+                    else if (scan > 20.0)
+                        typeIndex = 4; // Pristine
+                    else
+                        typeIndex = 0; // Standard (Pistol)
+                }
+                else
+                {
+                    typeIndex = 0; // Standard (Pistol)
+                }
+            }
+            else if (mining == 0.0)
+            {
+                if (classIndex == 0 && scan > 5.0)
+                    typeIndex = 3; // Alien
+                else
+                    typeIndex = 1; // Rifle
+            }
+            else if (classIndex <= 1) // C or B class
+            {
+                if (scan < 40.0)
+                    typeIndex = 3; // Alien
+                else
+                    typeIndex = 4; // Pristine
+            }
+            else // A or S class
+            {
+                if (scan >= 80.0)
+                    typeIndex = 4; // Pristine
+                else
+                    typeIndex = 3; // Alien
+            }
+        }
+
         string safeName = StringHelper.SanitizeFileName(name);
         string cls2 = classIndex >= 0 ? ToolClasses[classIndex] : "C";
+
+        bool? isLarge = null;
+        try { isLarge = tool.GetBool("IsLarge"); } catch { }
 
         return new ToolData
         {
@@ -167,6 +247,7 @@ internal static class MultitoolLogic
             MiningText = miningText,
             ScanText = scanText,
             Store = toolStore,
+            IsLarge = isLarge,
             ExportFileName = ExportConfig.BuildFileName(
                 ExportConfig.Instance.MultitoolTemplate,
                 ExportConfig.Instance.MultitoolExt,
@@ -209,6 +290,15 @@ internal static class MultitoolLogic
             var resource = tool.GetObject("Resource");
             resource?.Set("Filename", ToolTypes[values.TypeIndex].Filename);
         }
+
+        // IsLarge controls the body shape for the shared-model multitools (MULTITOOL.SCENE.MBIN).
+        // The value is driven by the IsLarge combobox (index 0 = true/"1", index 1 = false/"2"),
+        // which is automatically updated to the canonical value when the type changes.
+        if (values.IsLargeIndex == 0)
+            tool.Set("IsLarge", true);
+        else if (values.IsLargeIndex == 1)
+            tool.Set("IsLarge", false);
+        // IsLargeIndex = -1: no selection – leave the save value untouched.
 
         try
         {
@@ -495,8 +585,20 @@ internal static class MultitoolLogic
             string weaponClass = "Pistol";
             if (filename.Contains("SENTINELMULTITOOL", StringComparison.OrdinalIgnoreCase))
                 weaponClass = "Robot";
-            else if (filename.Contains("YOURRIFLETEST", StringComparison.OrdinalIgnoreCase))
+            else if (filename.Contains("SWITCHMULTITOOL", StringComparison.OrdinalIgnoreCase))
                 weaponClass = "Rifle";
+            else if (filename.Contains("ROYALMULTITOOL", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Royal";
+            else if (filename.Contains("STAFFMULTITOOLATLAS", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "StaffAtlas";
+            else if (filename.Contains("STAFFMULTITOOL", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Staff";
+            else if (filename.Contains("ATLASMULTITOOL", StringComparison.OrdinalIgnoreCase) && !filename.Contains("STAFF", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Atlas";
+            else if (filename.Contains("SWARMMULTITOOL", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Robot";
+            else if (filename.Contains("MULTITOOL", StringComparison.OrdinalIgnoreCase))
+                weaponClass = "Pistol";
             var wc = archivedSlot.GetObject("WeaponClass");
             wc?.Set("WeaponStatClass", weaponClass);
         }
@@ -620,6 +722,8 @@ internal static class MultitoolLogic
         public string ScanText { get; set; } = "0";
         /// <summary>The multitool's store (inventory) JSON object.</summary>
         public JsonObject? Store { get; set; }
+        /// <summary>The IsLarge field read from the save, or <c>null</c> if not present.</summary>
+        public bool? IsLarge { get; set; }
         /// <summary>Suggested filename for exporting the inventory.</summary>
         public string ExportFileName { get; set; } = "";
     }
@@ -656,5 +760,10 @@ internal static class MultitoolLogic
         /// When set, each stat is only written if the UI value differs from
         /// the clamped raw value - preserving externally-edited values.</summary>
         public Dictionary<string, double>? RawStatValues { get; set; }
+
+        /// <summary>
+        /// Index into the IsLarge combobox: 0 = true ("1"), 1 = false ("2"), -1 = no change.
+        /// </summary>
+        public int IsLargeIndex { get; set; } = -1;
     }
 }
