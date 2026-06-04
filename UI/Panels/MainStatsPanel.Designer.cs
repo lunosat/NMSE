@@ -574,6 +574,13 @@ partial class MainStatsPanel
         titlesPage.Controls.Add(titlesLayout);
         tabs.TabPages.Add(titlesPage);
 
+        // -- Multiplayer Tab --
+        var multiplayerPage = new TabPage("Multiplayer");
+        _multiplayerPanel = new MultiplayerPanel { Dock = DockStyle.Fill };
+        _multiplayerPanel.DataModified += (s, e) => RaiseDataModified();
+        multiplayerPage.Controls.Add(_multiplayerPanel);
+        tabs.TabPages.Add(multiplayerPage);
+
         Controls.Add(tabs);
     }
 
@@ -710,4 +717,7 @@ partial class MainStatsPanel
     private Label _guidesFilterLabel = null!;
     private Label _titlesTitle = null!;
     private Label _saveUtilsWarning = null!;
+
+    // Multiplayer sub-panel
+    private MultiplayerPanel _multiplayerPanel = null!;
 }

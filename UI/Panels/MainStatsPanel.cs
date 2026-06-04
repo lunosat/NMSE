@@ -266,6 +266,9 @@ public partial class MainStatsPanel : UserControl
             _loading = false;
             ResumeLayout(true);
         }
+
+        // Load multiplayer data
+        _multiplayerPanel.LoadData(saveData);
     }
 
     private void LoadCoordinates(JsonObject playerState, JsonObject saveData)
@@ -685,6 +688,9 @@ public partial class MainStatsPanel : UserControl
 
         // Coordinates
         SaveCoordinatesToJson(playerState);
+
+        // Multiplayer
+        _multiplayerPanel.SaveData(saveData);
     }
 
     public void SaveAccountData(JsonObject accountData)
@@ -1216,11 +1222,12 @@ public partial class MainStatsPanel : UserControl
     public void ApplyUiLocalisation()
     {
         // Tab pages
-        if (_tabs.TabCount >= 3)
+        if (_tabs.TabCount >= 4)
         {
             _tabs.TabPages[0].Text = UiStrings.Get("player.tab_general");
             _tabs.TabPages[1].Text = UiStrings.Get("player.tab_guide");
             _tabs.TabPages[2].Text = UiStrings.Get("player.tab_titles");
+            _tabs.TabPages[3].Text = UiStrings.Get("multiplayer.title");
         }
 
         // Buttons
@@ -1350,6 +1357,9 @@ public partial class MainStatsPanel : UserControl
 
         // Player state combo display names
         RefreshPlayerStateCombo();
+
+        // Multiplayer panel localisation
+        _multiplayerPanel.ApplyUiLocalisation();
     }
 
     private static void RefreshPresetCombo(ComboBox combo)
