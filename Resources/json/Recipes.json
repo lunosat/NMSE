@@ -45263,5 +45263,27 @@
 		],
 		"TimeToMake": 0,
 		"Cooking": false
+	},
+	{
+		"Id": "REFINERECIPE_399",
+		"Category": "Refining",
+		"RecipeType": "RECIPE_SWARMDUST_TECHFRAG",
+		"RecipeType_LocStr": "RECIPE_SWARMDUST_TECHFRAG",
+		"RecipeName": "Devitrification",
+		"RecipeName_LocStr": "R_NAME_SWARMDUST_TECHFRAG",
+		"Result": {
+			"Id": "TECHFRAG",
+			"Type": "Substance",
+			"Amount": 1
+		},
+		"Ingredients": [
+			{
+				"Id": "SWARMDUST",
+				"Type": "Substance",
+				"Amount": 5
+			}
+		],
+		"TimeToMake": 0,
+		"Cooking": false
 	}
 ]
