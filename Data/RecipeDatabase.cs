@@ -162,6 +162,10 @@ public class RecipeDatabase
     public IEnumerable<Recipe> GetCookingRecipes() =>
         _recipes.Where(r => r.Cooking);
 
+    /// <summary>Gets a single recipe by its ID.</summary>
+    public Recipe? GetRecipe(string id) =>
+        _recipes.Find(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase));
+
     private static RecipeElement? ParseElement(JsonElement elem)
     {
         if (elem.ValueKind != JsonValueKind.Object) return null;

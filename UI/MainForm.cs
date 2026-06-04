@@ -851,6 +851,7 @@ public partial class MainFormResources : Form
             // Wire up Recipe panel with databases
             _recipePanel.SetDatabases(_recipeDatabase, _database);
             _recipePanel.SetIconManager(_iconManager);
+            _cataloguePanel.SetRecipeDatabase(_recipeDatabase);
 
             // Repopulate combo boxes that were created before JSON databases loaded.
             // Panels are constructed in the MainForm constructor before LoadDatabase(),

@@ -19,6 +19,7 @@ public partial class CataloguePanel : UserControl
     private GameItemDatabase? _database;
     private IconManager? _iconManager;
     private WordDatabase? _wordDatabase;
+    private RecipeDatabase? _recipeDatabase;
 
     // Reference to save data's KnownWordGroups for word state operations
     private JsonArray? _knownWordGroups;
@@ -62,19 +63,22 @@ public partial class CataloguePanel : UserControl
     }
 
     /// <summary>
-    /// Adds the given RecipePanel as a sub-tab within this Discoveries panel.
+    /// Adds the given RecipePanel as a sub-tab within the recipe info tab.
     /// </summary>
     public void AddRecipeTab(RecipePanel recipePanel)
     {
-        _recipeTab = new TabPage("Recipes");
         recipePanel.Dock = DockStyle.Fill;
-        _recipeTab.Controls.Add(recipePanel);
-        _tabControl.TabPages.Add(_recipeTab);
+        _recipeInfoTab.Controls.Add(recipePanel);
     }
 
     public void SetDatabase(GameItemDatabase? database)
     {
         _database = database;
+    }
+
+    public void SetRecipeDatabase(RecipeDatabase? recipeDatabase)
+    {
+        _recipeDatabase = recipeDatabase;
     }
 
     public void SetWordDatabase(WordDatabase? wordDatabase)
@@ -157,6 +161,7 @@ public partial class CataloguePanel : UserControl
         LoadKnownGlyphs(playerState);
         LoadKnownLocations(playerState);
         LoadKnownFish(playerState);
+        LoadKnownRecipes(playerState);
         }
         finally
         {
@@ -175,6 +180,7 @@ public partial class CataloguePanel : UserControl
         SaveKnownWords(playerState);
         SaveKnownGlyphs(playerState);
         SaveKnownFish(playerState);
+        SaveKnownRecipes(playerState);
 
         // Sync word stat counters to match current KnownWordGroups (required by game)
         if (_knownWordGroups != null)
@@ -198,6 +204,7 @@ public partial class CataloguePanel : UserControl
         _wordGrid.Rows.Clear();
         _locationsGrid.Rows.Clear();
         _fishGrid.Rows.Clear();
+        _recipeGrid.Rows.Clear();
 
         // Dispose every cached scaled icon bitmap (typically 24×24 px each) and
         // clear the cache so they are re-created on the next LoadData call.
@@ -1669,10 +1676,268 @@ public partial class CataloguePanel : UserControl
         }
     }
 
+    // --- Known Recipes ---
+
+    private void LoadKnownRecipes(JsonObject playerState)
+    {
+        _recipeGrid.SuspendLayout();
+        try
+        {
+            _recipeGrid.Rows.Clear();
+            var arr = playerState.GetArray("KnownRefinerRecipes");
+            if (arr == null) return;
+
+            var rowList = new List<DataGridViewRow>(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string rawId = arr.GetString(i) ?? "";
+                if (string.IsNullOrEmpty(rawId)) continue;
+                string id = CatalogueLogic.StripCaretPrefix(rawId);
+
+                var recipe = _recipeDatabase?.GetRecipe(id);
+                if (recipe != null)
+                {
+                    AddRecipeRow(recipe);
+                }
+                else
+                {
+                    var row = new DataGridViewRow();
+                    row.CreateCells(_recipeGrid, PlaceholderIcon, id, "", PlaceholderIcon, "", PlaceholderIcon, "", id);
+                    rowList.Add(row);
+                }
+            }
+            _recipeGrid.Rows.AddRange(rowList.ToArray());
+        }
+        finally
+        {
+            _recipeGrid.ResumeLayout(true);
+        }
+    }
+
+    private void SaveKnownRecipes(JsonObject playerState)
+    {
+        var arr = playerState.GetArray("KnownRefinerRecipes");
+        if (arr == null)
+        {
+            arr = new JsonArray();
+            playerState.Set("KnownRefinerRecipes", arr);
+        }
+        while (arr.Length > 0)
+            arr.RemoveAt(arr.Length - 1);
+
+        foreach (DataGridViewRow row in _recipeGrid.Rows)
+        {
+            string id = row.Cells["ID"].Value as string ?? "";
+            if (!string.IsNullOrEmpty(id))
+                arr.Add(CatalogueLogic.EnsureCaretPrefix(id));
+        }
+    }
+
+    private string FormatRecipeResult(Recipe? recipe)
+    {
+        if (recipe?.Result == null) return "";
+        string itemName = _database?.GetItem(recipe.Result.Id)?.Name ?? recipe.Result.Id;
+        return $"{recipe.Result.Amount}x {itemName}";
+    }
+
+    private string FormatRecipeIngredients(Recipe? recipe)
+    {
+        if (recipe == null || recipe.Ingredients.Length == 0) return "";
+        return string.Join(" + ", recipe.Ingredients.Select(i =>
+        {
+            string itemName = _database?.GetItem(i.Id)?.Name ?? i.Id;
+            return $"{i.Amount}x {itemName}";
+        }));
+    }
+
+    private void AddRecipeRow(Recipe recipe)
+    {
+        string category = recipe.Cooking
+            ? UiStrings.Get("recipe.type_cooking")
+            : UiStrings.Get("recipe.type_refining");
+        string result = FormatRecipeResult(recipe);
+        string ingredients = FormatRecipeIngredients(recipe);
+        string resultIconId = recipe.Result?.Id ?? "";
+        Image? resultIcon = GetScaledIcon(resultIconId);
+        Image? ingIcon = GetIngredientsCompositeIcon(recipe);
+        _recipeGrid.Rows.Add(
+            resultIcon ?? (object)PlaceholderIcon,
+            recipe.RecipeName,
+            category,
+            resultIcon ?? (object)PlaceholderIcon,
+            result,
+            ingIcon ?? (object)PlaceholderIcon,
+            ingredients,
+            recipe.Id);
+    }
+
+    private Image? GetIngredientsCompositeIcon(Recipe recipe)
+    {
+        var ids = recipe.Ingredients.Select(i => i.Id).Take(3).ToArray();
+        if (ids.Length == 0) return null;
+
+        int perIcon = 18;
+        int totalW = perIcon * ids.Length;
+
+        var composite = new Bitmap(totalW, 24);
+        using var g = Graphics.FromImage(composite);
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+
+        for (int i = 0; i < ids.Length; i++)
+        {
+            var icon = GetScaledIcon(ids[i]);
+            if (icon != null)
+                g.DrawImage(icon, i * perIcon, 3, perIcon, 18);
+        }
+
+        return composite;
+    }
+
+    private void AddRecipe_Click(object? sender, EventArgs e)
+    {
+        if (_recipeDatabase == null) return;
+
+        List<(Image? icon, string name, string id, string category)>? unknownRecipes = null;
+
+        using var loadingDialog = CreateLoadingDialog(UiStrings.Get("recipe.add_recipe_title"));
+        loadingDialog.Shown += (s, ev) =>
+        {
+            var knownIds = new HashSet<string>(
+                _recipeGrid.Rows.Cast<DataGridViewRow>().Select(r => r.Cells["ID"].Value as string ?? ""),
+                StringComparer.OrdinalIgnoreCase);
+
+            var recipes = _recipeDatabase.Recipes
+                .Where(r => !knownIds.Contains(r.Id))
+                .OrderBy(r => r.Id)
+                .ToList();
+
+            unknownRecipes = new List<(Image? icon, string name, string id, string category)>(recipes.Count);
+            for (int i = 0; i < recipes.Count; i++)
+            {
+                var r = recipes[i];
+                string resultId = r.Result?.Id ?? "";
+                Image? icon = GetScaledIcon(resultId);
+                string typeLabel = r.Cooking
+                    ? UiStrings.Get("recipe.type_cooking")
+                    : UiStrings.Get("recipe.type_refining");
+                string resultText = r.Result != null
+                    ? $"{r.Result.Amount}x {(_database?.GetItem(r.Result.Id)?.Name ?? r.Result.Id)}"
+                    : "";
+                string ingText = string.Join(", ", r.Ingredients.Select(ing =>
+                    $"{ing.Amount}x {(_database?.GetItem(ing.Id)?.Name ?? ing.Id)}"));
+                string pickerCategory = ingText.Length > 0
+                    ? $"{typeLabel}  |  {ingText}  →  {resultText}"
+                    : $"{typeLabel}  →  {resultText}";
+                unknownRecipes.Add((icon ?? (Image)PlaceholderIcon, r.RecipeName, r.Id, pickerCategory));
+                if (i % 50 == 0) Application.DoEvents();
+            }
+
+            loadingDialog.Close();
+        };
+        loadingDialog.ShowDialog(this);
+
+        if (unknownRecipes == null || unknownRecipes.Count == 0) return;
+
+        using var picker = new ItemPickerDialog(UiStrings.Get("recipe.add_recipe_title"), unknownRecipes);
+        if (picker.ShowDialog(this) == DialogResult.OK && picker.SelectedIds.Count > 0)
+        {
+            foreach (var selectedId in picker.SelectedIds)
+            {
+                var recipe = _recipeDatabase.GetRecipe(selectedId);
+                if (recipe != null)
+                    AddRecipeRow(recipe);
+            }
+            RaiseDataModified();
+        }
+    }
+
+    private void RemoveRecipe_Click(object? sender, EventArgs e) { RemoveSelectedFromGrid(_recipeGrid); RaiseDataModified(); }
+
+    private void ApplyRecipeFilter()
+    {
+        string filter = _recipeFilterBox.Text.Trim();
+        foreach (DataGridViewRow row in _recipeGrid.Rows)
+        {
+            if (string.IsNullOrEmpty(filter))
+            {
+                row.Visible = true;
+                continue;
+            }
+            string name = row.Cells["Name"].Value as string ?? "";
+            string category = row.Cells["Category"].Value as string ?? "";
+            string result = row.Cells["Result"].Value as string ?? "";
+            string ingredients = row.Cells["Ingredients"].Value as string ?? "";
+            string id = row.Cells["ID"].Value as string ?? "";
+            row.Visible = name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                       || category.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                       || result.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                       || ingredients.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                       || id.Contains(filter, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private void ExportRecipeList()
+    {
+        ExportDiscoveryList("Known Recipes", _recipeGrid, "ID");
+    }
+
+    private void ImportRecipeList()
+    {
+        var config = ExportConfig.Instance;
+        using var dialog = new OpenFileDialog
+        {
+            Filter = ExportConfig.BuildOpenFilter(config.DiscoveryExt, "Discovery files")
+        };
+        if (dialog.ShowDialog() != DialogResult.OK) return;
+
+        try
+        {
+            var imported = JsonObject.ImportFromFile(dialog.FileName);
+            JsonArray? arr = null;
+            foreach (var name in imported.Names())
+            {
+                try { arr = imported.GetArray(name); break; } catch { }
+            }
+            if (arr == null || arr.Length == 0)
+            {
+                MessageBox.Show(this, UiStrings.Get("discovery.import_no_items"), UiStrings.Get("discovery.import_title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            int added = 0;
+            var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (DataGridViewRow row in _recipeGrid.Rows)
+                existingIds.Add(row.Cells["ID"].Value?.ToString() ?? "");
+
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string rawId = arr.GetString(i) ?? "";
+                if (string.IsNullOrEmpty(rawId)) continue;
+                string id = CatalogueLogic.StripCaretPrefix(rawId);
+                if (existingIds.Contains(id)) continue;
+                existingIds.Add(id);
+
+                var recipe = _recipeDatabase?.GetRecipe(id);
+                if (recipe != null)
+                {
+                    AddRecipeRow(recipe);
+                    added++;
+                }
+            }
+
+            MessageBox.Show(this, UiStrings.Format("discovery.import_success_items", added), UiStrings.Get("discovery.import_title"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+            RaiseDataModified();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, UiStrings.Format("discovery.import_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
     public void ApplyUiLocalisation()
     {
         // Tab pages
-        if (_tabControl.TabPages.Count >= 7)
+        if (_tabControl.TabPages.Count >= 8)
         {
             _tabControl.TabPages[0].Text = UiStrings.Get("discovery.tab_tech");
             _tabControl.TabPages[1].Text = UiStrings.Get("discovery.tab_products");
@@ -1681,6 +1946,7 @@ public partial class CataloguePanel : UserControl
             _tabControl.TabPages[4].Text = UiStrings.Get("discovery.tab_glyphs");
             _tabControl.TabPages[5].Text = UiStrings.Get("discovery.tab_locations");
             _tabControl.TabPages[6].Text = UiStrings.Get("discovery.tab_fish");
+            _tabControl.TabPages[7].Text = UiStrings.Get("discovery.tab_recipes");
         }
 
         // Buttons
@@ -1770,7 +2036,21 @@ public partial class CataloguePanel : UserControl
         _importFishBtn.Text = UiStrings.Get("common.import");
 
         // Recipe tab
-        if (_recipeTab != null) _recipeTab.Text = UiStrings.Get("discovery.tab_recipes");
+        if (_recipeInnerTabs != null && _recipeInnerTabs.TabPages.Count >= 2)
+        {
+            _recipeInnerTabs.TabPages[0].Text = UiStrings.Get("recipe.tab_known_recipes");
+            _recipeInnerTabs.TabPages[1].Text = UiStrings.Get("recipe.tab_recipe_info");
+        }
+        if (_addRecipeBtn != null) _addRecipeBtn.Text = UiStrings.Get("recipe.add_recipe");
+        if (_removeRecipeBtn != null) _removeRecipeBtn.Text = UiStrings.Get("recipe.remove_selected");
+        if (_exportRecipeBtn != null) _exportRecipeBtn.Text = UiStrings.Get("common.export");
+        if (_importRecipeBtn != null) _importRecipeBtn.Text = UiStrings.Get("common.import");
+        if (_recipeFilterBox != null) _recipeFilterBox.PlaceholderText = UiStrings.Get("recipe.filter_placeholder");
+        if (_recipeGrid.Columns["Name"] is DataGridViewColumn rName) rName.HeaderText = UiStrings.Get("recipe.col_name");
+        if (_recipeGrid.Columns["Category"] is DataGridViewColumn rCat) rCat.HeaderText = UiStrings.Get("recipe.col_type");
+        if (_recipeGrid.Columns["Result"] is DataGridViewColumn rRes) rRes.HeaderText = UiStrings.Get("recipe.col_result");
+        if (_recipeGrid.Columns["Ingredients"] is DataGridViewColumn rIng) rIng.HeaderText = UiStrings.Get("recipe.col_ingredients");
+        if (_recipeGrid.Columns["ID"] is DataGridViewColumn rId) rId.HeaderText = UiStrings.Get("recipe.col_id");
 
         // Race labels in known words
         string[] raceLocKeys = { "common.race_gek", "common.race_vykeen", "common.race_korvax", "discovery.race_atlas", "discovery.race_autophage" };

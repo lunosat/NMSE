@@ -589,6 +589,117 @@ partial class CataloguePanel
         fishTab.Controls.Add(fishLayout);
         _tabControl.TabPages.Add(fishTab);
 
+        // --- Tab 7: Recipes (inner tabs) ---
+        _recipeTab = new TabPage(UiStrings.Get("recipe.tab_recipes"));
+        _recipeInnerTabs = new DoubleBufferedTabControl
+        {
+            Dock = DockStyle.Fill
+        };
+
+        // Inner Tab 0: Known Recipes
+        _knownRecipesTab = new TabPage(UiStrings.Get("recipe.tab_known_recipes"));
+        var knownRecipeLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 3,
+        };
+        knownRecipeLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        knownRecipeLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        knownRecipeLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var recipeFilterPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        _recipeFilterBox = new TextBox { Width = 200, PlaceholderText = UiStrings.Get("recipe.filter_placeholder") };
+        _recipeFilterBox.TextChanged += (s, e) => ApplyRecipeFilter();
+        _recipeFilterClearBtn = new Button { Text = "X", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(28, 0) };
+        _recipeFilterClearBtn.Click += (s, e) => { _recipeFilterBox.Text = ""; };
+        recipeFilterPanel.Controls.Add(_recipeFilterBox);
+        recipeFilterPanel.Controls.Add(_recipeFilterClearBtn);
+        knownRecipeLayout.Controls.Add(recipeFilterPanel, 0, 0);
+
+        _recipeGrid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            RowHeadersVisible = false,
+            ReadOnly = true,
+            RowTemplate = { Height = 28 }
+        };
+        var recipeIconCol = new DataGridViewImageColumn
+        {
+            Name = "Icon",
+            HeaderText = "⚙️",
+            Width = 36,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+        };
+        recipeIconCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        _recipeGrid.Columns.Add(recipeIconCol);
+        _recipeGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Name", HeaderText = UiStrings.Get("recipe.col_name"), FillWeight = 15 });
+        _recipeGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Category", HeaderText = UiStrings.Get("recipe.col_type"), FillWeight = 8 });
+        var recipeResultIconCol = new DataGridViewImageColumn
+        {
+            Name = "ResultIcon",
+            HeaderText = "⚙️",
+            Width = 36,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+        };
+        recipeResultIconCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        _recipeGrid.Columns.Add(recipeResultIconCol);
+        _recipeGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Result", HeaderText = UiStrings.Get("recipe.col_result"), FillWeight = 12 });
+        var recipeIngIconCol = new DataGridViewImageColumn
+        {
+            Name = "IngredientsIcon",
+            HeaderText = "⚙️",
+            Width = 56,
+            ImageLayout = DataGridViewImageCellLayout.Zoom,
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+        };
+        recipeIngIconCol.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        _recipeGrid.Columns.Add(recipeIngIconCol);
+        _recipeGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Ingredients", HeaderText = UiStrings.Get("recipe.col_ingredients"), FillWeight = 22 });
+        _recipeGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID", HeaderText = UiStrings.Get("recipe.col_id"), FillWeight = 8 });
+        knownRecipeLayout.Controls.Add(_recipeGrid, 0, 1);
+
+        var recipeButtonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+        };
+        _addRecipeBtn = new Button { Text = UiStrings.Get("recipe.add_recipe"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _addRecipeBtn.Click += AddRecipe_Click;
+        _removeRecipeBtn = new Button { Text = UiStrings.Get("recipe.remove_selected"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _removeRecipeBtn.Click += RemoveRecipe_Click;
+        _exportRecipeBtn = new Button { Text = "Export", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _exportRecipeBtn.Click += (s, e) => ExportRecipeList();
+        _importRecipeBtn = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _importRecipeBtn.Click += (s, e) => ImportRecipeList();
+        recipeButtonPanel.Controls.Add(_addRecipeBtn);
+        recipeButtonPanel.Controls.Add(_removeRecipeBtn);
+        recipeButtonPanel.Controls.Add(_exportRecipeBtn);
+        recipeButtonPanel.Controls.Add(_importRecipeBtn);
+        knownRecipeLayout.Controls.Add(recipeButtonPanel, 0, 2);
+
+        _knownRecipesTab.Controls.Add(knownRecipeLayout);
+        _recipeInnerTabs.TabPages.Add(_knownRecipesTab);
+
+        // Inner Tab 1: Recipe Info
+        _recipeInfoTab = new TabPage(UiStrings.Get("recipe.tab_recipe_info"));
+        _recipeInnerTabs.TabPages.Add(_recipeInfoTab);
+
+        _recipeTab.Controls.Add(_recipeInnerTabs);
+        _tabControl.TabPages.Add(_recipeTab);
+
         Controls.Add(_tabControl);
         ResumeLayout(false);
         PerformLayout();
@@ -672,4 +783,14 @@ partial class CataloguePanel
 
     // Recipe tab
     private TabPage _recipeTab;
+    private DoubleBufferedTabControl _recipeInnerTabs = null!;
+    private TabPage _knownRecipesTab = null!;
+    private TabPage _recipeInfoTab = null!;
+    private DataGridView _recipeGrid = null!;
+    private TextBox _recipeFilterBox = null!;
+    private Button _recipeFilterClearBtn = null!;
+    private Button _addRecipeBtn = null!;
+    private Button _removeRecipeBtn = null!;
+    private Button _exportRecipeBtn = null!;
+    private Button _importRecipeBtn = null!;
 }
