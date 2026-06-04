@@ -22,7 +22,7 @@ It boats the most complete set of editable features among editors and supports e
 [**Download Latest Release**][releases] · [**See The Website**][website] · [**Report a Bug**][issues-bug] · [**Request a Feature**][issues-feature] <br />
 [**User Guide**][user-guide]
 
-> **Latest Supported Game Version:** 6.36 *Xeno Arena*
+> **Latest Supported Game Version:** 6.43 _**The Swarm**_
 
 </div>
 
@@ -41,6 +41,7 @@ It boats the most complete set of editable features among editors and supports e
 - Unlock words, glyphs, and discoveries
 - Full milestone and journey milestone editing
 - Edit multi-tool inventory, type, class, and seed
+- Edit known items (product, tech, recipes, etc.)
 
 ### 🏗️ Bases, Settlements
 - Edit base inventories and storage chests
