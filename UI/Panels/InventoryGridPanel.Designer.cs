@@ -414,7 +414,73 @@ partial class InventoryGridPanel
         detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         row++;
 
-        // === PICKER ITEM DETAILS SECTION (above the search/filter controls) ===
+        // === PICKER SEARCH & FILTER CONTROLS (above icons/details) ===
+        // Search box
+        var searchPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty,
+        };
+        searchPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        searchPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _searchBox = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "Search items..." };
+        _searchButton = new Button { Text = "Search", Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _searchButton.Click += OnSearch;
+        _searchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) OnSearch(s, e); };
+        searchPanel.Controls.Add(_searchBox, 0, 0);
+        searchPanel.Controls.Add(_searchButton, 1, 0);
+        _searchLabel = CreateLabel("Search:");
+        detailLayout.Controls.Add(_searchLabel, 0, row);
+        detailLayout.Controls.Add(searchPanel, 1, row);
+        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        row++;
+
+        // Type filter
+        _typeFilter = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList
+        };
+        _typeFilter.SelectedIndexChanged += OnTypeFilterChanged;
+        _typeFilterLabel = CreateLabel("Type:");
+        detailLayout.Controls.Add(_typeFilterLabel, 0, row);
+        detailLayout.Controls.Add(_typeFilter, 1, row);
+        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        row++;
+
+        // Category filter
+        _categoryFilter = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList
+        };
+        _categoryFilter.SelectedIndexChanged += OnCategoryFilterChanged;
+        _categoryFilterLabel = CreateLabel("Category:");
+        detailLayout.Controls.Add(_categoryFilterLabel, 0, row);
+        detailLayout.Controls.Add(_categoryFilter, 1, row);
+        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        row++;
+
+        // Item picker combobox
+        _itemPicker = new ComboBox
+        {
+            Dock = DockStyle.Fill,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            MaxDropDownItems = 20
+        };
+        _itemPicker.SelectedIndexChanged += OnItemPickerChanged;
+        _itemFilterLabel = CreateLabel("Item:");
+        detailLayout.Controls.Add(_itemFilterLabel, 0, row);
+        detailLayout.Controls.Add(_itemPicker, 1, row);
+        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        row++;
+
+        // === PICKER ITEM DETAILS SECTION (below the search/filter controls) ===
         // Icon with info tooltip hint and class icon beside it
         _pickerIcon = new PictureBox
         {
@@ -606,86 +672,6 @@ partial class InventoryGridPanel
         _pickerApplyButton.Click += OnPickerApplyItem;
         detailLayout.Controls.Add(_pickerApplyButton, 0, row);
         detailLayout.SetColumnSpan(_pickerApplyButton, 2);
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        row++;
-
-        // Picker separator before search/filter controls
-        var pickerSeparator2 = new Label
-        {
-            Text = "",
-            BorderStyle = BorderStyle.Fixed3D,
-            AutoSize = false,
-            Height = 2,
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 6, 0, 6)
-        };
-        detailLayout.Controls.Add(pickerSeparator2, 0, row);
-        detailLayout.SetColumnSpan(pickerSeparator2, 2);
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        row++;
-
-        // Search box
-        var searchPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Padding = Padding.Empty,
-            Margin = Padding.Empty,
-        };
-        searchPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        searchPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        _searchBox = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "Search items..." };
-        _searchButton = new Button { Text = "Search", Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
-        _searchButton.Click += OnSearch;
-        _searchBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) OnSearch(s, e); };
-        searchPanel.Controls.Add(_searchBox, 0, 0);
-        searchPanel.Controls.Add(_searchButton, 1, 0);
-        _searchLabel = CreateLabel("Search:");
-        detailLayout.Controls.Add(_searchLabel, 0, row);
-        detailLayout.Controls.Add(searchPanel, 1, row);
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        row++;
-
-        // Type filter
-        _typeFilter = new ComboBox
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList
-        };
-        _typeFilter.SelectedIndexChanged += OnTypeFilterChanged;
-        _typeFilterLabel = CreateLabel("Type:");
-        detailLayout.Controls.Add(_typeFilterLabel, 0, row);
-        detailLayout.Controls.Add(_typeFilter, 1, row);
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        row++;
-
-        // Category filter
-        _categoryFilter = new ComboBox
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList
-        };
-        _categoryFilter.SelectedIndexChanged += OnCategoryFilterChanged;
-        _categoryFilterLabel = CreateLabel("Category:");
-        detailLayout.Controls.Add(_categoryFilterLabel, 0, row);
-        detailLayout.Controls.Add(_categoryFilter, 1, row);
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        row++;
-
-        // Item picker combobox
-        _itemPicker = new ComboBox
-        {
-            Dock = DockStyle.Fill,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            MaxDropDownItems = 20
-        };
-        _itemPicker.SelectedIndexChanged += OnItemPickerChanged;
-        _itemFilterLabel = CreateLabel("Item:");
-        detailLayout.Controls.Add(_itemFilterLabel, 0, row);
-        detailLayout.Controls.Add(_itemPicker, 1, row);
         detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         row++;
 
