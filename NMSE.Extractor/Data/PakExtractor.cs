@@ -153,12 +153,18 @@ public static partial class PakExtractor
             using (var process = Process.Start(psi)
                 ?? throw new InvalidOperationException("Failed to start hgpaktool."))
             {
-                var stderrTask = process.StandardError.ReadToEndAsync();
                 var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                var stderrTask = process.StandardError.ReadToEndAsync();
+
+                if (!process.WaitForExit(120_000))
+                {
+                    try { process.Kill(); } catch { }
+                    Console.WriteLine($"  [TIMEOUT] hgpaktool hung on {pakName}");
+                    continue;
+                }
 
                 string stdout = stdoutTask.GetAwaiter().GetResult();
                 string stderr = stderrTask.GetAwaiter().GetResult();
-                process.WaitForExit();
 
                 // Parse actual count from hgpaktool output ("Unpacked N files")
                 // Check both stderr and stdout as different hgpaktool versions vary

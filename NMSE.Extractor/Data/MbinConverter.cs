@@ -122,9 +122,21 @@ public static class MbinConverter
                 Console.Error.WriteLine($"  [ERROR] Failed to start MBINCompiler for {Path.GetFileName(mbinFile)}");
                 return;
             }
-            process.StandardOutput.ReadToEnd();
-            string stderr = process.StandardError.ReadToEnd();
-            process.WaitForExit();
+
+            // Read both streams asynchronously to avoid deadlock
+            // when the process fills the stderr buffer.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(120_000))
+            {
+                try { process.Kill(); } catch { }
+                Console.Error.WriteLine($"  [TIMEOUT] MBINCompiler hung on {Path.GetFileName(mbinFile)}");
+                return;
+            }
+
+            string stdout = stdoutTask.GetAwaiter().GetResult();
+            string stderr = stderrTask.GetAwaiter().GetResult();
             int count = Interlocked.Increment(ref completed);
             if (process.ExitCode != 0)
                 Console.Error.WriteLine($"  [{count}/{mbinFiles.Length}] FAILED {Path.GetFileName(mbinFile)} (exit code {process.ExitCode}): {stderr.Trim()}");

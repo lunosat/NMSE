@@ -2555,14 +2555,28 @@ public static class Parsers
                 });
             }
 
-            configs.Add(new Dictionary<string, object?>
+            var extraColours = new List<Dictionary<string, object?>>();
+            if (string.Equals(configKey, "Sail", StringComparison.OrdinalIgnoreCase))
+            {
+                extraColours.Add(new Dictionary<string, object?>
+                {
+                    ["PaletteName"] = "SailShip_Sails",
+                    ["ColourAlt"] = "Primary",
+                    ["DisplayPaletteId"] = "SailShip_Sails",
+                    ["LabelKey"] = "starship.customisation_sail_colour",
+                });
+            }
+
+            var config = new Dictionary<string, object?>
             {
                 ["ConfigKey"] = configKey,
                 ["BaseResource"] = baseResource,
                 ["Slots"] = slots,
                 ["TextureGroups"] = textureGroups,
                 ["PaletteIDs"] = paletteIds,
-            });
+                ["ExtraColourChannels"] = extraColours,
+            };
+            configs.Add(config);
         }
 
         Console.WriteLine($"[OK] ParseShipCustomisation: {configs.Count} ship configs");
@@ -2587,26 +2601,38 @@ public static class Parsers
         var root = MxmlParser.LoadXml(mxmlPath);
         var results = new List<Dictionary<string, object?>>();
 
-        var tableParent = root.Descendants("Property")
-            .FirstOrDefault(e => e.Attribute("name")?.Value == "Table"
+        var palettesParent = root.Descendants("Property")
+            .FirstOrDefault(e => e.Attribute("name")?.Value == "Palettes"
                               && e.Parent?.Name.LocalName == "Data");
-        if (tableParent == null)
+        if (palettesParent == null)
         {
-            Console.WriteLine("[WARN] ParseBaseColourPalettes: Table element not found");
+            Console.WriteLine("[WARN] ParseBaseColourPalettes: Palettes element not found");
             return results;
         }
 
-        foreach (var paletteElem in tableParent.Elements("Property")
+        foreach (var paletteElem in palettesParent.Elements("Property")
             .Where(e => e.Attribute("value")?.Value == "GcPaletteData"))
         {
-            string paletteId = paletteElem.Elements("Property")
-                .Where(e => e.Attribute("name")?.Value == "Name")
-                .Select(e => e.Attribute("value")?.Value ?? "")
-                .FirstOrDefault() ?? "";
+            string paletteId = paletteElem.Attribute("name")?.Value ?? "";
 
             if (string.IsNullOrEmpty(paletteId) ||
                 paletteId.Equals("NULL", StringComparison.OrdinalIgnoreCase))
                 continue;
+
+            // Read NumColours — the game stores only N distinct colours, but
+            // the array may be padded with repeats to fill 64 slots.
+            string numColoursValue = paletteElem.Elements("Property")
+                .Where(e => e.Attribute("name")?.Value == "NumColours")
+                .Select(e => e.Attribute("value")?.Value ?? "")
+                .FirstOrDefault() ?? "";
+            int? activeCount = null;
+            if (!string.IsNullOrEmpty(numColoursValue) &&
+                !numColoursValue.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                string cleaned = numColoursValue.TrimStart('_');
+                if (int.TryParse(cleaned, out int parsed))
+                    activeCount = parsed;
+            }
 
             var coloursParent = paletteElem.Elements("Property")
                 .FirstOrDefault(e => e.Attribute("name")?.Value == "Colours");
@@ -2625,8 +2651,12 @@ public static class Parsers
 
             if (allColours.Count == 0) continue;
 
+            int colourCount = activeCount.HasValue
+                ? Math.Min(activeCount.Value, allColours.Count)
+                : allColours.Count;
+
             var colourEntries = new List<Dictionary<string, object?>>();
-            for (int i = 0; i < allColours.Count; i++)
+            for (int i = 0; i < colourCount; i++)
             {
                 var (cr, cg, cb, ca) = allColours[i];
                 colourEntries.Add(new Dictionary<string, object?>

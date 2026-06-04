@@ -69,9 +69,20 @@ public static class ImageExtractor
 
     /// <summary>
     /// Convert a DDS file to PNG using ImageMagick's magick.exe.
+    /// Uses async reads to prevent deadlock when the process fills its error buffer.
+    /// Kills the process on timeout (15s) instead of leaking zombie processes.
+    /// Explicitly closes output streams after the process exits so that
+    /// ReadToEndAsync tasks don't hang if magick.exe neglects to close
+    /// its stdout/stderr pipe handles on exit.
     /// </summary>
     public static bool DdsToPng(string magickPath, string source, string dest)
     {
+        if (!File.Exists(source))
+        {
+            Console.WriteLine($"[WARN] DdsToPng: source not found: {source}");
+            return false;
+        }
+
         try
         {
             var psi = new ProcessStartInfo
@@ -84,14 +95,42 @@ public static class ImageExtractor
                 CreateNoWindow = true,
             };
             using var process = Process.Start(psi);
-            if (process == null) return false;
-            process.StandardOutput.ReadToEnd();
-            process.StandardError.ReadToEnd();
-            process.WaitForExit(30_000);
+            if (process == null)
+            {
+                Console.WriteLine($"[WARN] DdsToPng: Process.Start returned null for {source}");
+                return false;
+            }
+
+            // Read both streams asynchronously to avoid deadlock
+            // when the process fills the stderr buffer (e.g. unsupported DDS format warnings).
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            bool exited = process.WaitForExit(15_000);
+            if (!exited)
+            {
+                Console.WriteLine($"[WARN] DdsToPng: magick.exe timed out on {Path.GetFileName(source)} — killing");
+                try { process.Kill(); } catch { }
+                return false;
+            }
+
+            // The async reads should complete within a few seconds of the
+            // process exiting (OS pipes are flushed). If they don't, the
+            // pipe is probably stuck open because magick.exe didn't close
+            // its stdout/stderr handles on exit. Force-close to unblock.
+            if (!Task.WhenAll(stdoutTask, stderrTask).Wait(3_000))
+            {
+                Console.WriteLine($"[WARN] DdsToPng: output pipe hung after exit for {Path.GetFileName(source)} — closing streams");
+                process.StandardOutput.Close();
+                process.StandardError.Close();
+                return false;
+            }
+
             return process.ExitCode == 0;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[WARN] DdsToPng: exception for {Path.GetFileName(source)}: {ex.Message}");
             return false;
         }
     }
@@ -133,14 +172,17 @@ public static class ImageExtractor
         }
 
         int success = 0, skipped = 0;
-        int progressInterval = Math.Max(1, Math.Min(100, pairs.Count / 20));
+        // Show progress every 5% of total or once per file, whichever is more visible
+        int progressInterval = Math.Max(1, Math.Min(10, pairs.Count / 20));
 
         for (int i = 0; i < pairs.Count; i++)
         {
-            if ((i + 1) % progressInterval == 0 || i + 1 == pairs.Count)
+            var (idVal, iconPath) = pairs[i];
+
+            bool showProgress = (i + 1) % progressInterval == 0 || i + 1 == pairs.Count;
+            if (showProgress)
                 PakExtractor.WriteProgress($"  [{i + 1}/{pairs.Count}] Converting icons...");
 
-            var (idVal, iconPath) = pairs[i];
             string source = Path.Combine(extractedRoot, iconPath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(source)) { skipped++; continue; }
 

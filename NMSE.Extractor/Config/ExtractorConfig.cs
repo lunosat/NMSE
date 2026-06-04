@@ -12,6 +12,7 @@ public static class ExtractorConfig
 
     public const string ImageMagickLatestUrl = "https://github.com/ImageMagick/ImageMagick/releases/latest/";
     public const string ImageMagickDownloadPattern = "https://github.com/ImageMagick/ImageMagick/releases/download/{0}/ImageMagick-{0}-portable-Q16-HDRI-x64.7z";
+    public const int ImageMagickMaxFallbacks = 5;
     public const string SevenZipLatestUrl = "https://github.com/ip7z/7zip/releases/latest/";
     public const string SevenZipDownloadPattern = "https://github.com/ip7z/7zip/releases/download/{0}/7zr.exe";
 
@@ -88,7 +89,7 @@ public static class ExtractorConfig
         "*GAMESTATE/PLAYERDATA/CHARACTERCUSTOMISATIONDESCRIPTORGROUPSDATA.mbin",
         "*GAMESTATE/PLAYERDATA/modularcustomisationdatatable.mbin",
         "*GAMESTATE/PLAYERDATA/customisationcolourpalettes.mbin",
-        "*GAMESTATE/PLAYERDATA/basecolourpalettes.mbin",
+        "*SIMULATION/SOLARSYSTEM/COLOURS/basecolourpalettes.mbin",
         "*SIMULATION/GAMETABLES/PETBATTLER/PETBATTLERMOVESTABLE.mbin",
         "*SIMULATION/GAMETABLES/PETBATTLER/PETBATTLERMOVESETSTABLE.mbin",
         "*SIMULATION/ECOSYSTEM/creaturedatatable.mbin",
@@ -113,7 +114,7 @@ public static class ExtractorConfig
     ];
 
     /// <summary>
-    /// Filters for DDS texture files needed for icon extraction (Tex* paks only).
+    /// Filters for DDS texture files needed for icon extraction (Tex* and hex paks).
     /// </summary>
     public static readonly string[] TextureFilters =
     [
@@ -137,6 +138,8 @@ public static class ExtractorConfig
     /// NMS distributes game data across many paks (including hex-named paks),
     /// so all non-texture paks receive MBIN filters. Texture paks only get DDS filters.
     /// EntitySceneMBIN paks get scene-specific MBIN filters.
+    /// Hex-named paks (no dot) may contain both MBIN and texture data in recent game updates
+    /// (Worlds Part II restructured some texture data into hex paks).
     /// </summary>
     public static string[] GetFiltersForPak(string pakFileName)
     {
@@ -153,11 +156,14 @@ public static class ExtractorConfig
             // EntitySceneMBIN paks contain SCENE.MBIN files with descriptor trees
             if (type.StartsWith("ENTITYSCENEMBIN", StringComparison.Ordinal))
                 return SceneMbinFilters;
+
+            // All other dot-named paks get MBIN-only filters
+            return MbinFilters;
         }
 
-        // All other paks get MBIN filters (metadata + locale + globals).
-        // NMS distributes game data across many paks.
-        return MbinFilters;
+        // Hex-named paks (no dot, e.g. "abcdef1234567890.pak"): include both MBIN and texture
+        // filters since recent game updates may scatter DDS files across any pak.
+        return AllExtractionFilters;
     }
 
     /// <summary>

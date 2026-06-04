@@ -1196,4 +1196,218 @@ public class ParsersIntegrationTests
             try { Directory.Delete(tmpDir, true); } catch { }
         }
     }
+
+    [Fact]
+    public void ParseBaseColourPalettes_ReturnsPalettesWithSailShip_Sails()
+    {
+        string xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Data template=""cGcPaletteList"">
+  <Property name=""Palettes"">
+    <Property name=""Grass"" value=""GcPaletteData"">
+      <Property name=""NumColours"" value=""All"" />
+      <Property name=""Colours"">
+        <Property name=""Colours"" _index=""0"">
+          <Property name=""R"" value=""1"" />
+          <Property name=""G"" value=""1"" />
+          <Property name=""B"" value=""1"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+      </Property>
+    </Property>
+    <Property name=""SailShip_Sails"" value=""GcPaletteData"">
+      <Property name=""NumColours"" value=""All"" />
+      <Property name=""Colours"">
+        <Property name=""Colours"" _index=""0"">
+          <Property name=""R"" value=""0.5"" />
+          <Property name=""G"" value=""0.25"" />
+          <Property name=""B"" value=""0.125"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+      </Property>
+    </Property>
+  </Property>
+</Data>";
+
+        string tmpDir = CreateTempDir();
+        try
+        {
+            string mxmlPath = Path.Combine(tmpDir, "basecolourpalettes.MXML");
+            File.WriteAllText(mxmlPath, xml);
+
+            var results = Parsers.ParseBaseColourPalettes(mxmlPath);
+
+            Assert.Equal(2, results.Count);
+            Assert.Equal("Grass", results[0]["PaletteID"]);
+            Assert.Equal("SailShip_Sails", results[1]["PaletteID"]);
+
+            var sailsColours = results[1]["Colours"] as List<Dictionary<string, object?>>;
+            Assert.NotNull(sailsColours);
+            Assert.Single(sailsColours);
+            Assert.Equal(128, sailsColours![0]["R"]);
+            Assert.Equal(64, sailsColours[0]["G"]);
+            Assert.Equal(32, sailsColours[0]["B"]);
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ParseBaseColourPalettes_RespectsNumColoursCount()
+    {
+        // Simulates the game data pattern: NumColours=_4 but the XML has
+        // 8 colour entries (the 4 unique + 4 repeats as padding).
+        string xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Data template=""cGcPaletteList"">
+  <Property name=""Palettes"">
+    <Property name=""TestPalette"" value=""GcPaletteData"">
+      <Property name=""NumColours"" value=""_4"" />
+      <Property name=""Colours"">
+        <Property name=""Colours"" _index=""0"">
+          <Property name=""R"" value=""1"" />
+          <Property name=""G"" value=""0"" />
+          <Property name=""B"" value=""0"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""1"">
+          <Property name=""R"" value=""0"" />
+          <Property name=""G"" value=""1"" />
+          <Property name=""B"" value=""0"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""2"">
+          <Property name=""R"" value=""0"" />
+          <Property name=""G"" value=""0"" />
+          <Property name=""B"" value=""1"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""3"">
+          <Property name=""R"" value=""1"" />
+          <Property name=""G"" value=""1"" />
+          <Property name=""B"" value=""0"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""4"">
+          <Property name=""R"" value=""1"" />
+          <Property name=""G"" value=""0"" />
+          <Property name=""B"" value=""0"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""5"">
+          <Property name=""R"" value=""0"" />
+          <Property name=""G"" value=""1"" />
+          <Property name=""B"" value=""0"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""6"">
+          <Property name=""R"" value=""0"" />
+          <Property name=""G"" value=""0"" />
+          <Property name=""B"" value=""1"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+        <Property name=""Colours"" _index=""7"">
+          <Property name=""R"" value=""1"" />
+          <Property name=""G"" value=""1"" />
+          <Property name=""B"" value=""0"" />
+          <Property name=""A"" value=""1"" />
+        </Property>
+      </Property>
+    </Property>
+  </Property>
+</Data>";
+
+        string tmpDir = CreateTempDir();
+        try
+        {
+            string mxmlPath = Path.Combine(tmpDir, "basecolourpalettes.MXML");
+            File.WriteAllText(mxmlPath, xml);
+
+            var results = Parsers.ParseBaseColourPalettes(mxmlPath);
+
+            Assert.Single(results);
+            Assert.Equal("TestPalette", results[0]["PaletteID"]);
+
+            var colours = results[0]["Colours"] as List<Dictionary<string, object?>>;
+            Assert.NotNull(colours);
+            Assert.Equal(4, colours!.Count); // Only 4, not 8
+            Assert.Equal(255, colours[0]["R"]);   // red
+            Assert.Equal(255, colours[1]["G"]);   // green
+            Assert.Equal(255, colours[2]["B"]);   // blue
+            Assert.Equal(255, colours[3]["R"]);   // yellow (R+G)
+            Assert.Equal(255, colours[3]["G"]);
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void ParseShipCustomisation_AddsExtraColourChannelsForSail()
+    {
+        string xml = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Data template=""GcModularCustomisationDataTable"">
+  <Property name=""ModularCustomisationConfigs"">
+    <Property name=""Fighter"" value=""GcModularCustomisationConfig"">
+      <Property name=""BaseResource"" value=""GcExactResource"">
+        <Property name=""Filename"" value=""MODELS/COMMON/SPACECRAFT/FIGHTERS/FIGHTER_PROC.SCENE.MBIN"" />
+      </Property>
+    </Property>
+    <Property name=""Sail"" value=""GcModularCustomisationConfig"">
+      <Property name=""BaseResource"" value=""GcExactResource"">
+        <Property name=""Filename"" value=""MODELS/COMMON/SPACECRAFT/SAILSHIP/SAILSHIP_PROC.SCENE.MBIN"" />
+      </Property>
+      <Property name=""Slots"">
+        <Property name=""SAIL_BODY"" value=""GcModularCustomisationSlotConfig"">
+          <Property name=""SlotID"" value=""SAIL_BODY"" />
+          <Property name=""LabelLocID"" value=""UI_SLOT_FUSELAGE"" />
+          <Property name=""SlottableItems"">
+            <Property name=""SAIL_BODYA"" value=""GcModularCustomisationSlotItemData"">
+              <Property name=""ItemID"" value=""SAIL_BODYA"" />
+              <Property name=""DescriptorGroupData"">
+                <Property value=""GcModularCustomisationDescriptorGroupData"">
+                  <Property name=""ActivatedDescriptorGroupID"" value=""SAIL_BODYA"" />
+                </Property>
+              </Property>
+            </Property>
+          </Property>
+        </Property>
+      </Property>
+    </Property>
+  </Property>
+</Data>";
+
+        string tmpDir = CreateTempDir();
+        try
+        {
+            string mxmlPath = Path.Combine(tmpDir, "modularcustomisationdatatable.MXML");
+            File.WriteAllText(mxmlPath, xml);
+
+            var results = Parsers.ParseShipCustomisation(mxmlPath);
+
+            Assert.Equal(2, results.Count);
+
+            // Fighter should have empty ExtraColourChannels
+            Assert.Equal("Fighter", results[0]["ConfigKey"]);
+            var fighterExtra = results[0].GetValueOrDefault("ExtraColourChannels") as List<Dictionary<string, object?>>;
+            Assert.NotNull(fighterExtra);
+            Assert.Empty(fighterExtra!);
+
+            // Sail should have the SailShip_Sails ExtraColourChannels
+            Assert.Equal("Sail", results[1]["ConfigKey"]);
+            var sailExtra = results[1].GetValueOrDefault("ExtraColourChannels") as List<Dictionary<string, object?>>;
+            Assert.NotNull(sailExtra);
+            Assert.Single(sailExtra!);
+            Assert.Equal("SailShip_Sails", sailExtra![0]["PaletteName"]);
+            Assert.Equal("Primary", sailExtra[0]["ColourAlt"]);
+            Assert.Equal("SailShip_Sails", sailExtra[0]["DisplayPaletteId"]);
+            Assert.Equal("starship.customisation_sail_colour", sailExtra[0]["LabelKey"]);
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
 }
