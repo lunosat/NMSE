@@ -1,8 +1,40 @@
-## NMSE — No Man's Save Editor v1.1.79 (preview)
+## NMSE — No Man's Save Editor v1.1.93 (preview)
 
 > This is a preview build. Please practice safe backup practices and expect some bugs.
 
 ### Changelog
+
+#### Features:
+
+- **DB and mappings updated for Game Update 6.43 (The Swarm).**
+- User Guide link now in the Help menu. (per FR #93)
+- Added Exocraft station management to the Exocraft panel (new tab) (per FR #79):
+    - Allows viewing details and deleting stations.
+    - Lists separate stations around the galaxies and those in your bases.
+- Added "Known Recipes" panel to the Recipes panel in the Catalogue that functions similarly to the other "Known" Catalogue panels. (per FR #96)
+- Added _**EXPERIMENTAL**_ Multiplayer panel to the MainStats panel. It provides:
+    - Viewing of the co-op / team multiplayer keys.
+    - **NOTE:** Most are overridden by the game and functionality is not guaranteed.<br/>
+      Given the testing/issues for this game update, the stability and use of these keys is likely to change as HG tweak this concept for future use.
+    - This panel may be locked down or removed in the future.
+- Inventory grid panel has had a rework of the Item Picker pane, moving the search above the information per user feedback poll. (per FR #99)
+- NMSE Extractor updated for BC7 (not user facing).
+
+#### Bug Fixes:
+
+- Multi-tools fixes / additions (per Issue #98):
+    - Updated multi-tool type detections that are based on stats (via game file reference).
+    - Corrected erroneous test resource names that didn't get replaced on launch.
+    - Added size change option.
+- Fixed timestamp not updating in the UI on slot reload from the menu. (per Discord)
+- More robust user name detection; now lists all that have an ID in Discovery section and then falls back to user ID bases. (per Discord)
+
+<br />
+
+<details>
+<summary>Previous Changelogs</summary>
+
+### Changelog 1.1.79 (preview)
 
 #### Features:
 
@@ -31,9 +63,6 @@
 - Pressing <kbd>Enter</kbd> in a field now commits the data immediately to the in memory data and ends focus in the field, instead of only clicking to change focus, or using <kbd>Tab</kbd>. (per Issue #92)
 
 <br />
-
-<details>
-<summary>Previous Changelogs</summary>
 
 ### Changelog 1.1.64 (preview)
 
