@@ -16,7 +16,7 @@
 
 
 **NMSE** is a free, open-source desktop application for editing *No Man's Sky* save files.<br />
-It boats the most complete set of editable features among editors and supports every platform the game ships on; <br />
+It boasts the most complete set of editable features among editors and supports every platform the game ships on; <br />
 **Steam**, **GOG**, **Xbox Game Pass**, **PlayStation 4** & **Nintendo Switch**.<br />
 
 [**Download Latest Release**][releases] · [**See The Website**][website] · [**Report a Bug**][issues-bug] · [**Request a Feature**][issues-feature] <br />
