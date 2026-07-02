@@ -99,23 +99,28 @@ The entire application - menus, labels, item names, and descriptions - will upda
 
 ## Opening a Save File
 
-There are two ways to open a save file:
+### Your save directory and files should be auto detected and displayed.
+### If they are, click <kbd>Load</kbd> and you're good to go.
+
+<br>
+
+If they aren't, there are two ways to open your save files:
 
 ### Method 1: Open Save Directory (Recommended)
 
 1. Click <kbd>Browse...</kbd> or <kbd>File > Open Save Directory</kbd> in the menu bar
-2. NMSE will automatically detect your save file location
-3. A list of available save slots will appear
+2. Navigate into your save directory and choose it
+3. A list of available save slots will appear in the UI
 4. Select the save slot and save file you want to edit
 5. Click <kbd>Load</kbd>
 
-### Method 2: Load Save File (Manual)
+### Method 2: Load Individual Save File (Manual)
 
 1. Click <kbd>File > Load Save File</kbd>
 2. Browse to the save file on your computer
 3. Select the file and click **Open**
 
-Use this method for PlayStation or Nintendo Switch saves that you've copied to your PC.
+*Use this method for PlayStation or Nintendo Switch saves that you've copied to your PC.*
 
 ---
 
