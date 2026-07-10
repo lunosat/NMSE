@@ -1,3 +1,4 @@
+using NMSE.IO;
 using NMSE.Models;
 using System;
 using System.Collections.Generic;
@@ -28,6 +29,7 @@ public class PetBattleRoundtripTests
         string json = File.ReadAllText(path);
         var result = JsonParser.ParseObject(json);
         Assert.NotNull(result);
+        SaveFileManager.RegisterContextTransforms(result);
         return result;
     }
 
@@ -36,7 +38,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("modified_pet_battles.json");
         if (save == null) return; // Skip if reference save not available
-        var pets = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!.GetArray("Pets")!;
+        var pets = save.GetObject("PlayerStateData")!.GetArray("Pets")!;
         Assert.True(pets.Length >= 5, $"Pets array should have entries, got {pets.Length}");
 
         var pet0 = pets.GetObject(0)!;
@@ -103,7 +105,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("modified_pet_accesories.json");
         if (save == null) return; // Skip if reference save not available
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
 
         var pac = psd.GetArray("PetAccessoryCustomisation");
         Assert.NotNull(pac);
@@ -153,7 +155,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("modified_pet_battles.json");
         if (save == null) return; // Skip if reference save not available
-        var pet0 = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!.GetArray("Pets")!.GetObject(0)!;
+        var pet0 = save.GetObject("PlayerStateData")!.GetArray("Pets")!.GetObject(0)!;
         var overrides = pet0.GetArray("PetBattlerCoreStatClassOverrides")!;
 
         // Read original
@@ -177,7 +179,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("modified_pet_battles.json");
         if (save == null) return; // Skip if reference save not available
-        var pet0 = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!.GetArray("Pets")!.GetObject(0)!;
+        var pet0 = save.GetObject("PlayerStateData")!.GetArray("Pets")!.GetObject(0)!;
         var moveList = pet0.GetArray("PetBattlerMoveList")!;
 
         var move0 = moveList.GetObject(0)!;
@@ -207,7 +209,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("new_key.json", NewKeyBasePath);
         if (save == null) return; // Skip if reference save not available
-        var pets = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!.GetArray("Pets")!;
+        var pets = save.GetObject("PlayerStateData")!.GetArray("Pets")!;
         Assert.True(pets.Length >= 1, "Expected at least one pet");
 
         var pet0 = pets.GetObject(0)!;
@@ -231,7 +233,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("new_key.json", NewKeyBasePath);
         if (save == null) return; // Skip if reference save not available
-        var pets = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!.GetArray("Pets")!;
+        var pets = save.GetObject("PlayerStateData")!.GetArray("Pets")!;
 
         var pet0 = pets.GetObject(0)!;
 
@@ -257,7 +259,7 @@ public class PetBattleRoundtripTests
     {
         var save = LoadSave("new_key.json", NewKeyBasePath);
         if (save == null) return; // Skip if reference save not available
-        var pet0 = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!.GetArray("Pets")!.GetObject(0)!;
+        var pet0 = save.GetObject("PlayerStateData")!.GetArray("Pets")!.GetObject(0)!;
 
         var moves = pet0.GetArray("PetBattlerMoves")!;
         string orig0 = moves.GetString(0);

@@ -1,3 +1,4 @@
+using NMSE.IO;
 using NMSE.Models;
 using System;
 using System.IO;
@@ -22,7 +23,9 @@ public class CompanionEggInductionTests
     {
         if (!File.Exists(RefPath)) return null;
         string json = File.ReadAllText(RefPath);
-        return JsonParser.ParseObject(json);
+        var data = JsonParser.ParseObject(json);
+        SaveFileManager.RegisterContextTransforms(data);
+        return data;
     }
 
     [Fact]
@@ -31,7 +34,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -51,7 +54,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -65,7 +68,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -81,7 +84,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -102,7 +105,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -149,7 +152,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
         Assert.False(egg.GetBool("HasBeenSummoned"));
@@ -162,7 +165,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -182,7 +185,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 
@@ -202,7 +205,7 @@ public class CompanionEggInductionTests
         var save = LoadReference();
         if (save == null) { _output.WriteLine("Reference file not found, skipping."); return; }
 
-        var psd = save.GetObject("BaseContext")!.GetObject("PlayerStateData")!;
+        var psd = save.GetObject("PlayerStateData")!;
         var pet = psd.GetArray("Pets")!.GetObject(1)!;
         var egg = psd.GetArray("Eggs")!.GetObject(10)!;
 

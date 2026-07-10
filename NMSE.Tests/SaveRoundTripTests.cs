@@ -196,4 +196,62 @@ public class SaveRoundTripTests
         root.Add("BaseContext", baseContext);
         return root;
     }
+
+    [Fact]
+    public void ExpeditionSave_ImportWithTransforms_PreservesDifficulty()
+    {
+        var root = CreateExpeditionSaveData();
+        SaveFileManager.RegisterContextTransforms(root);
+
+        var meta = MetaFileWriter.ExtractMetaInfo(root);
+        Assert.Equal(2, meta.DifficultyPreset);     // Normal = 2
+        Assert.Equal("Normal", meta.DifficultyPresetTag);
+    }
+
+    [Fact]
+    public void RegisterContextTransforms_ExpeditionSave_ResolvesPlayerStateData()
+    {
+        var root = CreateExpeditionSaveData();
+        SaveFileManager.RegisterContextTransforms(root);
+        var psd = root.GetObject("PlayerStateData");
+        Assert.NotNull(psd);
+        Assert.Equal(8, psd.GetInt("Health"));
+    }
+
+    /// <summary>Creates a realistic Expedition context-based save structure.</summary>
+    private static JsonObject CreateExpeditionSaveData()
+    {
+        var root = new JsonObject();
+        root.Add("Version", 4720);
+        root.Add("ActiveContext", "Season");
+
+        var commonState = new JsonObject();
+        commonState.Add("SaveName", "ExpeditionSave");
+        commonState.Add("TotalPlayTime", 7200);
+        root.Add("CommonStateData", commonState);
+
+        var expeditionContext = new JsonObject();
+        var playerState = new JsonObject();
+        playerState.Add("Health", 8);
+        playerState.Add("SaveSummary", "Expedition Summary");
+        var diffState = new JsonObject();
+        var preset = new JsonObject();
+        preset.Add("DifficultyPresetType", "Normal");
+        diffState.Add("Preset", preset);
+        var easiest = new JsonObject();
+        easiest.Add("DifficultyPresetType", "Normal");
+        diffState.Add("EasiestUsedPreset", easiest);
+        var hardest = new JsonObject();
+        hardest.Add("DifficultyPresetType", "Normal");
+        diffState.Add("HardestUsedPreset", hardest);
+        playerState.Add("DifficultyState", diffState);
+        expeditionContext.Add("PlayerStateData", playerState);
+
+        var spawnState = new JsonObject();
+        spawnState.Add("LastKnownPlayerState", "Alive");
+        expeditionContext.Add("SpawnStateData", spawnState);
+
+        root.Add("ExpeditionContext", expeditionContext);
+        return root;
+    }
 }
