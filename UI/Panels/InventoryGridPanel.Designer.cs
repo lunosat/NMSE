@@ -1,5 +1,6 @@
 #nullable enable
 using NMSE.Config;
+using NMSE.Core;
 using NMSE.UI.Controls;
 using NMSE.UI.Util;
 
@@ -121,7 +122,7 @@ partial class InventoryGridPanel
         {
             Dock = DockStyle.Fill,
             AutoScroll = true,
-            BackColor = Color.FromArgb(30, 30, 30)
+            BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InventoryGridBg : Color.FromArgb(30, 30, 30)
         };
         splitContainer.Panel1.Controls.Add(_gridContainer);
         splitContainer.Panel1.Controls.Add(_toolbarPanel);
@@ -133,7 +134,7 @@ partial class InventoryGridPanel
             Dock = DockStyle.Fill,
             Padding = new Padding(8),
             AutoScroll = true,
-            BackColor = SystemColors.Control
+            BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.Background : SystemColors.Control
         };
 
         var detailLayout = new TableLayoutPanel
@@ -166,7 +167,7 @@ partial class InventoryGridPanel
         {
             Size = new Size(72, 72),
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(40, 40, 40),
+            BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InventoryIconBg : Color.FromArgb(40, 40, 40),
             BorderStyle = BorderStyle.FixedSingle
         };
         _detailSlotPosition = new Label { Text = "", AutoSize = true, Margin = new Padding(0, 1, 0, 0) };
@@ -486,7 +487,7 @@ partial class InventoryGridPanel
         {
             Size = new Size(72, 72),
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(40, 40, 40),
+            BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InventoryIconBg : Color.FromArgb(40, 40, 40),
             BorderStyle = BorderStyle.FixedSingle
         };
         _pickerInfoButton = new PictureBox

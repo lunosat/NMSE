@@ -76,6 +76,8 @@ public partial class InventoryGridPanel : UserControl
     private bool _suppressFilterEvents;
     private bool _filtersPopulated;
 
+    private ThemeColors.Palette _currentPalette = ThemeColors.Light;
+
     // Export filename for this inventory
     private string _exportFileName = "inventory.json";
 
@@ -1136,6 +1138,7 @@ public partial class InventoryGridPanel : UserControl
             for (int col = 0; col < width; col++)
             {
                 var cell = new SlotCell(col, r, CellWidth, CellHeight, _sharedToolTip);
+                cell.ApplyPalette(_currentPalette);
                 cell.IsInTechInventory = _isTechInventory;
                 cell.Location = new Point(
                     col * (CellWidth + CellPadding) + CellPadding,
@@ -1997,9 +2000,9 @@ public partial class InventoryGridPanel : UserControl
     /// <summary>
     /// Returns the default background colour for a cell based on its state.
     /// </summary>
-    private static Color GetDefaultCellBackColor(SlotCell cell)
+    private Color GetDefaultCellBackColor(SlotCell cell)
     {
-        return Color.FromArgb(50, 50, 50);
+        return _currentPalette.InventoryGridBg;
     }
 
     /// <summary>
@@ -2133,37 +2136,7 @@ public partial class InventoryGridPanel : UserControl
     {
         if (source.SlotData == null || _slots == null) return;
 
-        // Read values from source
-        string itemId = source.ItemId;
-        int amount = source.Amount;
-        int maxAmount = source.MaxAmount;
-        double damageFactor = source.DamageFactor;
-
-        // Determine inventory type
-        string invType = "Product";
-        if (_database != null)
-        {
-            var (gameItem, _, _) = ResolveGameItem(itemId);
-            if (gameItem != null)
-                invType = ResolveInventoryTypeForItem(gameItem);
-        }
-
-        // Build a new slot JSON object for the target position
-        var newSlot = new JsonObject();
-        var typeObj = new JsonObject();
-        typeObj.Add("InventoryType", invType);
-        newSlot.Add("Type", typeObj);
-        newSlot.Add("Id", EnsureCaretPrefix(itemId));
-        newSlot.Add("Amount", amount);
-        newSlot.Add("MaxAmount", maxAmount);
-        newSlot.Add("DamageFactor", damageFactor);
-        newSlot.Add("FullyInstalled", true);
-        newSlot.Add("AddedAutomatically", false);
-
-        var indexObj = new JsonObject();
-        indexObj.Add("X", target.GridX);
-        indexObj.Add("Y", target.GridY);
-        newSlot.Add("Index", indexObj);
+        var newSlot = InventorySlotHelper.DuplicateSlot(source.SlotData, target.GridX, target.GridY);
 
         // Add or replace slot data in the array
         if (target.SlotData != null && target.SlotIndex >= 0)
@@ -3597,43 +3570,9 @@ public partial class InventoryGridPanel : UserControl
 
     private void OnPasteItem(object? sender, EventArgs e)
     {
-        if (_contextCell == null || _copiedItemCell == null || _slots == null) return;
+        if (_contextCell == null || _copiedItemCell == null || _copiedItemCell.SlotData == null || _slots == null) return;
 
-        // Read item values from copied cell
-        string itemId = _copiedItemCell.ItemId;
-        int amount = _copiedItemCell.Amount;
-        int maxAmount = _copiedItemCell.MaxAmount;
-        double damageFactor = _copiedItemCell.DamageFactor;
-
-        // Determine inventory type from database
-        string invType = "Product";
-        if (_database != null)
-        {
-            var (gameItem, _, _) = ResolveGameItem(itemId);
-            if (gameItem != null)
-            {
-                invType = ResolveInventoryTypeForItem(gameItem);
-            }
-        }
-
-        // Create new slot object for paste
-        var newSlot = new JsonObject();
-        var typeObj = new JsonObject();
-        typeObj.Add("InventoryType", invType);
-        newSlot.Add("Type", typeObj);
-
-        newSlot.Add("Id", EnsureCaretPrefix(itemId));
-
-        newSlot.Add("Amount", amount);
-        newSlot.Add("MaxAmount", maxAmount);
-        newSlot.Add("DamageFactor", damageFactor);
-        newSlot.Add("FullyInstalled", true);
-        newSlot.Add("AddedAutomatically", false);
-
-        var indexObj = new JsonObject();
-        indexObj.Add("X", _contextCell.GridX);
-        indexObj.Add("Y", _contextCell.GridY);
-        newSlot.Add("Index", indexObj);
+        var newSlot = InventorySlotHelper.DuplicateSlot(_copiedItemCell.SlotData, _contextCell.GridX, _contextCell.GridY);
 
         // Replace or add slot in inventory
         if (_contextCell.SlotData != null && _contextCell.SlotIndex >= 0)
@@ -4081,8 +4020,23 @@ public partial class InventoryGridPanel : UserControl
     /// and hover state in <see cref="OnMouseMove"/>/<see cref="OnMouseLeave"/>.
     /// </para>
     /// </summary>
+    internal void ApplyThemePalette(ThemeColors.Palette p)
+    {
+        _currentPalette = p;
+        foreach (var cell in _cells)
+            cell.ApplyPalette(p);
+    }
+
     private class SlotCell : Panel
     {
+        private ThemeColors.Palette _palette = ThemeColors.Light;
+
+        internal void ApplyPalette(ThemeColors.Palette p)
+        {
+            _palette = p;
+            Invalidate();
+        }
+
         // Shared fonts reduce GDI object allocation per cell.
         // These live for the application lifetime (3 GDI objects) and must NOT be disposed.
         // If you are disposing of these, you are going to have a bad time.
@@ -4228,7 +4182,7 @@ public partial class InventoryGridPanel : UserControl
             Size = new Size(width, height);
             BorderStyle = BorderStyle.FixedSingle;
             Cursor = Cursors.Hand;
-            BackColor = Color.FromArgb(50, 50, 50);
+            BackColor = _palette.InventoryGridBg;
 
             // Owner-drawn: enable double-buffering and all-paint-in-WM_PAINT
             SetStyle(
@@ -4489,8 +4443,8 @@ public partial class InventoryGridPanel : UserControl
             if (IsEmpty)
             {
                 // Disabled slot - not in ValidSlotIndices and no data
-                Color bg = _isSelected ? Color.FromArgb(70, 80, 100) : Color.FromArgb(25, 25, 25);
-                if (!IsActivated) bg = Color.FromArgb(80, 20, 20);
+                Color bg = _isSelected ? _palette.InventorySlotSelected : _palette.InventoryGridBg;
+                if (!IsActivated) bg = _palette.InventorySlotDeactivated;
                 BackColor = bg;
                 _displayImage = null;
                 ClassMiniIcon = null;
@@ -4549,7 +4503,7 @@ public partial class InventoryGridPanel : UserControl
             else if (!string.IsNullOrEmpty(ItemId))
                 baseColor = Color.FromArgb(60, 60, 60);
             else
-                baseColor = Color.FromArgb(50, 50, 50);
+                baseColor = _palette.InventoryGridBg;
 
             if (!IsActivated && !_isSelected)
                 baseColor = Color.FromArgb(
