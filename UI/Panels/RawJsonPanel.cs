@@ -18,6 +18,14 @@ namespace NMSE.UI.Panels;
 // switching back to tree or when explicitly refreshing.
 public partial class RawJsonPanel : UserControl
 {
+    /// <summary>Raised when the user modifies any data within this panel.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified()
+    {
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     private bool _cancelExpand;
 
     private JsonObject? _saveData;
@@ -110,6 +118,31 @@ public partial class RawJsonPanel : UserControl
         InvalidateDiffCache();
     }
 
+    private static Color StatusColor(AppTheme effective, Color light, Color dark) =>
+        effective == AppTheme.Dark ? dark : light;
+
+    private bool _subscribed;
+
+    private void OnHandleCreated(object? sender, EventArgs e)
+    {
+        if (_subscribed) return;
+        ThemeManager.ThemeChanged += OnThemeChanged;
+        _subscribed = true;
+    }
+
+    private void OnHandleDestroyed(object? sender, EventArgs e)
+    {
+        if (!_subscribed) return;
+        ThemeManager.ThemeChanged -= OnThemeChanged;
+        _subscribed = false;
+    }
+
+    private void OnThemeChanged()
+    {
+        RebuildTypeIcons();
+        _treeView.Invalidate();
+    }
+
     /// <summary>Marks the diff cache as stale so the next "Show Changes" click recomputes.</summary>
     private void InvalidateDiffCache()
     {
@@ -177,6 +210,8 @@ public partial class RawJsonPanel : UserControl
     {
         InitializeComponent();
         SetupLayout();
+        HandleCreated += OnHandleCreated;
+        HandleDestroyed += OnHandleDestroyed;
     }
 
 	// Split into regions to help digest the large amount of code
@@ -251,7 +286,7 @@ public partial class RawJsonPanel : UserControl
         else
             LoadSplitView(saveData);
         _statusLabel.Text = UiStrings.Format("raw_json.loaded_keys", saveData.Size().ToString("N0", CultureInfo.CurrentCulture));
-        _statusLabel.ForeColor = Color.Gray;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText);
     }
 
     /// <summary>
@@ -315,7 +350,7 @@ public partial class RawJsonPanel : UserControl
             else
                 LoadSplitView(_accountData);
             _statusLabel.Text = UiStrings.Format("raw_json.edited_account", _accountData.Size().ToString("N0", CultureInfo.CurrentCulture));
-            _statusLabel.ForeColor = Color.DarkBlue;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkBlue, ThemeColors.Dark.InfoBlue);
         }
         else if (_saveData != null)
         {
@@ -339,7 +374,7 @@ public partial class RawJsonPanel : UserControl
             else
                 LoadSplitView(_saveData);
             _statusLabel.Text = UiStrings.Format("raw_json.loaded_keys", _saveData.Size().ToString("N0", CultureInfo.CurrentCulture));
-            _statusLabel.ForeColor = Color.Gray;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText);
         }
     }
 
@@ -569,6 +604,7 @@ public partial class RawJsonPanel : UserControl
     {
         _textModifiedSinceSwitch = true;
         InvalidateDiffCache();
+        RaiseDataModified();
     }
 
     /// <summary>
@@ -587,12 +623,12 @@ public partial class RawJsonPanel : UserControl
             InvalidateDisplayCache();
             BuildTree(parsed);
             _statusLabel.Text = UiStrings.Get("raw_json.tree_rebuilt");
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
         catch (JsonException ex)
         {
             _statusLabel.Text = UiStrings.Format("raw_json.parse_error", ex.Message);
-            _statusLabel.ForeColor = Color.Red;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Red, ThemeColors.Dark.ErrorRed);
         }
     }
 
@@ -633,7 +669,7 @@ public partial class RawJsonPanel : UserControl
         _collapseAllButton.Enabled = false;
         _stopExpandBtn.Visible = true;
         _statusLabel.Text = UiStrings.Get("raw_json.expanding");
-        _statusLabel.ForeColor = Color.Blue;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Blue, ThemeColors.Dark.InfoBlue);
 
         int count = 0;
         var stack = new Stack<TreeNode>();
@@ -672,7 +708,7 @@ public partial class RawJsonPanel : UserControl
         _collapseAllButton.Enabled = true;
         _stopExpandBtn.Visible = false;
         _statusLabel.Text = _cancelExpand ? UiStrings.Format("raw_json.stopped_at", count.ToString("N0", CultureInfo.CurrentCulture)) : UiStrings.Format("raw_json.expanded_nodes", count.ToString("N0", CultureInfo.CurrentCulture));
-        _statusLabel.ForeColor = Color.Gray;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText);
     }
 
     /// <summary>
@@ -726,7 +762,7 @@ public partial class RawJsonPanel : UserControl
             var node = new TreeNode($"{key}  {{...}}  ({count} properties)")
             {
                 Tag = new NodeTag(childObj, parent, key),
-                ForeColor = Color.DarkBlue,
+                ForeColor = StatusColor(ThemeManager.Effective, Color.DarkBlue, ThemeColors.Dark.InfoBlue),
                 ImageIndex = 0,
                 SelectedImageIndex = 0
             };
@@ -742,7 +778,7 @@ public partial class RawJsonPanel : UserControl
             var node = new TreeNode($"{key}  [...]  ({count} items)")
             {
                 Tag = new NodeTag(childArr, parent, key),
-                ForeColor = Color.DarkGreen,
+                ForeColor = StatusColor(ThemeManager.Effective, Color.DarkGreen, ThemeColors.Dark.SuccessGreen),
                 ImageIndex = 1,
                 SelectedImageIndex = 1
             };
@@ -796,12 +832,12 @@ public partial class RawJsonPanel : UserControl
     /// </summary>
     /// <param name="value">The value whose colour is determined.</param>
     /// <returns>The colour to use for the value text.</returns>
-    private static Color GetValueColor(object? value) => value switch
+    private Color GetValueColor(object? value) => value switch
     {
-        string => Color.DarkRed,
-        bool => Color.DarkMagenta,
-        null => Color.Gray,
-        _ => Color.DarkOrange
+        string => StatusColor(ThemeManager.Effective, Color.DarkRed, ThemeColors.Dark.ErrorRed),
+        bool => StatusColor(ThemeManager.Effective, Color.DarkMagenta, ThemeColors.Dark.SyntaxBoolNull),
+        null => StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText),
+        _ => StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange)
     };
 
     /// <summary>
@@ -824,16 +860,28 @@ public partial class RawJsonPanel : UserControl
     /// Creates the icon list used for JSON node types in the tree view.
     /// </summary>
     /// <returns>An ImageList containing icons for objects, arrays and primitive values.</returns>
-    private static ImageList CreateTypeIconList()
+    private ImageList _typeIconList = null!;
+
+    private ImageList CreateTypeIconList()
     {
         var list = new ImageList { ImageSize = new Size(16, 16), ColorDepth = ColorDepth.Depth32Bit };
-        list.Images.Add("obj", DrawTextIcon("{}", Color.RoyalBlue));
-        list.Images.Add("arr", DrawTextIcon("[]", Color.Green));
-        list.Images.Add("str", DrawTextIcon("A", Color.DarkRed));
-        list.Images.Add("num", DrawTextIcon("#", Color.DarkOrange));
-        list.Images.Add("bool", DrawTextIcon("✓", Color.DarkMagenta));
-        list.Images.Add("null", DrawTextIcon("∅", Color.Gray));
+        list.Images.Add("obj", DrawTextIcon("{}", StatusColor(ThemeManager.Effective, Color.RoyalBlue, ThemeColors.Dark.InfoBlue)));
+        list.Images.Add("arr", DrawTextIcon("[]", StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen)));
+        list.Images.Add("str", DrawTextIcon("A", StatusColor(ThemeManager.Effective, Color.DarkRed, ThemeColors.Dark.ErrorRed)));
+        list.Images.Add("num", DrawTextIcon("#", StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange)));
+        list.Images.Add("bool", DrawTextIcon("\u2713", StatusColor(ThemeManager.Effective, Color.DarkMagenta, ThemeColors.Dark.SyntaxBoolNull)));
+        list.Images.Add("null", DrawTextIcon("\u2205", StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText)));
         return list;
+    }
+
+    private void RebuildTypeIcons()
+    {
+        var old = _typeIconList;
+        _typeIconList = CreateTypeIconList();
+        _treeView.ImageList = _typeIconList;
+        _splitTreeView.ImageList = _typeIconList;
+        old?.Dispose();
+        _treeView.Invalidate();
     }
 
     /// <summary>
@@ -926,7 +974,7 @@ public partial class RawJsonPanel : UserControl
             Width = Math.Max(bounds.Width - prefixWidth + 4, 200),
             Height = bounds.Height + 2,
             BorderStyle = BorderStyle.FixedSingle,
-            BackColor = Color.LightYellow
+            BackColor = ThemeColors.Get(ThemeManager.Effective == AppTheme.Dark ? "Dark" : "Light").SearchHighlightBackground
         };
 
         _inlineEditBox.KeyDown += (_, e) =>
@@ -980,10 +1028,10 @@ public partial class RawJsonPanel : UserControl
         node.ForeColor = GetValueColor(parsed);
         node.ImageIndex = GetTypeIconIndex(parsed);
         node.SelectedImageIndex = node.ImageIndex;
-        _treeModified = true;
+        _treeModified = true; RaiseDataModified();
         InvalidateDiffCache();
         _statusLabel.Text = UiStrings.Get("raw_json.value_modified");
-        _statusLabel.ForeColor = Color.DarkOrange;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
 
         _treeView.Controls.Remove(editBox);
         editBox.Dispose();
@@ -1053,10 +1101,10 @@ public partial class RawJsonPanel : UserControl
             node.ForeColor = GetValueColor(parsed);
             node.ImageIndex = GetTypeIconIndex(parsed);
             node.SelectedImageIndex = node.ImageIndex;
-            _treeModified = true;
+            _treeModified = true; RaiseDataModified();
             InvalidateDiffCache();
             _statusLabel.Text = UiStrings.Get("raw_json.value_modified");
-            _statusLabel.ForeColor = Color.DarkOrange;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
         }
     }
 
@@ -1114,10 +1162,10 @@ public partial class RawJsonPanel : UserControl
             _redoStack.Clear();
             node.Nodes.Add(CreateValueNode(newKey, newVal, obj, 0, 0));
             UpdateContainerNodeText(node);
-            _treeModified = true;
+            _treeModified = true; RaiseDataModified();
             InvalidateDiffCache();
             _statusLabel.Text = UiStrings.Format("raw_json.added_property", newKey);
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
     }
 
@@ -1154,10 +1202,10 @@ public partial class RawJsonPanel : UserControl
             _redoStack.Clear();
             node.Nodes.Add(CreateValueNode($"[{idx}]", newVal, arr, 0, 0));
             UpdateContainerNodeText(node);
-            _treeModified = true;
+            _treeModified = true; RaiseDataModified();
             InvalidateDiffCache();
             _statusLabel.Text = UiStrings.Format("raw_json.added_array_item", idx);
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
     }
 
@@ -1212,10 +1260,10 @@ public partial class RawJsonPanel : UserControl
             node.Remove();
             if (parent2 != null) UpdateContainerNodeText(parent2);
         }
-        _treeModified = true;
+        _treeModified = true; RaiseDataModified();
         InvalidateDiffCache();
         _statusLabel.Text = UiStrings.Format("raw_json.deleted", tag.Key);
-        _statusLabel.ForeColor = Color.DarkOrange;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
     }
 
     /// <summary>
@@ -1350,12 +1398,12 @@ public partial class RawJsonPanel : UserControl
             // Navigate to first result by expanding the tree path
             NavigateToSearchResult(0);
             _statusLabel.Text = UiStrings.Format("raw_json.search_found", _searchPaths.Count);
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
         else
         {
             _statusLabel.Text = UiStrings.Get("raw_json.no_matches_found");
-            _statusLabel.ForeColor = Color.Red;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Red, ThemeColors.Dark.ErrorRed);
         }
     }
 
@@ -1368,7 +1416,7 @@ public partial class RawJsonPanel : UserControl
 
         // Dim previous result
         if (_searchIndex >= 0 && _searchIndex < _searchResults.Count)
-            _searchResults[_searchIndex].BackColor = Color.LightYellow;
+            _searchResults[_searchIndex].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SearchHighlightBackground : ThemeColors.Light.SearchHighlightBackground;
 
         _searchIndex = (_searchIndex + 1) % _searchPaths.Count;
         NavigateToSearchResult(_searchIndex);
@@ -1382,7 +1430,7 @@ public partial class RawJsonPanel : UserControl
     {
         if (_searchPaths.Count == 0) return;
         if (_searchIndex >= 0 && _searchIndex < _searchResults.Count)
-            _searchResults[_searchIndex].BackColor = Color.LightYellow;
+            _searchResults[_searchIndex].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SearchHighlightBackground : ThemeColors.Light.SearchHighlightBackground;
         _searchIndex = (_searchIndex - 1 + _searchPaths.Count) % _searchPaths.Count;
         NavigateToSearchResult(_searchIndex);
         _statusLabel.Text = UiStrings.Format("raw_json.match_position", _searchIndex + 1, _searchPaths.Count);
@@ -1511,10 +1559,132 @@ public partial class RawJsonPanel : UserControl
         if (current != null)
         {
             _searchResults.Add(current);
-            current.BackColor = Color.Yellow;
+            current.BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SearchHighlightCurrentBackground : ThemeColors.Light.SearchHighlightCurrentBackground;
             _treeView.SelectedNode = current;
             current.EnsureVisible();
         }
+    }
+
+    /// <summary>
+    /// Navigates the tree view to the specified JSON path segments.
+    /// Expands lazy nodes as needed to make the target visible.
+    /// Used by the GOTO JSON buttons on other panels.
+    /// </summary>
+    /// <param name="pathSegments">The JSON path segments (e.g. "PlayerStateData", "ShipOwnership", "[3]").</param>
+    public void NavigateToPath(string[] pathSegments)
+    {
+        if (pathSegments == null || pathSegments.Length == 0) return;
+
+        // Resolve transforms so virtual keys like "PlayerStateData" are
+        // mapped to their actual tree location (e.g. "BaseContext.PlayerStateData").
+        var data = _isShowingAccount ? _accountData : _saveData;
+        if (data == null) return;
+        pathSegments = ResolveTransformedPath(pathSegments, data);
+        if (pathSegments.Length == 0) return;
+
+        // Ensure we are in Tree view mode
+        if (_viewMode != ViewMode.Tree)
+            ShowTreeView();
+
+        // Rebuild tree from current data so navigation uses a fresh tree
+        BuildTree(data);
+
+        TreeNode? current = _treeView.Nodes[0]; // Root node
+        _treeView.BeginUpdate();
+        try
+        {
+            for (int p = 0; p < pathSegments.Length && current != null; p++)
+            {
+                // Force-expand lazy children before searching
+                if (current.Nodes.Count == 1 && current.Nodes[0].Tag is LazyTag)
+                {
+                    var tag = current.Tag as NodeTag;
+                    current.Nodes.Clear();
+                    if (tag?.Value is JsonObject obj)
+                        PopulateObjectNode(current, obj, maxDepth: 2, currentDepth: 0);
+                    else if (tag?.Value is JsonArray arr)
+                        PopulateArrayNode(current, arr, maxDepth: 2, currentDepth: 0);
+                }
+
+                current.Expand();
+                string segment = pathSegments[p];
+
+                TreeNode? found = null;
+                foreach (TreeNode child in current.Nodes)
+                {
+                    if (child.Tag is NodeTag childTag && childTag.Key == segment)
+                    {
+                        found = child;
+                        break;
+                    }
+                }
+                current = found;
+            }
+        }
+        finally
+        {
+            _treeView.EndUpdate();
+        }
+
+        if (current != null)
+        {
+            _treeView.SelectedNode = current;
+            current.EnsureVisible();
+        }
+    }
+
+    /// <summary>
+    /// Resolves virtual path segments against the JSON object's registered transforms,
+    /// producing a path that matches the raw tree structure.
+    /// Example: ["PlayerStateData", "Inventory"] → ["BaseContext", "PlayerStateData", "Inventory"]
+    /// </summary>
+    private static string[] ResolveTransformedPath(string[] pathSegments, JsonObject data)
+    {
+        if (pathSegments.Length == 0) return pathSegments;
+
+        string first = pathSegments[0];
+        if (data.Get(first) == null)
+        {
+            string? treePrefix = FindTreePrefix(first, data);
+            if (treePrefix != null)
+            {
+                var result = new List<string>(treePrefix.Split('.'));
+                for (int i = 1; i < pathSegments.Length; i++)
+                    result.Add(pathSegments[i]);
+                return [..result];
+            }
+        }
+        return pathSegments;
+    }
+
+    /// <summary>
+    /// Finds the raw tree path prefix for a transformed key.
+    /// Uses shape-driven logic consistent with <see cref="SaveFileManager.RegisterContextTransforms"/>.
+    /// </summary>
+    private static string? FindTreePrefix(string key, JsonObject data)
+    {
+        var activeContext = data.Get("ActiveContext") as string;
+        if (key == "PlayerStateData")
+        {
+            if (data.GetValue("ExpeditionContext.PlayerStateData") != null
+                && (data.GetValue("BaseContext.PlayerStateData") == null
+                    || string.Equals(activeContext, "Season", StringComparison.Ordinal)))
+                return "ExpeditionContext.PlayerStateData";
+            if (data.GetValue("BaseContext.PlayerStateData") != null)
+                return "BaseContext.PlayerStateData";
+            if (data.Get("PlayerStateData") != null)
+                return "PlayerStateData";
+        }
+        if (key == "SpawnStateData")
+        {
+            if (data.GetValue("ExpeditionContext.SpawnStateData") != null
+                && (data.GetValue("BaseContext.SpawnStateData") == null
+                    || string.Equals(activeContext, "Season", StringComparison.Ordinal)))
+                return "ExpeditionContext.SpawnStateData";
+            if (data.GetValue("BaseContext.SpawnStateData") != null)
+                return "BaseContext.SpawnStateData";
+        }
+        return null;
     }
 
     /// <summary>
@@ -1623,7 +1793,7 @@ public partial class RawJsonPanel : UserControl
         {
             if (i > 0)
             {
-                var sep = new Label { Text = " > ", AutoSize = true, ForeColor = Color.Gray,
+                var sep = new Label { Text = " > ", AutoSize = true, ForeColor = StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText),
                     Margin = new Padding(0, 4, 0, 0) };
                 _breadcrumbPanel.Controls.Add(sep);
             }
@@ -1662,7 +1832,7 @@ public partial class RawJsonPanel : UserControl
         {
             File.WriteAllText(dialog.FileName, RawJsonLogic.ToDisplayString(data));
             _statusLabel.Text = UiStrings.Format("raw_json.exported", Path.GetFileName(dialog.FileName));
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
     }
 
@@ -1697,10 +1867,10 @@ public partial class RawJsonPanel : UserControl
                 else
                     LoadSplitView(parsed);
 
-                _treeModified = true;
+                _treeModified = true; RaiseDataModified();
                 InvalidateDiffCache();
                 _statusLabel.Text = UiStrings.Format("raw_json.imported", Path.GetFileName(dialog.FileName));
-                _statusLabel.ForeColor = Color.Green;
+                _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
             }
             catch (Exception ex)
             {
@@ -1737,7 +1907,7 @@ public partial class RawJsonPanel : UserControl
             string json = RawJsonLogic.SerializeValue(tag.Value);
             File.WriteAllText(dialog.FileName, json);
             _statusLabel.Text = UiStrings.Format("raw_json.exported_node", Path.GetFileName(dialog.FileName));
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
         catch (Exception ex)
         {
@@ -1797,10 +1967,10 @@ public partial class RawJsonPanel : UserControl
                 _treeView.EndUpdate();
             }
 
-            _treeModified = true;
+            _treeModified = true; RaiseDataModified();
             InvalidateDiffCache();
             _statusLabel.Text = UiStrings.Format("raw_json.imported_node", Path.GetFileName(dialog.FileName));
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
         catch (Exception ex)
         {
@@ -1829,7 +1999,7 @@ public partial class RawJsonPanel : UserControl
         // Show wait cursor while computing
         Cursor = Cursors.WaitCursor;
         _statusLabel.Text = UiStrings.Get("raw_json.diff_computing");
-        _statusLabel.ForeColor = Color.Blue;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Blue, ThemeColors.Dark.InfoBlue);
 
         List<RawJsonLogic.DiffLine> diffLines;
         try
@@ -1869,7 +2039,7 @@ public partial class RawJsonPanel : UserControl
         {
             Cursor = Cursors.Default;
             _statusLabel.Text = UiStrings.Format("raw_json.diff_error", ex.Message);
-            _statusLabel.ForeColor = Color.Red;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Red, ThemeColors.Dark.ErrorRed);
             return;
         }
         finally
@@ -1884,7 +2054,7 @@ public partial class RawJsonPanel : UserControl
         if (diffLines.Count == 0)
         {
             _statusLabel.Text = UiStrings.Get("raw_json.diff_no_changes");
-            _statusLabel.ForeColor = Color.Gray;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Gray, ThemeColors.Dark.SecondaryText);
             MessageBox.Show(this, UiStrings.Get("raw_json.diff_no_changes"), UiStrings.Get("raw_json.diff_title"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
@@ -2040,26 +2210,30 @@ public partial class RawJsonPanel : UserControl
                 case RawJsonLogic.DiffLineType.Header:
                     sb.Append(new string(' ', gutterWidth * 2 + 5));
                     sb.AppendLine("@@ " + dl.Text + " @@");
-                    lineColors[i] = Color.FromArgb(235, 235, 255);
+                    lineColors[i] = ThemeManager.Effective == AppTheme.Dark
+                        ? Color.FromArgb(50, 50, 70) : Color.FromArgb(235, 235, 255);
                     break;
                 case RawJsonLogic.DiffLineType.Added:
                     sb.Append(new string(' ', gutterWidth + 1));
                     sb.Append(dl.NewLineNum.ToString(CultureInfo.InvariantCulture).PadLeft(gutterWidth));
                     sb.Append("  + ");
                     sb.AppendLine(dl.Text);
-                    lineColors[i] = Color.FromArgb(220, 255, 220);
+                    lineColors[i] = ThemeManager.Effective == AppTheme.Dark
+                        ? Color.FromArgb(40, 70, 40) : Color.FromArgb(220, 255, 220);
                     break;
                 case RawJsonLogic.DiffLineType.Removed:
                     sb.Append(dl.OldLineNum.ToString(CultureInfo.InvariantCulture).PadLeft(gutterWidth));
                     sb.Append(new string(' ', gutterWidth + 1));
                     sb.Append("  - ");
                     sb.AppendLine(dl.Text);
-                    lineColors[i] = Color.FromArgb(255, 220, 220);
+                    lineColors[i] = ThemeManager.Effective == AppTheme.Dark
+                        ? Color.FromArgb(80, 40, 40) : Color.FromArgb(255, 220, 220);
                     break;
                 case RawJsonLogic.DiffLineType.Separator:
                     sb.Append(new string(' ', gutterWidth * 2 + 3));
                     sb.AppendLine("  ---");
-                    lineColors[i] = Color.FromArgb(240, 240, 240);
+                    lineColors[i] = ThemeManager.Effective == AppTheme.Dark
+                        ? Color.FromArgb(60, 60, 60) : Color.FromArgb(240, 240, 240);
                     break;
                 default:
                     sb.Append(dl.OldLineNum.ToString(CultureInfo.InvariantCulture).PadLeft(gutterWidth));
@@ -2087,11 +2261,11 @@ public partial class RawJsonPanel : UserControl
         var action = _undoStack.Pop();
         ApplyUndoRedo(action, isUndo: true);
         _redoStack.Push(action);
-        _treeModified = true;
+        _treeModified = true; RaiseDataModified();
         InvalidateDiffCache();
         RebuildCurrentTree();
         _statusLabel.Text = UiStrings.Get("raw_json.undone");
-        _statusLabel.ForeColor = Color.DarkOrange;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
     }
 
     /// <summary>
@@ -2103,11 +2277,11 @@ public partial class RawJsonPanel : UserControl
         var action = _redoStack.Pop();
         ApplyUndoRedo(action, isUndo: false);
         _undoStack.Push(action);
-        _treeModified = true;
+        _treeModified = true; RaiseDataModified();
         InvalidateDiffCache();
         RebuildCurrentTree();
         _statusLabel.Text = UiStrings.Get("raw_json.redone");
-        _statusLabel.ForeColor = Color.DarkOrange;
+        _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
     }
 
     /// <summary>
@@ -2195,12 +2369,12 @@ public partial class RawJsonPanel : UserControl
         {
             _syntaxTextBox.JsonText = RawJsonLogic.FormatJson(_syntaxTextBox.JsonText);
             _statusLabel.Text = UiStrings.Get("raw_json.formatted");
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
         catch (JsonException ex)
         {
             _statusLabel.Text = $"Error: {ex.Message}";
-            _statusLabel.ForeColor = Color.Red;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Red, ThemeColors.Dark.ErrorRed);
         }
     }
 
@@ -2215,12 +2389,12 @@ public partial class RawJsonPanel : UserControl
         {
             RawJsonLogic.ParseJson(_syntaxTextBox.JsonText);
             _statusLabel.Text = UiStrings.Get("raw_json.json_valid");
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Green, ThemeColors.Dark.SuccessGreen);
         }
         catch (JsonException ex)
         {
             _statusLabel.Text = UiStrings.Format("raw_json.invalid_json", ex.Message);
-            _statusLabel.ForeColor = Color.Red;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.Red, ThemeColors.Dark.ErrorRed);
         }
     }
 
@@ -2308,10 +2482,10 @@ public partial class RawJsonPanel : UserControl
             }
             _treeView.EndUpdate();
             _treeView.SelectedNode = draggedNode;
-            _treeModified = true;
+            _treeModified = true; RaiseDataModified();
             InvalidateDiffCache();
             _statusLabel.Text = UiStrings.Format("raw_json.reordered", fromIndex, toIndex);
-            _statusLabel.ForeColor = Color.DarkOrange;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
         }
         else if (parentTag.Value is JsonObject obj)
         {
@@ -2322,10 +2496,10 @@ public partial class RawJsonPanel : UserControl
             parentTreeNode.Nodes.Insert(toIndex, draggedNode);
             _treeView.EndUpdate();
             _treeView.SelectedNode = draggedNode;
-            _treeModified = true;
+            _treeModified = true; RaiseDataModified();
             InvalidateDiffCache();
             _statusLabel.Text = UiStrings.Format("raw_json.reordered", fromIndex, toIndex);
-            _statusLabel.ForeColor = Color.DarkOrange;
+            _statusLabel.ForeColor = StatusColor(ThemeManager.Effective, Color.DarkOrange, ThemeColors.Dark.WarningOrange);
         }
     }
 

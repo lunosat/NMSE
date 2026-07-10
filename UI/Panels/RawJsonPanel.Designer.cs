@@ -72,7 +72,7 @@ partial class RawJsonPanel
         };
         _fileSelector.SelectedIndexChanged += OnFileSelectorChanged;
 
-        var fileSep = new Label { Text = "|", AutoSize = true, Margin = new Padding(5, 6, 5, 0), ForeColor = Color.Gray };
+        var fileSep = new Label { Text = "|", AutoSize = true, Margin = new Padding(5, 6, 5, 0), ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : Color.Gray };
 
         _exportButton = new Button { Text = "Export", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(60, 0) };
         _exportButton.Click += OnExport;
@@ -83,7 +83,7 @@ partial class RawJsonPanel
         _diffButton = new Button { Text = "Show Changes", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(90, 0) };
         _diffButton.Click += OnShowDiff;
 
-        var searchSep = new Label { Text = "|", AutoSize = true, Margin = new Padding(5, 6, 5, 0), ForeColor = Color.Gray };
+        var searchSep = new Label { Text = "|", AutoSize = true, Margin = new Padding(5, 6, 5, 0), ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : Color.Gray };
 
         _searchBox = new TextBox { Width = 200, PlaceholderText = "Search keys or values..." };
         _searchBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { OnSearch(); e.SuppressKeyPress = true; } };
@@ -118,7 +118,7 @@ partial class RawJsonPanel
         _splitViewButton = new Button { Text = "Split View", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
         _splitViewButton.Click += (_, _) => ShowSplitView();
 
-        var viewSep = new Label { Text = "|", AutoSize = true, Margin = new Padding(5, 6, 5, 0), ForeColor = Color.Gray };
+        var viewSep = new Label { Text = "|", AutoSize = true, Margin = new Padding(5, 6, 5, 0), ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : Color.Gray };
 
         _expandAllButton = new Button { Text = "Expand All", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
         _expandAllButton.Click += async (_, _) => await ExpandAllBatchedAsync();
@@ -142,7 +142,7 @@ partial class RawJsonPanel
         _validateButton = new Button { Text = "Validate", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(70, 0), Visible = false };
         _validateButton.Click += OnValidate;
 
-        _statusLabel = new Label { Text = "", AutoSize = true, ForeColor = Color.Gray, Margin = new Padding(10, 6, 0, 0) };
+        _statusLabel = new Label { Text = "", AutoSize = true, ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : Color.Gray, Margin = new Padding(10, 6, 0, 0) };
 
         toolbarRow2.Controls.AddRange([_treeViewButton, _textViewButton, _splitViewButton, viewSep,
             _expandAllButton, _stopExpandBtn, _collapseAllButton,
@@ -157,7 +157,7 @@ partial class RawJsonPanel
             HideSelection = false,
             ShowNodeToolTips = true,
             FullRowSelect = true,
-            ImageList = CreateTypeIconList(),
+            ImageList = _typeIconList = CreateTypeIconList(),
             AllowDrop = true
         };
         _treeView.AfterLabelEdit += OnAfterLabelEdit;
@@ -190,7 +190,7 @@ partial class RawJsonPanel
         _treePanel.Controls.Add(_treeView);
 
         _syntaxTextBox = new JsonSyntaxTextBox { Dock = DockStyle.Fill };
-        _syntaxTextBox.TextModified += (_, _) => { _textModifiedSinceSwitch = true; InvalidateDiffCache(); };
+        _syntaxTextBox.TextModified += (_, _) => { _textModifiedSinceSwitch = true; InvalidateDiffCache(); RaiseDataModified(); };
         _textPanel = new Panel { Dock = DockStyle.Fill, Visible = false };
         _textPanel.Controls.Add(_syntaxTextBox);
 
