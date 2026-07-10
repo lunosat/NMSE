@@ -16,10 +16,16 @@ public partial class BasePanel : UserControl
 {
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    internal event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     public BasePanel()
     {
         InitializeComponent();
         _basesSubPanel.DataModified += (s, e) => DataModified?.Invoke(this, EventArgs.Empty);
+        _basesSubPanel.GoToJsonRequested += (s, e) => GoToJsonRequested?.Invoke(this, e);
+        _storageSubPanel.GoToJsonRequested += (s, e) => GoToJsonRequested?.Invoke(this, e);
+        _chestsSubPanel.GoToJsonRequested += (s, e) => GoToJsonRequested?.Invoke(this, e);
     }
 
     public void SetDatabase(GameItemDatabase? database)
@@ -149,6 +155,9 @@ internal class BasesSubPanel : UserControl
 {
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    internal event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     // NPC section
     private readonly ComboBox _npcSelector;
     private readonly ComboBox _npcRaceCombo;
@@ -176,9 +185,14 @@ internal class BasesSubPanel : UserControl
     private readonly Button _exportBtn;
     private readonly Button _importBtn;
     private readonly Button _moveBaseComputerBtn;
+    private readonly Button _deleteBaseBtn;
+    private readonly Button _sortAlphaAscBtn;
+    private readonly Button _sortAlphaDescBtn;
     private readonly Button _clearTerrainEditsBtn;
     private readonly Button _clearAllTerrainEditsBtn;
     private readonly Button _clearAllTerrainExceptBasesBtn;
+    private Button _gotoBasesListBtn = null!;
+    private Button _gotoNpcWorkersBtn = null!;
 
     // Labels for localisation
     private readonly Label _npcTitle;
@@ -190,6 +204,7 @@ internal class BasesSubPanel : UserControl
     private Label? _itemsLabel;
 
     // State
+    private bool _loading;
     private JsonObject? _playerState;
     private readonly List<NpcWorkerItem> _npcWorkers = new();
     private readonly List<BaseInfoItem> _baseInfoItems = new();
@@ -200,17 +215,50 @@ internal class BasesSubPanel : UserControl
         DoubleBuffered = true;
         SuspendLayout();
 
+        // --- Header strip for GOTO buttons ---
+        var basesHeaderStrip = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        basesHeaderStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        basesHeaderStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        basesHeaderStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+		var basesGotoPanel = new FlowLayoutPanel
+		{
+			Dock = DockStyle.Fill,
+			AutoSize = true,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+        basesHeaderStrip.Controls.Add(basesGotoPanel, 2, 0);
+
         // --- Outer two-column layout ---
         var outerLayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
+            ColumnCount = 1,
+            RowCount = 2,
             Padding = new Padding(10)
         };
-        outerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // left: base list
-        outerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));   // right: NPC + info
+        outerLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         outerLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var outerContent = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Padding = new Padding(0)
+        };
+        outerContent.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // left: base list
+        outerContent.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));   // right: NPC + info
+        outerContent.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        outerLayout.Controls.Add(basesHeaderStrip, 0, 0);
 
         // --- Left column: base list + reorder arrows ---
         var leftLayout = new TableLayoutPanel
@@ -291,14 +339,32 @@ internal class BasesSubPanel : UserControl
         _moveUpBtn.Click += OnMoveBaseUp;
         _moveDownBtn.Click += OnMoveBaseDown;
         _toBottomBtn.Click += OnMoveBaseToBottom;
+        _sortAlphaAscBtn = new Button
+        {
+            Text = UiStrings.Get("base.sort_az"),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Enabled = false
+        };
+        _sortAlphaAscBtn.Click += OnSortAlphaAsc;
+        _sortAlphaDescBtn = new Button
+        {
+            Text = UiStrings.Get("base.sort_za"),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Enabled = false
+        };
+        _sortAlphaDescBtn.Click += OnSortAlphaDesc;
         arrowPanel.Controls.Add(_moveOrderLabel);
         arrowPanel.Controls.Add(_toTopBtn);
         arrowPanel.Controls.Add(_moveUpBtn);
         arrowPanel.Controls.Add(_moveDownBtn);
         arrowPanel.Controls.Add(_toBottomBtn);
+        arrowPanel.Controls.Add(_sortAlphaAscBtn);
+        arrowPanel.Controls.Add(_sortAlphaDescBtn);
         leftLayout.Controls.Add(arrowPanel, 1, 1);
 
-        outerLayout.Controls.Add(leftLayout, 0, 0);
+        outerContent.Controls.Add(leftLayout, 0, 0);
 
         // --- Right column: NPC section + Base Info section ---
         var rightLayout = new TableLayoutPanel
@@ -433,9 +499,41 @@ internal class BasesSubPanel : UserControl
         _importBtn.Click += OnImport;
         _moveBaseComputerBtn = new Button { Text = UiStrings.Get("base.move_basecomp"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(140, 0), Enabled = false };
         _moveBaseComputerBtn.Click += OnMoveBaseComputer;
+        _deleteBaseBtn = new Button { Text = UiStrings.Get("base.delete_base"), AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(90, 0), Enabled = false };
+        _deleteBaseBtn.Click += OnDeleteBase;
         buttonPanel.Controls.Add(_exportBtn);
         buttonPanel.Controls.Add(_importBtn);
         buttonPanel.Controls.Add(_moveBaseComputerBtn);
+        buttonPanel.Controls.Add(_deleteBaseBtn);
+		_gotoBasesListBtn = new Button
+		{
+			FlatStyle = FlatStyle.Flat,
+			FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+			Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+			Size = new Size(28, 24),
+			Text = "\U0001F4D1",
+			Margin = new Padding(1, 3, 1, 1),
+			Cursor = Cursors.Hand,
+		};
+        _gotoBasesListBtn.Click += (_, _) =>
+        {
+            if (_baseList.SelectedItem is BaseInfoItem baseItem)
+                GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "PersistentPlayerBases", $"[{baseItem.DataIndex}]"));
+        };
+        basesGotoPanel.Controls.Add(_gotoBasesListBtn);
+
+		_gotoNpcWorkersBtn = new Button
+		{
+			FlatStyle = FlatStyle.Flat,
+			FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+			Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+			Size = new Size(28, 24),
+			Text = "\U0001F4D1",
+			Margin = new Padding(1, 3, 1, 1),
+			Cursor = Cursors.Hand,
+		};
+        _gotoNpcWorkersBtn.Click += (_, _) => GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "NPCWorkers"));
+        basesGotoPanel.Controls.Add(_gotoNpcWorkersBtn);
         rightLayout.Controls.Add(buttonPanel, 0, row);
         rightLayout.SetColumnSpan(buttonPanel, 3);
         row++;
@@ -460,7 +558,9 @@ internal class BasesSubPanel : UserControl
         rightLayout.Controls.Add(terrainButtonPanel, 0, row);
         rightLayout.SetColumnSpan(terrainButtonPanel, 3);
 
-        outerLayout.Controls.Add(rightLayout, 1, 0);
+        outerContent.Controls.Add(rightLayout, 1, 0);
+
+        outerLayout.Controls.Add(outerContent, 0, 1);
 
         Controls.Add(outerLayout);
         ResumeLayout(false);
@@ -469,6 +569,7 @@ internal class BasesSubPanel : UserControl
 
     public void LoadData(JsonObject saveData)
     {
+        _loading = true;
         SuspendLayout();
         _npcSelector.BeginUpdate();
         _baseList.BeginUpdate();
@@ -484,6 +585,9 @@ internal class BasesSubPanel : UserControl
         _exportBtn.Enabled = false;
         _importBtn.Enabled = false;
         _moveBaseComputerBtn.Enabled = false;
+        _deleteBaseBtn.Enabled = false;
+        _sortAlphaAscBtn.Enabled = false;
+        _sortAlphaDescBtn.Enabled = false;
         _clearTerrainEditsBtn.Enabled = false;
         _clearAllTerrainEditsBtn.Enabled = false;
         _clearAllTerrainExceptBasesBtn.Enabled = false;
@@ -567,6 +671,7 @@ internal class BasesSubPanel : UserControl
             _baseList.EndUpdate();
             _npcSelector.EndUpdate();
             ResumeLayout(true);
+            _loading = false;
         }
     }
 
@@ -674,7 +779,8 @@ internal class BasesSubPanel : UserControl
                     resourceElement.Set("Filename", filename);
                 else
                     item.Data.Set("ResourceElement.Filename", filename);
-                DataModified?.Invoke(this, EventArgs.Empty);
+                if (!_loading)
+                    DataModified?.Invoke(this, EventArgs.Empty);
             }
         }
     }
@@ -742,10 +848,17 @@ internal class BasesSubPanel : UserControl
             if (galacticAddress != null)
                 worker.Set("BaseUA", galacticAddress);
 
-            // Copy Position -> BaseOffset
-            var position = baseItem.Data.Get("Position");
-            if (position != null)
-                worker.Set("BaseOffset", position);
+            // Copy Position -> BaseOffset.
+            // BaseOffset requires 4 elements (x, y, z, 1.0), while Position has only 3.
+            if (baseItem.Data.Get("Position") is JsonArray position)
+            {
+                var baseOffset = new JsonArray();
+                baseOffset.Add(position.Get(0));
+                baseOffset.Add(position.Get(1));
+                baseOffset.Add(position.Get(2));
+                baseOffset.Add(1.0);
+                worker.Set("BaseOffset", baseOffset);
+            }
 
             // Set FreighterBase flag
             worker.Set("FreighterBase", isFreighterBase);
@@ -771,12 +884,13 @@ internal class BasesSubPanel : UserControl
             _baseItems.Text = "";
             _exportBtn.Enabled = false;
             _importBtn.Enabled = false;
-            _moveBaseComputerBtn.Enabled = false;
-            _clearTerrainEditsBtn.Enabled = false;
-            _pendingBaseName = null;
-            UpdateSummonButtonState();
-            UpdateMoveButtonStates();
-            return;
+        _moveBaseComputerBtn.Enabled = false;
+        _deleteBaseBtn.Enabled = false;
+        _clearTerrainEditsBtn.Enabled = false;
+        _pendingBaseName = null;
+        UpdateSummonButtonState();
+        UpdateMoveButtonStates();
+        return;
         }
 
         _baseName.Text = item.Data.GetString("Name") ?? "";
@@ -794,6 +908,7 @@ internal class BasesSubPanel : UserControl
         _exportBtn.Enabled = true;
         _importBtn.Enabled = true;
         _moveBaseComputerBtn.Enabled = true;
+        _deleteBaseBtn.Enabled = true;
         _clearTerrainEditsBtn.Enabled = true;
         UpdateSummonButtonState();
         UpdateMoveButtonStates();
@@ -1176,6 +1291,9 @@ internal class BasesSubPanel : UserControl
         _exportBtn.Text = UiStrings.Get("base.export");
         _importBtn.Text = UiStrings.Get("base.import");
         _moveBaseComputerBtn.Text = UiStrings.Get("base.move_basecomp");
+        _deleteBaseBtn.Text = UiStrings.Get("base.delete_base");
+        _sortAlphaAscBtn.Text = UiStrings.Get("base.sort_az");
+        _sortAlphaDescBtn.Text = UiStrings.Get("base.sort_za");
         _clearTerrainEditsBtn.Text = UiStrings.Get("base.clear_terrain");
         _clearAllTerrainEditsBtn.Text = UiStrings.Get("base.clear_all_terrain");
         _clearAllTerrainExceptBasesBtn.Text = UiStrings.Get("base.clear_all_terrain_except_bases");
@@ -1184,6 +1302,10 @@ internal class BasesSubPanel : UserControl
         _toTopBtn.Text = UiStrings.Get("base.move_base_to_top");
         _toBottomBtn.Text = UiStrings.Get("base.move_base_to_bottom");
         _moveOrderLabel.Text = UiStrings.Get("base.move_base_in_list");
+
+        new ToolTip().SetToolTip(_gotoBasesListBtn, UiStrings.Format("goto_json.tooltip_section", _baseListTitle.Text));
+        new ToolTip().SetToolTip(_gotoNpcWorkersBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_npc_workers")));
+
 
         // Refresh NPC race combo with localised display names
         RefreshNpcRaceCombo();
@@ -1321,6 +1443,100 @@ internal class BasesSubPanel : UserControl
         DataModified?.Invoke(this, EventArgs.Empty);
     }
 
+    private void OnDeleteBase(object? sender, EventArgs e)
+    {
+        if (_baseList.SelectedItem is not BaseInfoItem selected) return;
+        if (_playerState == null) return;
+
+        var result = MessageBox.Show(this,
+            UiStrings.Format("base.delete_base_confirm", selected.DisplayName),
+            UiStrings.Get("base.delete_base_title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+        if (result != DialogResult.Yes) return;
+
+        try
+        {
+            var bases = _playerState.GetArray("PersistentPlayerBases");
+            if (bases == null) return;
+
+            bases.RemoveAt(selected.DataIndex);
+            _baseInfoItems.Remove(selected);
+
+            // Update DataIndex for items after the removed one
+            foreach (var item in _baseInfoItems)
+            {
+                if (item.DataIndex > selected.DataIndex)
+                    item.DataIndex--;
+            }
+
+            _baseList.SelectedIndexChanged -= OnBaseSelected;
+            _baseList.BeginUpdate();
+            _baseList.Items.Remove(selected);
+            _baseList.EndUpdate();
+            _baseList.SelectedIndexChanged += OnBaseSelected;
+
+            if (_baseInfoItems.Count > 0)
+                _baseList.SelectedIndex = 0;
+
+            DataModified?.Invoke(this, EventArgs.Empty);
+            UpdateMoveButtonStates();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                UiStrings.Format("base.delete_base_failed", ex.Message),
+                UiStrings.Get("common.error"),
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void OnSortAlphaAsc(object? sender, EventArgs e)
+    {
+        if (_playerState == null) return;
+        SortAlphaList(true);
+    }
+
+    private void OnSortAlphaDesc(object? sender, EventArgs e)
+    {
+        if (_playerState == null) return;
+        SortAlphaList(false);
+    }
+
+    private void SortAlphaList(bool ascending)
+    {
+        if (_baseInfoItems.Count < 2) return;
+
+        var bases = _playerState?.GetArray("PersistentPlayerBases");
+        if (bases == null) return;
+
+        var sorted = ascending
+            ? _baseInfoItems.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ToList()
+            : _baseInfoItems.OrderByDescending(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+
+        // Reorder the JSON array to match the sorted display list
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            var item = sorted[i];
+            int currentIdx = item.DataIndex;
+            if (currentIdx != i)
+            {
+                BaseLogic.SwapPlayerBases(bases, currentIdx, i);
+                item.DataIndex = i;
+                // Update other items whose indices shifted
+                foreach (var other in _baseInfoItems)
+                {
+                    if (other != item && other.DataIndex == i)
+                        other.DataIndex = currentIdx;
+                }
+            }
+        }
+
+        // Refresh the list and keep the same selected item
+        var selected = _baseList.SelectedItem as BaseInfoItem;
+        RefreshBaseList(selected);
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// Repopulates the base list box, sorted by array index, and re-selects the given item.
     /// Also updates the enabled state of the reorder buttons.
@@ -1367,6 +1583,8 @@ internal class BasesSubPanel : UserControl
         _moveUpBtn.Enabled = pos > 0;
         _moveDownBtn.Enabled = pos < sorted.Count - 1;
         _toBottomBtn.Enabled = pos < sorted.Count - 1;
+        _sortAlphaAscBtn.Enabled = sorted.Count >= 2;
+        _sortAlphaDescBtn.Enabled = sorted.Count >= 2;
     }
 
     private sealed class NpcWorkerItem
@@ -1459,8 +1677,13 @@ internal class ChestsSubPanel : UserControl
     private readonly JsonObject?[] _pendingInventories = new JsonObject?[10];
     private readonly bool[] _chestLoaded = new bool[10];
 
+    private readonly Button[] _chestGotoBtns = new Button[10];
+
     // Tracks the current custom name per chest (empty = default)
     private readonly string[] _chestNames = new string[10];
+
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    internal event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
 
     public ChestsSubPanel()
     {
@@ -1529,23 +1752,44 @@ internal class ChestsSubPanel : UserControl
                 Anchor = AnchorStyles.Left
             };
 
-            var nameRow = new FlowLayoutPanel
+            var nameRow = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                WrapContents = false,
-                FlowDirection = FlowDirection.LeftToRight,
+                ColumnCount = 5,
+                RowCount = 1,
                 Padding = new Padding(0, 0, 0, 4)
             };
-            nameRow.Controls.Add(_chestNameLabels[i]);
-            nameRow.Controls.Add(_chestNameFields[i]);
-            nameRow.Controls.Add(_chestRenameButtons[i]);
-            nameRow.Controls.Add(_chestClearButtons[i]);
+            nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            nameRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            nameRow.Controls.Add(_chestNameLabels[i], 0, 0);
+            nameRow.Controls.Add(_chestNameFields[i], 1, 0);
+            nameRow.Controls.Add(_chestRenameButtons[i], 2, 0);
+            nameRow.Controls.Add(_chestClearButtons[i], 3, 0);
+
+            int chestJsonIdx = i; // capture for closure
+		var gotoBtn = new Button
+			{
+				FlatStyle = FlatStyle.Flat,
+				FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+				Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+				Size = new Size(28, 24),
+				Text = "\U0001F4D1",
+				Margin = new Padding(1, 3, 1, 1),
+				Anchor = AnchorStyles.Right,
+				Cursor = Cursors.Hand,
+			};
+            gotoBtn.Click += (_, _) => GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", $"Chest{chestJsonIdx + 1}Inventory"));
+            _chestGotoBtns[i] = gotoBtn;
+            nameRow.Controls.Add(gotoBtn, 4, 0);
 
             _chestWarnings[i] = new Label
             {
                 Text = UiStrings.Get("base.chest_warning"),
-                ForeColor = Color.Red,
+                ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : Color.Red,
                 AutoSize = true,
                 Dock = DockStyle.Top,
                 Padding = new Padding(0, 0, 0, 6)
@@ -1734,6 +1978,8 @@ internal class ChestsSubPanel : UserControl
             _chestClearButtons[i].Text = UiStrings.Get("base.chest_clear_name");
             _chestGrids[i].ApplyUiLocalisation();
         }
+        for (int i = 0; i < 10; i++)
+            new ToolTip().SetToolTip(_chestGotoBtns[i], UiStrings.Format("goto_json.tooltip_section", _chestPages[i].Text));
     }
 }
 
@@ -1767,9 +2013,13 @@ internal class StorageSubPanel : UserControl
     private readonly TabControl _storageTabs;
     private readonly List<StorageTab> _tabs = new();
     private readonly Label _freighterRefundWarning;
+    private readonly List<Button> _storageGotoBtns = new();
 
     private GameItemDatabase? _database;
     private IconManager? _iconManager;
+
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    internal event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
 
     public StorageSubPanel()
     {
@@ -1794,7 +2044,43 @@ internal class StorageSubPanel : UserControl
             grid.SetExportFileFilter(storeExportFilter, storeImportFilter, storageCfg.StorageExt.TrimStart('.'));
 
             var page = new TabPage(tabName);
-            page.Controls.Add(parentOverride ?? grid);
+            var storageKey = loadKey;
+			var gotoBtn = new Button
+			{
+				FlatStyle = FlatStyle.Flat,
+				FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+				Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+				Size = new Size(28, 24),
+				Text = "\U0001F4D1",
+				Margin = new Padding(1, 3, 1, 1),
+				Cursor = Cursors.Hand,
+			};
+			gotoBtn.Click += (_, _) => GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", storageKey));
+			_storageGotoBtns.Add(gotoBtn);
+            var headerPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                ColumnCount = 3,
+                RowCount = 1,
+                Padding = new Padding(0, 0, 5, 0),
+            };
+            headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            headerPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			var storageGotoPanel = new FlowLayoutPanel
+			{
+				Dock = DockStyle.Fill,
+				AutoSize = true,
+				FlowDirection = FlowDirection.LeftToRight,
+				WrapContents = false,
+			};
+            storageGotoPanel.Controls.Add(gotoBtn);
+            headerPanel.Controls.Add(storageGotoPanel, 2, 0);
+            var content = parentOverride ?? grid;
+            content.Dock = DockStyle.Fill;
+            page.Controls.Add(headerPanel);
+            page.Controls.Add(content);
             _storageTabs.TabPages.Add(page);
 
             _tabs.Add(new StorageTab(grid, loadKey, saveKey));
@@ -1839,7 +2125,7 @@ internal class StorageSubPanel : UserControl
             _freighterRefundWarning = new Label
             {
                 Text = UiStrings.Get("base.storage_freighter_refund_warning"),
-                ForeColor = Color.Red,
+                ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : Color.Red,
                 AutoSize = true,
                 Dock = DockStyle.Top,
                 Padding = new Padding(0, 0, 0, 6)
@@ -1849,6 +2135,40 @@ internal class StorageSubPanel : UserControl
             wrapper.Controls.Add(_freighterRefundWarning);
 
             var page = new TabPage(UiStrings.Get("base.storage_freighter_refund"));
+			var freighterGotoBtn = new Button
+			{
+				FlatStyle = FlatStyle.Flat,
+				FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+				Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+				Size = new Size(28, 24),
+				Text = "\U0001F4D1",
+				Margin = new Padding(1, 3, 1, 1),
+				Cursor = Cursors.Hand,
+			};
+            freighterGotoBtn.Click += (_, _) => GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "ChestMagic2Inventory"));
+            _storageGotoBtns.Add(freighterGotoBtn);
+            var freighterHeaderPanel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                ColumnCount = 3,
+                RowCount = 1,
+                Padding = new Padding(0, 0, 5, 0),
+            };
+            freighterHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            freighterHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            freighterHeaderPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+			var freighterGotoPanel = new FlowLayoutPanel
+			{
+				Dock = DockStyle.Fill,
+				AutoSize = true,
+				FlowDirection = FlowDirection.LeftToRight,
+				WrapContents = false,
+			};
+            freighterGotoPanel.Controls.Add(freighterGotoBtn);
+            freighterHeaderPanel.Controls.Add(freighterGotoPanel, 2, 0);
+            wrapper.Dock = DockStyle.Fill;
+            page.Controls.Add(freighterHeaderPanel);
             page.Controls.Add(wrapper);
             _storageTabs.TabPages.Add(page);
 
@@ -1969,6 +2289,9 @@ internal class StorageSubPanel : UserControl
 
         foreach (var tab in _tabs)
             tab.Grid.ApplyUiLocalisation();
+
+        for (int i = 0; i < _storageGotoBtns.Count; i++)
+            new ToolTip().SetToolTip(_storageGotoBtns[i], UiStrings.Format("goto_json.tooltip_section", _storageTabs.TabPages[i].Text));
     }
 }
 
@@ -1991,8 +2314,9 @@ internal class StorageSubPanel : UserControl
 /// </summary>
 internal class DoubleBufferedTabControl : TabControl
 {
-    /// <summary>Background colour for the currently selected tab header.</summary>
-    private static readonly Color SelectedTabColor = Color.FromArgb(212, 242, 255);
+    private bool _subscribed;
+
+    private const int WM_ERASEBKGND = 0x0014;
 
     public DoubleBufferedTabControl()
     {
@@ -2003,7 +2327,40 @@ internal class DoubleBufferedTabControl : TabControl
 
         DrawMode = TabDrawMode.OwnerDrawFixed;
         DrawItem += OnDrawTabItem;
+        HandleCreated += OnHandleCreated;
+        HandleDestroyed += OnHandleDestroyed;
     }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == WM_ERASEBKGND)
+        {
+            var p = ThemeManager.Effective == AppTheme.Dark
+                ? ThemeColors.Dark
+                : ThemeColors.Light;
+            using var g = Graphics.FromHdc(m.WParam);
+            g.Clear(p.Background);
+            m.Result = (IntPtr)1;
+            return;
+        }
+        base.WndProc(ref m);
+    }
+
+    private void OnHandleCreated(object? sender, EventArgs e)
+    {
+        if (_subscribed) return;
+        ThemeManager.ThemeChanged += OnThemeChanged;
+        _subscribed = true;
+    }
+
+    private void OnHandleDestroyed(object? sender, EventArgs e)
+    {
+        if (!_subscribed) return;
+        ThemeManager.ThemeChanged -= OnThemeChanged;
+        _subscribed = false;
+    }
+
+    private void OnThemeChanged() => Invalidate();
 
     /// <summary>Freeze painting just before the tab switch begins.</summary>
     protected override void OnSelecting(TabControlCancelEventArgs e)
@@ -2017,27 +2374,34 @@ internal class DoubleBufferedTabControl : TabControl
     {
         base.OnSelected(e);
         ResumeLayout(true);
-        Invalidate(true);  // recursive - invalidates all child controls
-        Update();           // paints synchronously so there's no flash
+        Invalidate(true);
+        Update();
     }
 
-    /// <summary>
-    /// Owner-draw handler: paints selected tabs with <see cref="SelectedTabColor"/>
-    /// and unselected tabs with the system default tab background.
-    /// </summary>
     private void OnDrawTabItem(object? sender, DrawItemEventArgs e)
     {
         bool isSelected = (e.Index == SelectedIndex);
         var bounds = GetTabRect(e.Index);
         var page = TabPages[e.Index];
 
-        // Fill the tab header background
-        Color backColor = isSelected ? SelectedTabColor : SystemColors.Control;
+        var p = ThemeManager.Effective == AppTheme.Dark
+            ? ThemeColors.Dark
+            : ThemeColors.Light;
+
+        Color backColor = isSelected ? p.TabSelectedBackground : p.TabBackground;
         using (var brush = new SolidBrush(backColor))
             e.Graphics.FillRectangle(brush, bounds);
 
-        // Draw the tab text centred, preserving literal "&" characters
-        var textColor = page.ForeColor == Color.Empty ? SystemColors.ControlText : page.ForeColor;
+        if (ThemeManager.Effective == AppTheme.Dark && !isSelected)
+        {
+            using var pen = new Pen(p.MenuBorder);
+            e.Graphics.DrawLine(pen, bounds.Right - 1, bounds.Top + 4,
+                bounds.Right - 1, bounds.Bottom - 4);
+        }
+
+        var textColor = page.ForeColor == Color.Empty
+            ? p.TabForeground
+            : page.ForeColor;
         var font = page.Font ?? Font;
         TextRenderer.DrawText(
             e.Graphics,
@@ -2048,5 +2412,15 @@ internal class DoubleBufferedTabControl : TabControl
             TextFormatFlags.HorizontalCenter |
             TextFormatFlags.VerticalCenter |
             TextFormatFlags.NoPrefix);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _subscribed)
+        {
+            ThemeManager.ThemeChanged -= OnThemeChanged;
+            _subscribed = false;
+        }
+        base.Dispose(disposing);
     }
 }
