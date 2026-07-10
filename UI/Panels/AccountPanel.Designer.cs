@@ -597,7 +597,10 @@ partial class AccountPanel
     }
 
     private void OnGridCellChanged(object sender, DataGridViewCellEventArgs e)
-        => DataModified?.Invoke(this, EventArgs.Empty);
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
 
     private System.Windows.Forms.TableLayoutPanel _mainLayout;
     private System.Windows.Forms.Label _statusLabel;

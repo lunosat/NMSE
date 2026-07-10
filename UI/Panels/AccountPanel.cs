@@ -29,6 +29,7 @@ public partial class AccountPanel : UserControl
     /// </summary>
     private HashSet<string> _originalSeasonRedeemed = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string> _originalTwitchRedeemed = new(StringComparer.OrdinalIgnoreCase);
+    private bool _loading;
 
     /// <summary>The loaded account data object, or null if not loaded.</summary>
     public JsonObject? AccountData => _accountData;
@@ -219,48 +220,56 @@ public partial class AccountPanel : UserControl
 
     public void LoadAccountFile(string saveDirectory)
     {
-        _seasonGrid.Rows.Clear();
-        _twitchGrid.Rows.Clear();
-        _platformGrid.Rows.Clear();
-        _accountData = null;
-        _accountFilePath = null;
-
-        var data = AccountLogic.LoadAccountData(saveDirectory);
-        if (data.ErrorMessage != null)
+        _loading = true;
+        try
         {
-            _statusLabel.Text = data.ErrorMessage;
-            return;
+            _seasonGrid.Rows.Clear();
+            _twitchGrid.Rows.Clear();
+            _platformGrid.Rows.Clear();
+            _accountData = null;
+            _accountFilePath = null;
+
+            var data = AccountLogic.LoadAccountData(saveDirectory);
+            if (data.ErrorMessage != null)
+            {
+                _statusLabel.Text = data.ErrorMessage;
+                return;
+            }
+
+            _accountData = data.AccountObject;
+            _accountFilePath = data.AccountFilePath;
+
+            // Auto-detect MXML path if not already set (PC platforms only).
+            // Console platforms (Xbox, PS4, Switch) do not use MXML files.
+            if (UsesMxml && string.IsNullOrEmpty(_mxmlFilePath))
+            {
+                var detected = MxmlRewardEditor.AutoDetectMxmlPath();
+                if (detected != null)
+                    SetMxmlPath(detected);
+            }
+
+            // Platform rewards require BOTH accountdata AND MXML to be present (PC only).
+            // Only show as unlocked if the reward exists in both sources.
+            var platformUnlocked = data.PlatformUnlocked;
+            if (UsesMxml && !string.IsNullOrEmpty(_mxmlFilePath))
+            {
+                var mxmlRewards = MxmlRewardEditor.ReadUnlockedRewards(_mxmlFilePath);
+                // Intersect: only keep rewards that are in both accountdata and MXML
+                platformUnlocked = new HashSet<string>(
+                    platformUnlocked.Where(id => mxmlRewards.Contains(id)),
+                    StringComparer.OrdinalIgnoreCase);
+            }
+
+            PopulateRewardGrid(_seasonGrid, _seasonRewardsDb, data.SeasonUnlocked);
+            PopulateRewardGrid(_twitchGrid, _twitchRewardsDb, data.TwitchUnlocked);
+            PopulateRewardGrid(_platformGrid, _platformRewardsDb, platformUnlocked);
+
+            _statusLabel.Text = data.StatusMessage ?? "";
         }
-
-        _accountData = data.AccountObject;
-        _accountFilePath = data.AccountFilePath;
-
-        // Auto-detect MXML path if not already set (PC platforms only).
-        // Console platforms (Xbox, PS4, Switch) do not use MXML files.
-        if (UsesMxml && string.IsNullOrEmpty(_mxmlFilePath))
+        finally
         {
-            var detected = MxmlRewardEditor.AutoDetectMxmlPath();
-            if (detected != null)
-                SetMxmlPath(detected);
+            _loading = false;
         }
-
-        // Platform rewards require BOTH accountdata AND MXML to be present (PC only).
-        // Only show as unlocked if the reward exists in both sources.
-        var platformUnlocked = data.PlatformUnlocked;
-        if (UsesMxml && !string.IsNullOrEmpty(_mxmlFilePath))
-        {
-            var mxmlRewards = MxmlRewardEditor.ReadUnlockedRewards(_mxmlFilePath);
-            // Intersect: only keep rewards that are in both accountdata and MXML
-            platformUnlocked = new HashSet<string>(
-                platformUnlocked.Where(id => mxmlRewards.Contains(id)),
-                StringComparer.OrdinalIgnoreCase);
-        }
-
-        PopulateRewardGrid(_seasonGrid, _seasonRewardsDb, data.SeasonUnlocked);
-        PopulateRewardGrid(_twitchGrid, _twitchRewardsDb, data.TwitchUnlocked);
-        PopulateRewardGrid(_platformGrid, _platformRewardsDb, platformUnlocked);
-
-        _statusLabel.Text = data.StatusMessage ?? "";
     }
 
     /// <summary>
@@ -271,30 +280,38 @@ public partial class AccountPanel : UserControl
     /// <param name="accountSlot">The Xbox slot info for the AccountData entry.</param>
     public void LoadXboxAccountData(XboxSlotInfo accountSlot)
     {
-        _seasonGrid.Rows.Clear();
-        _twitchGrid.Rows.Clear();
-        _platformGrid.Rows.Clear();
-        _accountData = null;
-        _accountFilePath = null;
-
-        var data = AccountLogic.LoadXboxAccountData(accountSlot);
-        if (data.ErrorMessage != null)
+        _loading = true;
+        try
         {
-            _statusLabel.Text = data.ErrorMessage;
-            return;
+            _seasonGrid.Rows.Clear();
+            _twitchGrid.Rows.Clear();
+            _platformGrid.Rows.Clear();
+            _accountData = null;
+            _accountFilePath = null;
+
+            var data = AccountLogic.LoadXboxAccountData(accountSlot);
+            if (data.ErrorMessage != null)
+            {
+                _statusLabel.Text = data.ErrorMessage;
+                return;
+            }
+
+            _accountData = data.AccountObject;
+            _accountFilePath = data.AccountFilePath;
+
+            // Xbox is a console platform - do NOT auto-detect or use MXML files.
+            // Platform rewards for Xbox are stored in the AccountData blob only.
+
+            PopulateRewardGrid(_seasonGrid, _seasonRewardsDb, data.SeasonUnlocked);
+            PopulateRewardGrid(_twitchGrid, _twitchRewardsDb, data.TwitchUnlocked);
+            PopulateRewardGrid(_platformGrid, _platformRewardsDb, data.PlatformUnlocked);
+
+            _statusLabel.Text = data.StatusMessage ?? "";
         }
-
-        _accountData = data.AccountObject;
-        _accountFilePath = data.AccountFilePath;
-
-        // Xbox is a console platform - do NOT auto-detect or use MXML files.
-        // Platform rewards for Xbox are stored in the AccountData blob only.
-
-        PopulateRewardGrid(_seasonGrid, _seasonRewardsDb, data.SeasonUnlocked);
-        PopulateRewardGrid(_twitchGrid, _twitchRewardsDb, data.TwitchUnlocked);
-        PopulateRewardGrid(_platformGrid, _platformRewardsDb, data.PlatformUnlocked);
-
-        _statusLabel.Text = data.StatusMessage ?? "";
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void PopulateRewardGrid(DataGridView grid, List<AccountLogic.RewardDbEntry> rewardsDb,
@@ -372,10 +389,18 @@ public partial class AccountPanel : UserControl
         _originalTwitchRedeemed = new HashSet<string>(twitchRedeemed, StringComparer.OrdinalIgnoreCase);
 
         // Update the redeemed column in each grid
-        UpdateRedeemedColumn(_seasonGrid, seasonRedeemed);
-        UpdateRedeemedColumn(_twitchGrid, twitchRedeemed);
-        // Platform rewards do not have per-save redemption arrays
-        UpdateRedeemedColumn(_platformGrid, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        _loading = true;
+        try
+        {
+            UpdateRedeemedColumn(_seasonGrid, seasonRedeemed);
+            UpdateRedeemedColumn(_twitchGrid, twitchRedeemed);
+            // Platform rewards do not have per-save redemption arrays
+            UpdateRedeemedColumn(_platformGrid, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     /// <summary>
