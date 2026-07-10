@@ -55,6 +55,8 @@ public class ExportConfig
     public string SettlementExt { get; set; } = ".nmssettle";
     /// <summary>File extension for ByteBeat song exports.</summary>
     public string ByteBeatExt { get; set; } = ".nmssong";
+    /// <summary>File extension for outfit exports.</summary>
+    public string OutfitExt { get; set; } = ".nmsfit";
 
     // Naming Templates
     // Template variables:
@@ -123,6 +125,8 @@ public class ExportConfig
     public string SettlementTemplate { get; set; } = "{settlement_name}_{seed}";
     /// <summary>Naming template for ByteBeat song exports.</summary>
     public string ByteBeatTemplate { get; set; } = "{name}_{timestamp}";
+    /// <summary>Naming template for outfit exports.</summary>
+    public string OutfitTemplate { get; set; } = "{name}";
 
     // --- Singleton -------------------------------------------------
     private static ExportConfig? _instance;
