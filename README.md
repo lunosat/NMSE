@@ -1,10 +1,5 @@
 <div align="center">
 
-> Preview builds are now live! 🎉 <br>
-> Expect some bugs while in preview.
-
-> The user guide may lag behind builds during preview.
-
 # NMSE (No Man's Save Editor)
 
 [![Build Status][badge-build]][workflow-build]
@@ -22,7 +17,9 @@ It boasts the most complete set of editable features among editors and supports 
 [**Download Latest Release**][releases] · [**See The Website**][website] · [**Report a Bug**][issues-bug] · [**Request a Feature**][issues-feature] <br />
 [**User Guide**][user-guide]
 
-> **Latest Supported Game Version:** 6.43 _**The Swarm**_
+> *The user guide may lag behind builds.*
+
+> **Latest Supported Game Version:** 6.45.1 _**The Swarm**_
 
 </div>
 
@@ -42,6 +39,7 @@ It boasts the most complete set of editable features among editors and supports 
 - Full milestone and journey milestone editing
 - Edit multi-tool inventory, type, class, and seed
 - Edit known items (product, tech, recipes, etc.)
+- Outfit export/import
 
 ### 🏗️ Bases, Settlements
 - Edit base inventories and storage chests
@@ -76,6 +74,7 @@ It boasts the most complete set of editable features among editors and supports 
 - Recipe browser with full crafting trees
 - Raw JSON tree viewer for advanced editing
 - Export/import editor configuration profiles
+- Light/Dark mode
 
 </td>
 </tr>

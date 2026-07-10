@@ -1,8 +1,46 @@
-## NMSE — No Man's Save Editor v1.1.93 (preview)
+## NMSE — No Man's Save Editor v1.2.7
 
-> This is a preview build. Please practice safe backup practices and expect some bugs.
+> This is the first true release build "out of preview"! 🥳 </br>
+> The bedrock seems to be sound at this point and bug reporting and fixing has a stable lifecycle.</br>
+> Thanks to ALL users who have been continuing to provide feedback, report issues and request new features! You are the best❤️</br>
 
 ### Changelog
+
+#### Features:
+
+- **DB and mappings updated for Game Update 6.45.1 (The Swarm) to include the three trophies**
+- Added basic light / dark theme support (dark theme is a little limited due to WinForms constraints that still support Wine). (per FR #101)
+    - This can be found under the main toolstrip at the top of the editor.
+- Added backup directory selection. (per FR/Issue #106)
+- Added backup directory fallback and hardening for restricted file systems (such as squashfs within AppImages). (per FR/Issue #106)
+- Added active context switching / handling for base vs expedition save structures (improves use in Expedition saves).
+- Added player outfit selector and export / import support (see new extension in Export Config panel). (per NMScord request)
+- Added A->Z / Z->A sorting to the Bases list.
+- Added ability to delete bases. 9Per FR #104)
+- Increased system index to support the whole range (0-4095) instead of the older low range (phantom blocks, Purple Systems, etc. are now reachable via the UI). (per Issue #105)
+- Added "MAX" button to currencies. (per FR #103)
+- Added "GOTO JSON" System (per FR #67):
+    - Each panel that has a *sensible* section of JSON to navigate to has a button for it in the top right of that panel.
+    - The GOTO JSON button will send you to the Raw JSON Editor to the "master" key for the section.
+    - Hover over the button to see the tooltip for what section it is sending you to.
+    - The system is limited to certain sets of master keys / values / arrays to keep things sensible and manageable - it may be extended in the future.
+    - While using it to jump to a JSON block can't hurt your save - please consider it an advanced use feature. Bug reports are welcome.
+
+#### Bug Fixes:
+
+- Improved loading Splash DPI / Scaling support. (per NMScord report)
+- Fixed wrong location being displayed in the Exocraft Station panel. (per Issue #102)
+- Fixes for false flag DataModified events in all panels (false "Unsaved Changes" prompts). (per Issue #109)
+- Fix for base NPC moving missing the final array element. (per Discord report)
+- Fix for TechPack duplication (high byte writing issue). (per Discord report)
+- Fix for expedition order sorting in the Account Rewards UI. (per Discord report)
+
+<br />
+
+<details>
+<summary>Previous Changelogs</summary>
+
+### Changelog 1.1.93 (preview)
 
 #### Features:
 
@@ -30,9 +68,6 @@
 - More robust user name detection; now lists all that have an ID in Discovery section and then falls back to user ID bases. (per Discord)
 
 <br />
-
-<details>
-<summary>Previous Changelogs</summary>
 
 ### Changelog 1.1.79 (preview)
 
