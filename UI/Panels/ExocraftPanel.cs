@@ -12,6 +12,9 @@ public partial class ExocraftPanel : UserControl
     /// <summary>Raised when inventory data is modified by the user.</summary>
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     private static (int Index, string Name)[] VehicleTypes => ExocraftLogic.VehicleTypes;
 
     private JsonArray? _vehicleOwnership;
@@ -234,7 +237,9 @@ public partial class ExocraftPanel : UserControl
                 try { location = vehicle.GetLong("Location"); } catch { }
                 bool deployed = location != 0;
                 _deployedLabel.Text = deployed ? UiStrings.Get("exocraft.status_deployed") : UiStrings.Get("exocraft.status_not_deployed");
-                _deployedLabel.ForeColor = deployed ? System.Drawing.Color.Green : System.Drawing.Color.Gray;
+                _deployedLabel.ForeColor = deployed
+    ? (ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SuccessGreen : System.Drawing.Color.Green)
+    : (ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : System.Drawing.Color.Gray);
                 _undeployBtn.Enabled = deployed;
             }
             catch { _deployedLabel.Text = ""; _undeployBtn.Enabled = false; }
@@ -406,7 +411,7 @@ public partial class ExocraftPanel : UserControl
             catch { }
 
             _deployedLabel.Text = UiStrings.Get("exocraft.status_not_deployed");
-            _deployedLabel.ForeColor = System.Drawing.Color.Gray;
+            _deployedLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : System.Drawing.Color.Gray;
             _undeployBtn.Enabled = false;
         }
         catch (Exception ex)
@@ -504,6 +509,32 @@ public partial class ExocraftPanel : UserControl
         return "";
     }
 
+    /// <summary>
+    /// Extracts the reality index (galaxy index) from a normalised GalacticAddress hex string.
+    /// The 14-hex-digit UniverseAddress format embeds a 2-digit reality index at positions 4-5
+    /// (0-indexed after the "0x" prefix). Returns null for 12-digit (portal-code-only) addresses
+    /// or if the address cannot be parsed.
+    /// </summary>
+    private static int? GetRealityIndexFromAddress(string galacticAddrHex)
+    {
+        if (string.IsNullOrEmpty(galacticAddrHex))
+            return null;
+
+        string raw = galacticAddrHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? galacticAddrHex[2..]
+            : galacticAddrHex;
+
+        // Only 14-hex-digit addresses contain reality index info
+        if (raw.Length == 14
+            && int.TryParse(raw.AsSpan(4, 2), NumberStyles.HexNumber,
+                CultureInfo.InvariantCulture, out int reality))
+        {
+            return reality;
+        }
+
+        return null;
+    }
+
     private static string FormatTimestamp(long timestamp)
     {
         if (timestamp <= 0) return UiStrings.Get("common.unknown");
@@ -570,7 +601,8 @@ public partial class ExocraftPanel : UserControl
         JsonArray? positionArray,
         string portalCode,
         int vx, int vy, int vz, int si, int pi,
-        bool showRegionSeed)
+        bool showRegionSeed,
+        int? realityIndex)
     {
         _stationNameValue.Text = GetStationDisplayName(objectId);
         _stationTimestampValue.Text = FormatTimestamp(timestamp);
@@ -581,10 +613,22 @@ public partial class ExocraftPanel : UserControl
         _stationRegionSeedValue.Text = regionSeedDisplay ?? UiStrings.Get("common.unknown");
         _stationPositionValue.Text = FormatPosition(positionArray);
 
-        // Galaxy display
-        string galaxyType = GalaxyDatabase.GetGalaxyType(_currentRealityIndex);
-        _stationGalaxyValue.Text = $"{GalaxyDatabase.GetGalaxyDisplayName(_currentRealityIndex)} ({galaxyType})";
-        GalaxyDisplayHelper.ConfigureGalaxyDotLabel(_stationGalaxyDotLabel, _currentRealityIndex);
+        // Galaxy display — use the reality index from the station/base address,
+        // not the player's current galaxy. If the address is only a 12-digit portal
+        // code (no galaxy info embedded), show a clear message.
+        if (realityIndex.HasValue)
+        {
+            int ri = realityIndex.Value;
+            string galaxyType = GalaxyDatabase.GetGalaxyType(ri);
+            _stationGalaxyValue.Text = $"{GalaxyDatabase.GetGalaxyDisplayName(ri)} ({galaxyType})";
+            GalaxyDisplayHelper.ConfigureGalaxyDotLabel(_stationGalaxyDotLabel, ri);
+        }
+        else
+        {
+            _stationGalaxyValue.Text = UiStrings.Get("exocraft.station_no_galaxy_info");
+            _stationGalaxyDotLabel.Image?.Dispose();
+            _stationGalaxyDotLabel.Image = null;
+        }
 
         // Portal code
         _stationPortalCodeValue.Text = portalCode;
@@ -657,8 +701,9 @@ public partial class ExocraftPanel : UserControl
         JsonArray? positionArray = null;
         try { positionArray = entry.GetArray("Position"); } catch { }
 
+        int? realityIndex = GetRealityIndexFromAddress(galacticAddrHex);
         PopulateStationDetail(objectId, timestamp, UiStrings.Get("exocraft.station_not_in_base"), galacticAddrHex, regionSeedStr, positionArray,
-            portalCode, vx, vy, vz, si, pi, showRegionSeed: true);
+            portalCode, vx, vy, vz, si, pi, showRegionSeed: true, realityIndex: realityIndex);
     }
 
     private void OnBaseStationSelected(object? sender, EventArgs e)
@@ -724,8 +769,9 @@ public partial class ExocraftPanel : UserControl
             baseName = UiStrings.Format("base.fallback_base_name", _baseStations[idx].BaseIndex + 1);
         }
 
+        int? realityIndex = GetRealityIndexFromAddress(galacticAddrHex);
         PopulateStationDetail(objectId, timestamp, baseName, galacticAddrHex, null, positionArray,
-            portalCode, vx, vy, vz, si, pi, showRegionSeed: false);
+            portalCode, vx, vy, vz, si, pi, showRegionSeed: false, realityIndex: realityIndex);
     }
 
     private void OnDeleteStation(object? sender, EventArgs e)
@@ -853,6 +899,10 @@ public partial class ExocraftPanel : UserControl
         RefreshVehicleCombo();
         _inventoryGrid.ApplyUiLocalisation();
         _techGrid.ApplyUiLocalisation();
+        new ToolTip().SetToolTip(_gotoVehicleListBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoVehicleCargoBtn, UiStrings.Format("goto_json.tooltip_section", _invPage.Text));
+        new ToolTip().SetToolTip(_gotoBaseBuildingBtn, UiStrings.Format("goto_json.tooltip_section", _individualStationsLabel.Text));
+        new ToolTip().SetToolTip(_gotoBaseStationsBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_base_stations")));
     }
 
     private string GetSelectedVehicleInternalName()
@@ -882,5 +932,29 @@ public partial class ExocraftPanel : UserControl
         }
         if (currentSel >= 0 && currentSel < _vehicleSelector.Items.Count)
             _vehicleSelector.SelectedIndex = currentSel;
+    }
+
+    private void OnGoToJsonVehicleListClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "VehicleOwnership"));
+    }
+
+    private void OnGoToJsonVehicleCargoClicked(object? sender, EventArgs e)
+    {
+        int selectorIdx = _vehicleSelector.SelectedIndex;
+        if (selectorIdx < 0 || selectorIdx >= _addedVehicleIndices.Count) return;
+
+        int arrayIndex = _addedVehicleIndices[selectorIdx];
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "VehicleOwnership", $"[{arrayIndex}]", "Inventory"));
+    }
+
+    private void OnGoToJsonBaseBuildingObjectsClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "BaseBuildingObjects"));
+    }
+
+    private void OnGoToJsonBaseStationsClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "PersistentPlayerBases"));
     }
 }

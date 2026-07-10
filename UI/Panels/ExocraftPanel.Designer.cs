@@ -1,3 +1,4 @@
+using NMSE.Core;
 using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
@@ -97,6 +98,10 @@ partial class ExocraftPanel
         _stationPlanetLabel = new Label();
         _stationPlanetValue = new Label();
         _deleteStationBtn = new Button();
+        _gotoVehicleListBtn = new Button();
+        _gotoVehicleCargoBtn = new Button();
+        _gotoBaseBuildingBtn = new Button();
+        _gotoBaseStationsBtn = new Button();
 
         _invTabs.SuspendLayout();
         _invPage.SuspendLayout();
@@ -133,7 +138,30 @@ partial class ExocraftPanel
         FontManager.ApplyHeadingFont(_titleLabel, 14);
         _titleLabel.AutoSize = true;
         _titleLabel.Padding = new Padding(0, 0, 0, 5);
-        _layout.Controls.Add(_titleLabel, 0, 0);
+        _titleLabel.Anchor = AnchorStyles.Left;
+
+        var _exoHeaderStrip = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        _exoHeaderStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _exoHeaderStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _exoHeaderStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _exoHeaderStrip.Controls.Add(_titleLabel, 0, 0);
+
+		var _exoGotoButtonPanel = new FlowLayoutPanel
+		{
+			Dock = DockStyle.Fill,
+			AutoSize = true,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+        _exoHeaderStrip.Controls.Add(_exoGotoButtonPanel, 2, 0);
+
+        _layout.Controls.Add(_exoHeaderStrip, 0, 0);
 
         // ===================== EXOCRAFTS TAB (existing content) =====================
 
@@ -225,6 +253,59 @@ partial class ExocraftPanel
         _minotaurAI.Text = "Minotaur AI Pilot";
         _minotaurAI.AutoSize = true;
 
+        //
+        // _gotoVehicleListBtn
+        //
+		_gotoVehicleListBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		_gotoVehicleListBtn.FlatAppearance.BorderSize = 1;
+		_gotoVehicleListBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoVehicleListBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoVehicleListBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoVehicleListBtn.Text = "\U0001F4D1";
+        _gotoVehicleListBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        _gotoVehicleListBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        _gotoVehicleListBtn.Click += OnGoToJsonVehicleListClicked;
+        _exoGotoButtonPanel.Controls.Add(_gotoVehicleListBtn);
+        //
+        // _gotoVehicleCargoBtn
+        //
+		_gotoVehicleCargoBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		_gotoVehicleCargoBtn.FlatAppearance.BorderSize = 1;
+		_gotoVehicleCargoBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoVehicleCargoBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoVehicleCargoBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoVehicleCargoBtn.Text = "\U0001F4D1";
+        _gotoVehicleCargoBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        _gotoVehicleCargoBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        _gotoVehicleCargoBtn.Click += OnGoToJsonVehicleCargoClicked;
+        _exoGotoButtonPanel.Controls.Add(_gotoVehicleCargoBtn);
+        //
+        // _gotoBaseBuildingBtn
+        //
+		_gotoBaseBuildingBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		_gotoBaseBuildingBtn.FlatAppearance.BorderSize = 1;
+		_gotoBaseBuildingBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoBaseBuildingBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoBaseBuildingBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoBaseBuildingBtn.Text = "\U0001F4D1";
+        _gotoBaseBuildingBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        _gotoBaseBuildingBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        _gotoBaseBuildingBtn.Click += OnGoToJsonBaseBuildingObjectsClicked;
+        _exoGotoButtonPanel.Controls.Add(_gotoBaseBuildingBtn);
+        //
+        // _gotoBaseStationsBtn
+        //
+		_gotoBaseStationsBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		_gotoBaseStationsBtn.FlatAppearance.BorderSize = 1;
+		_gotoBaseStationsBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoBaseStationsBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoBaseStationsBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoBaseStationsBtn.Text = "\U0001F4D1";
+        _gotoBaseStationsBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        _gotoBaseStationsBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        _gotoBaseStationsBtn.Click += OnGoToJsonBaseStationsClicked;
+        _exoGotoButtonPanel.Controls.Add(_gotoBaseStationsBtn);
+
         actionPanel.Controls.Add(_exportBtn);
         actionPanel.Controls.Add(_importBtn);
         actionPanel.Controls.Add(_primaryVehicleCheck);
@@ -250,7 +331,7 @@ partial class ExocraftPanel
         // 
         _techNoteLabel.Text = "Note: Supercharged slots are fixed for this inventory type in game and can't be modified.";
         _techNoteLabel.AutoSize = true;
-        _techNoteLabel.ForeColor = System.Drawing.Color.FromArgb(200, 160, 0);
+        _techNoteLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : System.Drawing.Color.FromArgb(200, 160, 0);
         _techNoteLabel.Padding = new Padding(0, 0, 0, 5);
         _techNoteLabel.Visible = false;
         _exocraftLayout.Controls.Add(_techNoteLabel, 0, 3);
@@ -623,6 +704,10 @@ partial class ExocraftPanel
         _mainTabs.ResumeLayout(false);
         _layout.ResumeLayout(false);
         _layout.PerformLayout();
+        _exoHeaderStrip.ResumeLayout(false);
+        _exoHeaderStrip.PerformLayout();
+        _exoGotoButtonPanel.ResumeLayout(false);
+        _exoGotoButtonPanel.PerformLayout();
         ResumeLayout(false);
         PerformLayout();
     }
@@ -699,4 +784,8 @@ partial class ExocraftPanel
     private Label _stationPlanetLabel;
     private Label _stationPlanetValue;
     private Button _deleteStationBtn;
+    private Button _gotoVehicleListBtn;
+    private Button _gotoVehicleCargoBtn;
+    private Button _gotoBaseBuildingBtn;
+    private Button _gotoBaseStationsBtn;
 }
