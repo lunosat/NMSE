@@ -68,6 +68,36 @@ public partial class MainStatsPanel : UserControl
         return lbl;
     }
 
+    /// <summary>
+    /// Adds a row where the field is followed by a button (e.g. a "Max" button next to a currency value).
+    /// The field and button are placed in a horizontal FlowLayoutPanel so they stay visually aligned.
+    /// </summary>
+    private static Label AddRowWithButton(TableLayoutPanel layout, string label, Control field, Button button, int row)
+    {
+        var lbl = new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left | AnchorStyles.Top, Padding = new Padding(0, 5, 10, 0) };
+        layout.Controls.Add(lbl, 0, row);
+
+        var rowPanel = new TableLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 2,
+            RowCount = 1,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0),
+        };
+        rowPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        rowPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        field.Anchor = AnchorStyles.Left;
+        button.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+        button.Margin = new Padding(2, 0, 0, 0);
+        button.Height = field.Height;
+        rowPanel.Controls.Add(field, 0, 0);
+        rowPanel.Controls.Add(button, 1, 0);
+        layout.Controls.Add(rowPanel, 1, row);
+        return lbl;
+    }
+
     private static Label AddSectionHeader(TableLayoutPanel layout, string text, int row)
     {
         var lbl = new Label
@@ -174,7 +204,7 @@ public partial class MainStatsPanel : UserControl
                 var owners = commonState?.GetArray("UsedDiscoveryOwnersV2");
                 if (owners != null && owners.Length > 0)
                 {
-                    var names = new List<string>();
+                    var names = new HashSet<string>();
                     for (int i = 0; i < owners.Length; i++)
                     {
                         try
@@ -210,7 +240,7 @@ public partial class MainStatsPanel : UserControl
                             var bases = playerState.GetArray("PersistentPlayerBases");
                             if (bases != null)
                             {
-                                var fallbackNames = new List<string>();
+                                var fallbackNames = new HashSet<string>();
                                 for (int i = 0; i < bases.Length; i++)
                                 {
                                     try
@@ -241,6 +271,26 @@ public partial class MainStatsPanel : UserControl
             }
             catch { _accountNameField.Text = UiStrings.Get("player.name_fallback"); }
 
+            // Outfits
+            try
+            {
+                var outfits = playerState.GetArray("Outfits");
+                var outfitNames = playerState.GetArray("OutfitNames");
+                _outfitCombo.Items.Clear();
+                if (outfits != null)
+                {
+                    for (int i = 0; i < outfits.Length; i++)
+                    {
+                        var outfit = outfits.GetObject(i);
+                        string displayName = OutfitLogic.GetOutfitDisplayName(outfitNames, outfit, i);
+                        _outfitCombo.Items.Add(displayName);
+                    }
+                }
+                if (_outfitCombo.Items.Count > 0)
+                    _outfitCombo.SelectedIndex = 0;
+            }
+            catch { }
+
             // Difficulty presets
             try
             {
@@ -253,6 +303,38 @@ public partial class MainStatsPanel : UserControl
                 }
             }
             catch { }
+
+            // Expedition number — show field and disable difficulty combos for Expedition saves.
+            if (SaveContext.IsExpeditionSave)
+            {
+                int seasonNum = playerState.GetInt("StartingSeasonNumber");
+                string display = seasonNum > 0 ? UiStrings.Format("player.expedition_format", seasonNum) : "";
+                if (string.IsNullOrEmpty(display))
+                {
+                    var seasonData = saveData.GetObject("CommonStateData")?.GetObject("SeasonData");
+                    display = seasonData?.GetString("DisplayNumber") ?? "";
+                    if (string.IsNullOrEmpty(display))
+                    {
+                        int fallbackNum = seasonData?.GetInt("SeasonNumber") ?? 0;
+                        if (fallbackNum > 0)
+                            display = UiStrings.Format("player.expedition_format", fallbackNum);
+                    }
+                }
+                _expeditionNumberField.Text = display;
+                _expeditionNumberField.Visible = true;
+                _expeditionNumberLabel.Visible = true;
+                _currentPresetCombo.Enabled = false;
+                _easiestPresetCombo.Enabled = false;
+                _hardestPresetCombo.Enabled = false;
+            }
+            else
+            {
+                _expeditionNumberField.Visible = false;
+                _expeditionNumberLabel.Visible = false;
+                _currentPresetCombo.Enabled = true;
+                _easiestPresetCombo.Enabled = true;
+                _hardestPresetCombo.Enabled = true;
+            }
 
             // Coordinates
             LoadCoordinates(playerState, saveData);
@@ -317,7 +399,7 @@ public partial class MainStatsPanel : UserControl
             _voxelXNud.NumericValue = Math.Clamp(voxelX, (int)(_voxelXNud.Minimum ?? -2048), (int)(_voxelXNud.Maximum ?? 2047));
             _voxelYNud.NumericValue = Math.Clamp(voxelY, (int)(_voxelYNud.Minimum ?? -128), (int)(_voxelYNud.Maximum ?? 127));
             _voxelZNud.NumericValue = Math.Clamp(voxelZ, (int)(_voxelZNud.Minimum ?? -2048), (int)(_voxelZNud.Maximum ?? 2047));
-            _solarSystemNud.NumericValue = Math.Clamp(solarIdx, (int)(_solarSystemNud.Minimum ?? 0), (int)(_solarSystemNud.Maximum ?? 600));
+            _solarSystemNud.NumericValue = Math.Clamp(solarIdx, (int)(_solarSystemNud.Minimum ?? 0), (int)(_solarSystemNud.Maximum ?? 4095));
             _planetNud.NumericValue = Math.Clamp(planetIdx, (int)(_planetNud.Minimum ?? 0), (int)(_planetNud.Maximum ?? 15));
 
             // Player state
@@ -623,21 +705,24 @@ public partial class MainStatsPanel : UserControl
         // Third person camera
         try { saveData.GetObject("CommonStateData")?.Set("UsesThirdPersonCharacterCam", _thirdPersonCharCam.Checked); } catch { }
 
-        // Difficulty presets
-        try
+        // Difficulty presets (skipped for Expedition saves — game controls these internally)
+        if (!SaveContext.IsExpeditionSave)
         {
-            var diffState = playerState.GetObject("DifficultyState");
-            if (diffState != null)
+            try
             {
-                if (_currentPresetCombo.SelectedIndex >= 0)
-                    try { diffState.GetObject("Preset")?.Set("DifficultyPresetType", DifficultyPresets[_currentPresetCombo.SelectedIndex]); } catch { }
-                if (_easiestPresetCombo.SelectedIndex >= 0)
-                    try { diffState.GetObject("EasiestUsedPreset")?.Set("DifficultyPresetType", DifficultyPresets[_easiestPresetCombo.SelectedIndex]); } catch { }
-                if (_hardestPresetCombo.SelectedIndex >= 0)
-                    try { diffState.GetObject("HardestUsedPreset")?.Set("DifficultyPresetType", DifficultyPresets[_hardestPresetCombo.SelectedIndex]); } catch { }
+                var diffState = playerState.GetObject("DifficultyState");
+                if (diffState != null)
+                {
+                    if (_currentPresetCombo.SelectedIndex >= 0)
+                        try { diffState.GetObject("Preset")?.Set("DifficultyPresetType", DifficultyPresets[_currentPresetCombo.SelectedIndex]); } catch { }
+                    if (_easiestPresetCombo.SelectedIndex >= 0)
+                        try { diffState.GetObject("EasiestUsedPreset")?.Set("DifficultyPresetType", DifficultyPresets[_easiestPresetCombo.SelectedIndex]); } catch { }
+                    if (_hardestPresetCombo.SelectedIndex >= 0)
+                        try { diffState.GetObject("HardestUsedPreset")?.Set("DifficultyPresetType", DifficultyPresets[_hardestPresetCombo.SelectedIndex]); } catch { }
+                }
             }
+            catch { }
         }
-        catch { }
 
         // Player state
         if (_playerStateField.SelectedIndex >= 0)
@@ -802,7 +887,7 @@ public partial class MainStatsPanel : UserControl
         _voxelXNud.NumericValue = Math.Clamp(voxelX, (int)(_voxelXNud.Minimum ?? -2048), (int)(_voxelXNud.Maximum ?? 2047));
         _voxelYNud.NumericValue = Math.Clamp(voxelY, (int)(_voxelYNud.Minimum ?? -128), (int)(_voxelYNud.Maximum ?? 127));
         _voxelZNud.NumericValue = Math.Clamp(voxelZ, (int)(_voxelZNud.Minimum ?? -2048), (int)(_voxelZNud.Maximum ?? 2047));
-        _solarSystemNud.NumericValue = Math.Clamp(systemIndex, (int)(_solarSystemNud.Minimum ?? 0), (int)(_solarSystemNud.Maximum ?? 600));
+        _solarSystemNud.NumericValue = Math.Clamp(systemIndex, (int)(_solarSystemNud.Minimum ?? 0), (int)(_solarSystemNud.Maximum ?? 4095));
         _planetNud.NumericValue = Math.Clamp(planetIndex, (int)(_planetNud.Minimum ?? 0), (int)(_planetNud.Maximum ?? 15));
     }
 
@@ -841,7 +926,7 @@ public partial class MainStatsPanel : UserControl
         _voxelXNud.NumericValue = Math.Clamp(voxelX, (int)(_voxelXNud.Minimum ?? -2048), (int)(_voxelXNud.Maximum ?? 2047));
         _voxelYNud.NumericValue = Math.Clamp(voxelY, (int)(_voxelYNud.Minimum ?? -128), (int)(_voxelYNud.Maximum ?? 127));
         _voxelZNud.NumericValue = Math.Clamp(voxelZ, (int)(_voxelZNud.Minimum ?? -2048), (int)(_voxelZNud.Maximum ?? 2047));
-        _solarSystemNud.NumericValue = Math.Clamp(systemIndex, (int)(_solarSystemNud.Minimum ?? 0), (int)(_solarSystemNud.Maximum ?? 600));
+        _solarSystemNud.NumericValue = Math.Clamp(systemIndex, (int)(_solarSystemNud.Minimum ?? 0), (int)(_solarSystemNud.Maximum ?? 4095));
         _planetNud.NumericValue = Math.Clamp(planetIndex, (int)(_planetNud.Minimum ?? 0), (int)(_planetNud.Maximum ?? 15));
 
         // Apply to save data and refresh display (same as "Apply Coordinates")
@@ -1023,6 +1108,106 @@ public partial class MainStatsPanel : UserControl
         {
             MessageBox.Show(this, UiStrings.Format("player.transfer_cross_failed", ex.Message), UiStrings.Get("player.transfer_cross_title"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    // -- Outfit event handlers --
+
+    private void OnOutfitExport(object? sender, EventArgs e)
+    {
+        if (_saveData == null) return;
+        int idx = _outfitCombo.SelectedIndex;
+        if (idx < 0) return;
+
+        try
+        {
+            var playerState = _saveData.GetObject("PlayerStateData");
+            var outfits = playerState?.GetArray("Outfits");
+            if (outfits == null || idx >= outfits.Length) return;
+
+            var outfit = outfits.GetObject(idx);
+            if (outfit == null) return;
+
+            var cfg = ExportConfig.Instance;
+            string ext = cfg.OutfitExt;
+            string template = cfg.OutfitTemplate;
+            var vars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["name"] = _outfitCombo.Text
+            };
+            string defaultName = ExportConfig.BuildFileName(template, ext, vars);
+
+            using var dialog = new SaveFileDialog
+            {
+                Filter = ExportConfig.BuildDialogFilter(ext, UiStrings.Get("outfits.export")),
+                FileName = defaultName
+            };
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            OutfitLogic.ExportOutfit(outfit, dialog.FileName);
+            MessageBox.Show(this, UiStrings.Get("outfits.export_success"), UiStrings.Get("outfits.export"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch { }
+    }
+
+    private void OnOutfitImport(object? sender, EventArgs e)
+    {
+        if (_saveData == null) return;
+        int idx = _outfitCombo.SelectedIndex;
+        if (idx < 0) return;
+
+        try
+        {
+            var playerState = _saveData.GetObject("PlayerStateData");
+            var outfits = playerState?.GetArray("Outfits");
+            if (outfits == null) return;
+
+            var cfg = ExportConfig.Instance;
+            string ext = cfg.OutfitExt;
+
+            using var dialog = new OpenFileDialog
+            {
+                Filter = ExportConfig.BuildOpenFilter(ext, UiStrings.Get("outfits.import"))
+            };
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            OutfitLogic.ImportOutfit(outfits, idx, dialog.FileName);
+            RaiseDataModified();
+
+            MessageBox.Show(this, UiStrings.Get("outfits.import_success"), UiStrings.Get("outfits.import"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch { }
+    }
+
+    private void OnOutfitCopy(object? sender, EventArgs e)
+    {
+        if (_saveData == null) return;
+        int idx = _outfitCombo.SelectedIndex;
+        if (idx < 0) return;
+
+        var result = MessageBox.Show(this,
+            UiStrings.Get("outfits.copy_confirm_msg"),
+            UiStrings.Get("outfits.copy_confirm_title"),
+            MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        if (result != DialogResult.Yes) return;
+
+        try
+        {
+            var playerState = _saveData.GetObject("PlayerStateData");
+            var outfits = playerState?.GetArray("Outfits");
+            if (playerState == null || outfits == null || idx >= outfits.Length) return;
+
+            var outfit = outfits.GetObject(idx);
+            if (outfit == null) return;
+
+            OutfitLogic.CopyToCustomData(outfit, playerState);
+            RaiseDataModified();
+
+            MessageBox.Show(this, UiStrings.Get("outfits.copy_success"), UiStrings.Get("outfits.copy_confirm_title"),
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch { }
     }
 
     private static void ShowNoDirWarning() =>
@@ -1251,7 +1436,7 @@ public partial class MainStatsPanel : UserControl
         _saveInfoHeader.Text = UiStrings.Get("player.save_info");
         _currentCoordsHeader.Text = UiStrings.Get("player.section_coordinates");
         _spaceBattleHeader.Text = UiStrings.Get("player.space_battle_section");
-        _editCoordsHeader.Text = UiStrings.Get("player.section_edit_coords");
+        _changeCoordsHeader.Text = UiStrings.Get("player.section_change_coords");
         _portalToCoordsHeader.Text = UiStrings.Get("player.section_portal_to_coords");
         _utilitiesHeader.Text = UiStrings.Get("player.section_save_utils");
 
@@ -1293,6 +1478,12 @@ public partial class MainStatsPanel : UserControl
         _easiestPresetLabel.Text = UiStrings.Get("player.easiest_used");
         _hardestPresetLabel.Text = UiStrings.Get("player.hardest_used");
         _accountNameLabel.Text = UiStrings.Get("player.account_name");
+
+        // Outfit labels
+        _outfitLabel.Text = UiStrings.Get("outfits.title");
+        _outfitExportBtn.Text = UiStrings.Get("outfits.export");
+        _outfitImportBtn.Text = UiStrings.Get("outfits.import");
+        _outfitCopyBtn.Text = UiStrings.Get("outfits.copy_to_custom");
 
         // Coordinate labels
         _galaxyLabel.Text = UiStrings.Get("player.galaxy");
