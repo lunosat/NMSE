@@ -2,6 +2,7 @@ using NMSE.Data;
 using NMSE.Models;
 using NMSE.Core;
 using NMSE.Config;
+using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
 
@@ -12,6 +13,9 @@ public partial class ExosuitPanel : UserControl
 
     /// <summary>Raised when inventory data is modified by the user.</summary>
     public event EventHandler? DataModified;
+
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
 
     /// <summary>
     /// Raised after auto-stack moves cargo into another inventory so destination
@@ -24,6 +28,7 @@ public partial class ExosuitPanel : UserControl
         InitializeComponent();
         SetupLayout();
     }
+
 
     public void SetDatabase(GameItemDatabase? database)
     {
@@ -239,5 +244,11 @@ public partial class ExosuitPanel : UserControl
         _techGrid.SetMaxSupportedLabel(ExosuitLogic.TechMaxLabel);
         _generalGrid.ApplyUiLocalisation();
         _techGrid.ApplyUiLocalisation();
+        new ToolTip().SetToolTip(_gotoJsonBtn, UiStrings.Get("goto_json.tooltip"));
+    }
+
+    private void OnGoToJsonClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Inventory"));
     }
 }

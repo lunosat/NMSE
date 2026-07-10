@@ -1,4 +1,5 @@
 #nullable enable
+using NMSE.Core;
 using NMSE.Data;
 using NMSE.UI.Controls;
 using NMSE.UI.Util;
@@ -150,7 +151,7 @@ partial class MultiplayerPanel
         _experimentalWarningLabel = new Label
         {
             Text = UiStrings.Get("multiplayer.experimental_warning"),
-            ForeColor = Color.DarkOrange,
+            ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : Color.DarkOrange,
             Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
             AutoSize = true,
             Padding = new Padding(0, 8, 0, 8)
@@ -163,7 +164,7 @@ partial class MultiplayerPanel
         _enforcedWarningLabel = new Label
         {
             Text = UiStrings.Get("multiplayer.enforced_warning"),
-            ForeColor = Color.DarkOrange,
+            ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : Color.DarkOrange,
             Font = new Font(Font.FontFamily, 9, FontStyle.Italic),
             AutoSize = true,
             Padding = new Padding(0, 0, 0, 8)

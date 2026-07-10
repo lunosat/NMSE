@@ -1,3 +1,4 @@
+using NMSE.Core;
 using NMSE.UI.Controls;
 
 namespace NMSE.UI.Panels;
@@ -121,7 +122,7 @@ partial class AccountPanel
         this._warningLabel.AutoSize = true;
         this._warningLabel.Padding = new System.Windows.Forms.Padding(5, 2, 5, 5);
         this._warningLabel.Dock = System.Windows.Forms.DockStyle.Fill;
-        this._warningLabel.ForeColor = System.Drawing.Color.DarkOrange;
+        this._warningLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : System.Drawing.Color.DarkOrange;
         this._warningLabel.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Bold);
         //
         // _consistencyCheckBtn
@@ -243,6 +244,7 @@ partial class AccountPanel
         this._seasonExpeditionColumn.Name = "Expedition";
         this._seasonExpeditionColumn.HeaderText = "Expedition";
         this._seasonExpeditionColumn.ReadOnly = true;
+        this._seasonExpeditionColumn.ValueType = typeof(int);
         this._seasonExpeditionColumn.FillWeight = 10F;
         //
         // _seasonUnlockedColumn
@@ -395,7 +397,7 @@ partial class AccountPanel
         this._platformMxmlInfoLabel.AutoSize = true;
         this._platformMxmlInfoLabel.Padding = new System.Windows.Forms.Padding(5, 5, 5, 2);
         this._platformMxmlInfoLabel.Dock = System.Windows.Forms.DockStyle.Fill;
-        this._platformMxmlInfoLabel.ForeColor = System.Drawing.Color.DarkOrange;
+        this._platformMxmlInfoLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : System.Drawing.Color.DarkOrange;
         this._platformMxmlInfoLabel.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
         //
         // _platformMxmlFilePanel
@@ -424,7 +426,7 @@ partial class AccountPanel
         this._platformMxmlStatusLabel.Text = "";
         this._platformMxmlStatusLabel.AutoSize = true;
         this._platformMxmlStatusLabel.Padding = new System.Windows.Forms.Padding(5, 5, 0, 0);
-        this._platformMxmlStatusLabel.ForeColor = System.Drawing.Color.Gray;
+        this._platformMxmlStatusLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SecondaryText : System.Drawing.Color.Gray;
         //
         // _platformToolbar
         //

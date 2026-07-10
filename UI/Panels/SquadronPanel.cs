@@ -8,6 +8,18 @@ namespace NMSE.UI.Panels;
 
 public partial class SquadronPanel : UserControl
 {
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
+    /// <summary>Raised when the user modifies any data within this panel.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified()
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     private readonly Random _rng = new();
 
     private JsonArray? _pilots;
@@ -18,6 +30,7 @@ public partial class SquadronPanel : UserControl
     {
         InitializeComponent();
         SetupLayout();
+
     }
 
     public void LoadData(JsonObject saveData)
@@ -172,6 +185,7 @@ public partial class SquadronPanel : UserControl
         SquadronLogic.DeletePilot(pilot);
         RefreshList();
         OnPilotSelected(null, EventArgs.Empty);
+        RaiseDataModified();
     }
 
     private void RefreshListEntry()
@@ -189,13 +203,13 @@ public partial class SquadronPanel : UserControl
     private void WriteNpcSeed()
     {
         var pilot = SelectedPilot();
-        if (pilot != null) SquadronLogic.WriteSeed(pilot, "NPCResource", _npcSeedField.Text);
+        if (pilot != null) { SquadronLogic.WriteSeed(pilot, "NPCResource", _npcSeedField.Text); RaiseDataModified(); }
     }
 
     private void WriteShipSeed()
     {
         var pilot = SelectedPilot();
-        if (pilot != null) SquadronLogic.WriteSeed(pilot, "ShipResource", _shipSeedField.Text);
+        if (pilot != null) { SquadronLogic.WriteSeed(pilot, "ShipResource", _shipSeedField.Text); RaiseDataModified(); }
     }
 
     private void WriteTraitsSeed()
@@ -205,7 +219,7 @@ public partial class SquadronPanel : UserControl
         {
             var normalized = SeedHelper.NormalizeSeed(_traitsSeedField.Text);
             if (normalized != null)
-                try { pilot.Set("TraitsSeed", normalized); } catch { }
+                try { pilot.Set("TraitsSeed", normalized); RaiseDataModified(); } catch { }
         }
     }
 
@@ -338,6 +352,7 @@ public partial class SquadronPanel : UserControl
 
             RefreshList();
             _pilotList.SelectedIndex = targetIdx;
+            RaiseDataModified();
         }
         catch (Exception ex)
         {
@@ -389,5 +404,19 @@ public partial class SquadronPanel : UserControl
         if (currentRaceIdx >= 0 && currentRaceIdx < _raceField.Items.Count)
             _raceField.SelectedIndex = currentRaceIdx;
         _raceField.EndUpdate();
+        new ToolTip().SetToolTip(_gotoListBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoSelectedBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text + " " + UiStrings.Get("goto_json.nav_details")));
+    }
+
+    private void OnGoToJsonListClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "SquadronPilots"));
+    }
+
+    private void OnGoToJsonSelectedClicked(object? sender, EventArgs e)
+    {
+        int idx = _pilotList.SelectedIndex;
+        if (idx < 0 || _pilots == null || idx >= _pilots.Length) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "SquadronPilots", $"[{idx}]"));
     }
 }

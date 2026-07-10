@@ -3,6 +3,7 @@ using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.UI.Controls;
+using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
 
@@ -45,6 +46,9 @@ public partial class SettlementPanel : UserControl
 
     /// <summary>Raised when the user modifies any settlement field.</summary>
     public event EventHandler? DataModified;
+
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
 
     private void RaiseDataModified()
     {
@@ -138,14 +142,17 @@ public partial class SettlementPanel : UserControl
         var combo = (ComboBox)sender!;
         if (combo.Items[e.Index] is not PerkComboItem item) return;
 
+        var p = ThemeManager.Effective == AppTheme.Dark
+            ? ThemeColors.Dark : ThemeColors.Light;
+
         e.DrawBackground();
         Color textColor;
         if ((e.State & DrawItemState.Selected) != 0)
-            textColor = SystemColors.HighlightText;
+            textColor = p.ForegroundText;
         else if (item.Perk == null)
             textColor = combo.ForeColor;
         else
-            textColor = item.Perk.Beneficial ? Color.ForestGreen : Color.Crimson;
+            textColor = item.Perk.Beneficial ? p.SuccessGreen : p.ErrorRed;
 
         var font = e.Font ?? combo.Font;
         using var brush = new SolidBrush(textColor);
@@ -584,7 +591,6 @@ public partial class SettlementPanel : UserControl
         for (int i = 0; i < StatCount; i++)
         {
             _statFields[i].NumericValue = 0;
-            _statFields[i].ForeColor = SystemColors.WindowText;
         }
         _populationField.NumericValue = 0;
         _populationField.Enabled = false;
@@ -1194,8 +1200,6 @@ public partial class SettlementPanel : UserControl
             _statFields[index].ForeColor = Color.Crimson;
         else if (value > SettlementLogic.StatMaxValues[index])
             _statFields[index].ForeColor = Color.Tomato;
-        else
-            _statFields[index].ForeColor = SystemColors.WindowText;
         RaiseDataModified();
     }
 
@@ -1211,8 +1215,6 @@ public partial class SettlementPanel : UserControl
             _populationField.ForeColor = Color.Crimson;
         else if (value > SettlementLogic.PopulationSoftMax)
             _populationField.ForeColor = Color.Tomato;
-        else
-            _populationField.ForeColor = SystemColors.WindowText;
         RaiseDataModified();
     }
 
@@ -1288,6 +1290,9 @@ public partial class SettlementPanel : UserControl
         // Refresh building state combos with localised milestone labels
         RefreshBuildingStateCombos();
 
+        new ToolTip().SetToolTip(_gotoSettlementsBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoSelectedSettlementBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text + " " + UiStrings.Get("goto_json.nav_details")));
+
         // Building Editor tab labels
         _editorHeaderLabel.Text = UiStrings.Get("settlement.tab_building_editor");
         _editorRawValueLabel.Text = UiStrings.Get("settlement.bs_editor_raw_value");
@@ -1322,5 +1327,19 @@ public partial class SettlementPanel : UserControl
         if (savedIdx >= 0 && savedIdx < _decisionTypeField.Items.Count)
             _decisionTypeField.SelectedIndex = savedIdx;
         _decisionTypeField.EndUpdate();
+    }
+
+    private void OnGoToJsonClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "SettlementStatesV2"));
+    }
+
+    private void OnGoToJsonForSelectedClicked(object? sender, EventArgs e)
+    {
+        int selectorIdx = _settlementSelector.SelectedIndex;
+        if (selectorIdx < 0 || selectorIdx >= _filteredIndices.Count) return;
+
+        int arrayIndex = _filteredIndices[selectorIdx];
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "SettlementStatesV2", $"[{arrayIndex}]"));
     }
 }

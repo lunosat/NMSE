@@ -1,6 +1,7 @@
 #nullable enable
 using System.Drawing.Drawing2D;
 using System.Globalization;
+using NMSE.Core;
 
 namespace NMSE.UI.Controls;
 
@@ -36,24 +37,23 @@ internal sealed class JsonSyntaxTextBox : UserControl
     private const int LeftTextPadding = 4; // px gap between gutter and text
     private const int TabSize = 4;
 
-    // Cached GDI objects (created once, disposed of in Dispose)
-    // Brushes: one per syntax colour
-    private readonly SolidBrush _keyBrush = new(Color.FromArgb(0, 51, 179));
-    private readonly SolidBrush _stringBrush = new(Color.FromArgb(163, 21, 21));
-    private readonly SolidBrush _numberBrush = new(Color.FromArgb(9, 134, 88));
-    private readonly SolidBrush _boolNullBrush = new(Color.FromArgb(128, 0, 128));
-    private readonly SolidBrush _braceBrush = new(Color.FromArgb(60, 60, 60));
-    private readonly SolidBrush _defaultBrush = new(Color.FromArgb(30, 30, 30));
-    private readonly SolidBrush _gutterBgBrush = new(Color.FromArgb(245, 245, 245));
-    private readonly SolidBrush _gutterNumBrush = new(Color.FromArgb(130, 130, 130));
-    private readonly SolidBrush _selBrush = new(Color.FromArgb(173, 214, 255));
-    private readonly SolidBrush _currentLineBrush = new(Color.FromArgb(255, 255, 228));
-    private readonly SolidBrush _bgBrush = new(Color.White);
+    // Cached GDI objects (created and recreated on theme change)
+    private SolidBrush _keyBrush = null!;
+    private SolidBrush _stringBrush = null!;
+    private SolidBrush _numberBrush = null!;
+    private SolidBrush _boolNullBrush = null!;
+    private SolidBrush _braceBrush = null!;
+    private SolidBrush _defaultBrush = null!;
+    private SolidBrush _gutterBgBrush = null!;
+    private SolidBrush _gutterNumBrush = null!;
+    private SolidBrush _selBrush = null!;
+    private SolidBrush _currentLineBrush = null!;
+    private SolidBrush _bgBrush = null!;
     // Pens
-    private readonly Pen _foldPen = new(Color.FromArgb(160, 160, 160), 1f);
-    private readonly Pen _foldLinePen;
-    private readonly Pen _sepPen = new(Color.FromArgb(220, 220, 220), 1f);
-    private readonly Pen _caretPen = new(Color.Black, 1.5f);
+    private Pen _foldPen = null!;
+    private Pen _foldLinePen = null!;
+    private Pen _sepPen = null!;
+    private Pen _caretPen = null!;
 
     // Child controls (3 HWNDs total: UserControl + 2 scrollbars)
     private readonly VScrollBar _vScroll;
@@ -225,7 +225,6 @@ internal sealed class JsonSyntaxTextBox : UserControl
 
         _codeFont = new Font("Consolas", 10f, FontStyle.Regular);
         _gutterFont = new Font(_codeFont.FontFamily, _codeFont.Size * 0.85f, FontStyle.Regular);
-        _foldLinePen = new Pen(Color.FromArgb(200, 200, 200), 1f) { DashStyle = DashStyle.Dot };
         CacheFontMetrics();
 
         _vScroll = new VScrollBar { Dock = DockStyle.Right };
@@ -249,7 +248,29 @@ internal sealed class JsonSyntaxTextBox : UserControl
         // Scroll bars should always show the default arrow cursor, not IBeam
         _vScroll.Cursor = Cursors.Default;
         _hScroll.Cursor = Cursors.Default;
+
+        ApplyThemePalette(ThemeColors.Light);
+        HandleCreated += OnHandleCreated;
+        HandleDestroyed += OnHandleDestroyed;
     }
+
+    private bool _subscribed;
+
+    private void OnHandleCreated(object? sender, EventArgs e)
+    {
+        if (_subscribed) return;
+        ThemeManager.ThemeChanged += OnThemeChanged;
+        _subscribed = true;
+    }
+
+    private void OnHandleDestroyed(object? sender, EventArgs e)
+    {
+        if (!_subscribed) return;
+        ThemeManager.ThemeChanged -= OnThemeChanged;
+        _subscribed = false;
+    }
+
+    private void OnThemeChanged() => Invalidate();
 
     private void OnCaretTimerCallback(object? state)
     {
@@ -271,28 +292,37 @@ internal sealed class JsonSyntaxTextBox : UserControl
     {
         if (disposing)
         {
+            if (_subscribed)
+            {
+                ThemeManager.ThemeChanged -= OnThemeChanged;
+                _subscribed = false;
+            }
             _caretTimer?.Dispose();
             _caretTimer = null;
-            // Dispose all cached GDI objects
             _codeFont.Dispose();
             _gutterFont.Dispose();
-            _keyBrush.Dispose();
-            _stringBrush.Dispose();
-            _numberBrush.Dispose();
-            _boolNullBrush.Dispose();
-            _braceBrush.Dispose();
-            _defaultBrush.Dispose();
-            _gutterBgBrush.Dispose();
-            _gutterNumBrush.Dispose();
-            _selBrush.Dispose();
-            _currentLineBrush.Dispose();
-            _bgBrush.Dispose();
-            _foldPen.Dispose();
-            _foldLinePen.Dispose();
-            _sepPen.Dispose();
-            _caretPen.Dispose();
+            DisposeGdiObjects();
         }
         base.Dispose(disposing);
+    }
+
+    private void DisposeGdiObjects()
+    {
+        _keyBrush?.Dispose();
+        _stringBrush?.Dispose();
+        _numberBrush?.Dispose();
+        _boolNullBrush?.Dispose();
+        _braceBrush?.Dispose();
+        _defaultBrush?.Dispose();
+        _gutterBgBrush?.Dispose();
+        _gutterNumBrush?.Dispose();
+        _selBrush?.Dispose();
+        _currentLineBrush?.Dispose();
+        _bgBrush?.Dispose();
+        _foldPen?.Dispose();
+        _foldLinePen?.Dispose();
+        _sepPen?.Dispose();
+        _caretPen?.Dispose();
     }
 
     // Font metrics
@@ -1412,6 +1442,35 @@ internal sealed class JsonSyntaxTextBox : UserControl
     {
         base.OnResize(e);
         UpdateScrollBars();
+        Invalidate();
+    }
+
+    /// <summary>
+    /// Applies a theme colour palette to the control. Called by <see cref="ThemeApplicator"/>.
+    /// </summary>
+    internal void ApplyThemePalette(ThemeColors.Palette p)
+    {
+        DisposeGdiObjects();
+
+        _keyBrush = new SolidBrush(p.SyntaxKey);
+        _stringBrush = new SolidBrush(p.SyntaxString);
+        _numberBrush = new SolidBrush(p.SyntaxNumber);
+        _boolNullBrush = new SolidBrush(p.SyntaxBoolNull);
+        _braceBrush = new SolidBrush(p.SyntaxBrace);
+        _defaultBrush = new SolidBrush(p.SyntaxDefaultText);
+        _gutterBgBrush = new SolidBrush(p.SyntaxGutterBg);
+        _gutterNumBrush = new SolidBrush(p.SyntaxGutterNumber);
+        _selBrush = new SolidBrush(p.SyntaxSelection);
+        _currentLineBrush = new SolidBrush(p.SyntaxCurrentLine);
+        _bgBrush = new SolidBrush(p.SyntaxBackground);
+
+        _foldPen = new Pen(p.MenuBorder, 1f);
+        _foldLinePen = new Pen(p.MenuBorder, 1f) { DashStyle = DashStyle.Dot };
+        _sepPen = new Pen(p.MenuBorder, 1f);
+        _caretPen = new Pen(p.SyntaxDefaultText, 1.5f);
+
+        BackColor = p.SyntaxBackground;
+        ForeColor = p.SyntaxDefaultText;
         Invalidate();
     }
 }

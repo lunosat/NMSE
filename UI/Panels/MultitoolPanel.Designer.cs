@@ -54,7 +54,8 @@ partial class MultitoolPanel
         {
             Text = "Multi-tools",
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 1)
+            Padding = new Padding(0, 0, 0, 1),
+            Anchor = AnchorStyles.Left
         };
         FontManager.ApplyHeadingFont(_titleLabel, 14);
 
@@ -66,16 +67,76 @@ partial class MultitoolPanel
             ForeColor = SystemColors.GrayText
         };
 
-        var titlePanel = new FlowLayoutPanel
+        // Header strip: title | spacer | goto buttons
+        var headerStrip = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var titlePanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
             AutoSize = true,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false
         };
         titlePanel.Controls.Add(_titleLabel);
         titlePanel.Controls.Add(_primaryToolLabel);
-        rootLayout.Controls.Add(titlePanel, 0, 0);
+        headerStrip.Controls.Add(titlePanel, 0, 0);
+
+		var gotoButtonPanel = new FlowLayoutPanel
+		{
+			Dock = DockStyle.Fill,
+			AutoSize = true,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+
+        _gotoListBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoListBtn.Click += OnGoToJsonListClicked;
+        gotoButtonPanel.Controls.Add(_gotoListBtn);
+
+        _gotoSelectedBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoSelectedBtn.Click += OnGoToJsonSelectedClicked;
+        gotoButtonPanel.Controls.Add(_gotoSelectedBtn);
+
+        _gotoStoreBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoStoreBtn.Click += OnGoToJsonStoreClicked;
+        gotoButtonPanel.Controls.Add(_gotoStoreBtn);
+
+        headerStrip.Controls.Add(gotoButtonPanel, 2, 0);
+
+        rootLayout.Controls.Add(headerStrip, 0, 0);
 
         // Selector row (label + dropdown + archive buttons), similar to the Starship panel
         var selectorRow = new TableLayoutPanel
@@ -310,6 +371,10 @@ partial class MultitoolPanel
         // Set Max Supported label for multitool technology
         _storeGrid.SetMaxSupportedLabel(UiStrings.Format("common.max_supported", "10x6"));
 
+        _gotoListBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoSelectedBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoStoreBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+
         ResumeLayout(false);
         PerformLayout();
     }
@@ -325,6 +390,9 @@ partial class MultitoolPanel
     private Button _makePrimaryBtn;
     private Button _archiveMoveBtn;
     private Button _archiveImportBtn;
+    private Button _gotoListBtn;
+    private Button _gotoSelectedBtn;
+    private Button _gotoStoreBtn;
     private Label _primaryToolLabel;
     private Label _titleLabel;
     private Label _detailsLabel;

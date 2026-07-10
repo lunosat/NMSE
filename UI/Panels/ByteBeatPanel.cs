@@ -8,6 +8,18 @@ namespace NMSE.UI.Panels;
 
 public partial class ByteBeatPanel : UserControl
 {
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
+    /// <summary>Raised when the user modifies any data within this panel.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified()
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     private JsonObject? _library;
     private JsonArray? _mySongs;
     private bool _loading;
@@ -263,6 +275,7 @@ public partial class ByteBeatPanel : UserControl
 
             OnSongSelected(null, EventArgs.Empty);
             RefreshList();
+            RaiseDataModified();
             MessageBox.Show(this, UiStrings.Get("bytebeat.import_success"), UiStrings.Get("common.import"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
@@ -301,11 +314,17 @@ public partial class ByteBeatPanel : UserControl
 
             OnSongSelected(null, EventArgs.Empty);
             RefreshList();
+            RaiseDataModified();
         }
         catch (Exception ex)
         {
             MessageBox.Show(this, UiStrings.Format("bytebeat.delete_failed", ex.Message), UiStrings.Get("common.error"), MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void OnGoToJsonClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("CommonStateData", "ByteBeatLibrary"));
     }
 
     private static string SanitizeFileName(string name)
@@ -358,5 +377,6 @@ public partial class ByteBeatPanel : UserControl
         for (int i = 0; i < _dataLabels.Length; i++)
             _dataLabels[i].Text = string.Format(CultureInfo.CurrentCulture, UiStrings.Get("bytebeat.data_channel"), i);
         _sectionLibraryLabel.Text = UiStrings.Get("bytebeat.section_library");
+        new ToolTip().SetToolTip(_gotoJsonBtn, UiStrings.Get("goto_json.tooltip"));
     }
 }

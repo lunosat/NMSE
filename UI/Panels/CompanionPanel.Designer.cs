@@ -40,11 +40,12 @@ partial class CompanionPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 1,
+            RowCount = 2,
             Padding = new Padding(10)
         };
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         // -- Left column: title + listbox + buttons --
@@ -62,10 +63,35 @@ partial class CompanionPanel
         {
             Text = "Companions",
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 5)
+            Padding = new Padding(0, 0, 0, 5),
+            Anchor = AnchorStyles.Left
         };
         FontManager.ApplyHeadingFont(_titleLabel, 14);
-        leftLayout.Controls.Add(_titleLabel, 0, 0);
+
+        var headerStrip = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            ColumnCount = 3,
+            RowCount = 1,
+            Margin = new Padding(0),
+        };
+        headerStrip.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.Controls.Add(_titleLabel, 0, 0);
+
+		var gotoButtonPanel = new FlowLayoutPanel
+		{
+			AutoSize = true,
+			AutoSizeMode = AutoSizeMode.GrowAndShrink,
+			Anchor = AnchorStyles.Left,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+        headerStrip.Controls.Add(gotoButtonPanel, 2, 0);
+        headerStrip.Padding = new Padding(0, 0, 10, 0);
 
         _companionList = new ListBox { Dock = DockStyle.Fill };
         _companionList.SelectedIndexChanged += OnCompanionSelected;
@@ -84,13 +110,75 @@ partial class CompanionPanel
         _exportCompanionBtn.Click += OnExport;
         _importCompanionBtn = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
         _importCompanionBtn.Click += OnImport;
+        _gotoPetsBtn = new Button();
+		_gotoPetsBtn.FlatStyle = FlatStyle.Flat;
+		_gotoPetsBtn.FlatAppearance.BorderSize = 1;
+		_gotoPetsBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoPetsBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoPetsBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoPetsBtn.Text = "\U0001F4D1";
+        _gotoPetsBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoPetsBtn.Cursor = Cursors.Hand;
+        _gotoPetsBtn.Click += OnGoToJsonPetsClicked;
+        gotoButtonPanel.Controls.Add(_gotoPetsBtn);
+
+        _gotoSelectedPetBtn = new Button();
+		_gotoSelectedPetBtn.FlatStyle = FlatStyle.Flat;
+		_gotoSelectedPetBtn.FlatAppearance.BorderSize = 1;
+		_gotoSelectedPetBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoSelectedPetBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoSelectedPetBtn.Size = new Size(28, 24);
+        _gotoSelectedPetBtn.Text = "\U0001F4D1";
+        _gotoSelectedPetBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoSelectedPetBtn.Cursor = Cursors.Hand;
+        _gotoSelectedPetBtn.Click += OnGoToJsonSelectedPetClicked;
+        gotoButtonPanel.Controls.Add(_gotoSelectedPetBtn);
+
+        _gotoEggsBtn = new Button();
+		_gotoEggsBtn.FlatStyle = FlatStyle.Flat;
+		_gotoEggsBtn.FlatAppearance.BorderSize = 1;
+		_gotoEggsBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoEggsBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoEggsBtn.Size = new Size(28, 24);
+        _gotoEggsBtn.Text = "\U0001F4D1";
+        _gotoEggsBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoEggsBtn.Cursor = Cursors.Hand;
+        _gotoEggsBtn.Click += OnGoToJsonEggsClicked;
+        gotoButtonPanel.Controls.Add(_gotoEggsBtn);
+
+        _gotoSelectedEggBtn = new Button();
+		_gotoSelectedEggBtn.FlatStyle = FlatStyle.Flat;
+		_gotoSelectedEggBtn.FlatAppearance.BorderSize = 1;
+		_gotoSelectedEggBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoSelectedEggBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoSelectedEggBtn.Size = new Size(28, 24);
+        _gotoSelectedEggBtn.Text = "\U0001F4D1";
+        _gotoSelectedEggBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoSelectedEggBtn.Cursor = Cursors.Hand;
+        _gotoSelectedEggBtn.Click += OnGoToJsonSelectedEggClicked;
+        gotoButtonPanel.Controls.Add(_gotoSelectedEggBtn);
+
+        _gotoPetBattleTeamBtn = new Button();
+		_gotoPetBattleTeamBtn.FlatStyle = FlatStyle.Flat;
+		_gotoPetBattleTeamBtn.FlatAppearance.BorderSize = 1;
+		_gotoPetBattleTeamBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoPetBattleTeamBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoPetBattleTeamBtn.Size = new Size(28, 24);
+        _gotoPetBattleTeamBtn.Text = "\U0001F4D1";
+        _gotoPetBattleTeamBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoPetBattleTeamBtn.Cursor = Cursors.Hand;
+        _gotoPetBattleTeamBtn.Click += OnGoToJsonPetBattleTeamClicked;
+        gotoButtonPanel.Controls.Add(_gotoPetBattleTeamBtn);
+
         btnPanel.Controls.Add(_deleteBtn);
         btnPanel.Controls.Add(_exportCompanionBtn);
         btnPanel.Controls.Add(_importCompanionBtn);
         btnPanel.Controls.Add(_countLabel);
         leftLayout.Controls.Add(btnPanel, 0, 2);
 
-        mainLayout.Controls.Add(leftLayout, 0, 0);
+        mainLayout.Controls.Add(headerStrip, 0, 0);
+        mainLayout.SetColumnSpan(headerStrip, 2);
+        mainLayout.Controls.Add(leftLayout, 0, 1);
 
         // -- Right column: detail panel with TabControl --
         _detailPanel = new Panel { Dock = DockStyle.Fill, Visible = false };
@@ -574,7 +662,7 @@ partial class CompanionPanel
             _accessoryPrimarySwatches[slot] = new Panel
             {
                 Size = new Size(18, 18),
-                BackColor = SystemColors.Control,
+                BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control,
                 BorderStyle = BorderStyle.FixedSingle,
                 Margin = new Padding(0, 4, 0, 0),
                 Cursor = Cursors.Hand,
@@ -591,7 +679,7 @@ partial class CompanionPanel
             _accessoryAltSwatches[slot] = new Panel
             {
                 Size = new Size(18, 18),
-                BackColor = SystemColors.Control,
+                BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control,
                 BorderStyle = BorderStyle.FixedSingle,
                 Margin = new Padding(0, 4, 0, 0),
                 Cursor = Cursors.Hand,
@@ -692,7 +780,7 @@ partial class CompanionPanel
         // ======== Battle Tab Content ========
         BuildBattleTab();
 
-        mainLayout.Controls.Add(_detailPanel, 1, 0);
+        mainLayout.Controls.Add(_detailPanel, 1, 1);
 
         Controls.Add(mainLayout);
         ResumeLayout(false);
@@ -1162,6 +1250,11 @@ partial class CompanionPanel
     // Button fields for localisation
     private Button _exportCompanionBtn = null!;
     private Button _importCompanionBtn = null!;
+    private Button _gotoPetsBtn = null!;
+    private Button _gotoSelectedPetBtn = null!;
+    private Button _gotoEggsBtn = null!;
+    private Button _gotoSelectedEggBtn = null!;
+    private Button _gotoPetBattleTeamBtn = null!;
 
     // Seed "Gen" buttons created by AddSeedRow - stored for re-localisation
     private readonly List<Button> _seedGenButtons = new();

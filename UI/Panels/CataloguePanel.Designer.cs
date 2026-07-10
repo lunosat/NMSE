@@ -1,3 +1,4 @@
+using NMSE.Core;
 using NMSE.Data;
 using NMSE.UI.Util;
 
@@ -84,7 +85,7 @@ partial class CataloguePanel
         techButtonPanel.Controls.Add(_importTechBtn);
         techLayout.Controls.Add(techButtonPanel, 0, 2);
 
-        techTab.Controls.Add(techLayout);
+        AddGotoButtonToTab(techTab, techLayout, ["PlayerStateData", "KnownTech"]);
         _tabControl.TabPages.Add(techTab);
 
         // --- Tab 2: Known Products ---
@@ -136,10 +137,10 @@ partial class CataloguePanel
         productButtonPanel.Controls.Add(_importProductBtn);
         productLayout.Controls.Add(productButtonPanel, 0, 2);
 
-        productTab.Controls.Add(productLayout);
-        _tabControl.TabPages.Add(productTab);
+        AddGotoButtonToTab(productTab, productLayout, ["PlayerStateData", "KnownProducts"]);
+		_tabControl.TabPages.Add(productTab);
 
-        // --- Tab 3: Known Specials (Quicksilver/SpecialShop items) ---
+		// --- Tab 3: Known Specials (Quicksilver/SpecialShop items) ---
         var specialsTab = new TabPage(UiStrings.Get("discovery.tab_specials"));
         _specialsTabPage = specialsTab;
         var specialsLayout = new TableLayoutPanel
@@ -189,7 +190,7 @@ partial class CataloguePanel
         specialsButtonPanel.Controls.Add(_importSpecialsBtn);
         specialsLayout.Controls.Add(specialsButtonPanel, 0, 2);
 
-        specialsTab.Controls.Add(specialsLayout);
+        AddGotoButtonToTab(specialsTab, specialsLayout, ["PlayerStateData", "KnownSpecials"]);
         _tabControl.TabPages.Add(specialsTab);
 
         // --- Tab 4: Known Words ---
@@ -330,7 +331,7 @@ partial class CataloguePanel
         wordButtonPanel.Controls.Add(_importWordsBtn);
         wordLayout.Controls.Add(wordButtonPanel, 0, 3);
 
-        wordTab.Controls.Add(wordLayout);
+        AddGotoButtonToTab(wordTab, wordLayout, ["PlayerStateData", "KnownWordGroups"]);
         _tabControl.TabPages.Add(wordTab);
 
         // --- Tab 4: Known Glyphs ---
@@ -408,7 +409,7 @@ partial class CataloguePanel
         glyphButtonPanel.Controls.Add(_importGlyphsBtn);
         glyphLayout.Controls.Add(glyphButtonPanel, 0, 1);
 
-        glyphTab.Controls.Add(glyphLayout);
+        AddGotoButtonToTab(glyphTab, glyphLayout, ["PlayerStateData", "KnownPortalRunes"]);
         _tabControl.TabPages.Add(glyphTab);
 
         // --- Tab 5: Known Locations ---
@@ -509,7 +510,7 @@ partial class CataloguePanel
         locDetailPanel.Controls.Add(_locGalaxyDot);
         locationsLayout.Controls.Add(locDetailPanel, 0, 3);
 
-        locationsTab.Controls.Add(locationsLayout);
+        AddGotoButtonToTab(locationsTab, locationsLayout, ["PlayerStateData", "TeleportEndpoints"]);
         _tabControl.TabPages.Add(locationsTab);
 
         // --- Tab 6: Known Fish ---
@@ -586,7 +587,7 @@ partial class CataloguePanel
         fishButtonPanel.Controls.Add(_importFishBtn);
         fishLayout.Controls.Add(fishButtonPanel, 0, 2);
 
-        fishTab.Controls.Add(fishLayout);
+        AddGotoButtonToTab(fishTab, fishLayout, ["PlayerStateData", "FishingRecord"]);
         _tabControl.TabPages.Add(fishTab);
 
         // --- Tab 7: Recipes (inner tabs) ---
@@ -690,7 +691,7 @@ partial class CataloguePanel
         recipeButtonPanel.Controls.Add(_importRecipeBtn);
         knownRecipeLayout.Controls.Add(recipeButtonPanel, 0, 2);
 
-        _knownRecipesTab.Controls.Add(knownRecipeLayout);
+        AddGotoButtonToTab(_knownRecipesTab, knownRecipeLayout, ["PlayerStateData", "KnownRefinerRecipes"]);
         _recipeInnerTabs.TabPages.Add(_knownRecipesTab);
 
         // Inner Tab 1: Recipe Info
@@ -700,6 +701,7 @@ partial class CataloguePanel
         _recipeTab.Controls.Add(_recipeInnerTabs);
         _tabControl.TabPages.Add(_recipeTab);
 
+        // All eight GOTO JSON buttons are added via AddGotoButtonToTab above.
         Controls.Add(_tabControl);
         ResumeLayout(false);
         PerformLayout();
@@ -707,6 +709,7 @@ partial class CataloguePanel
 
     // Tab 1: Known Technologies
     private DoubleBufferedTabControl _tabControl = null!;
+    private readonly List<Button> _gotoJsonBtns = [];
     private DataGridView _techGrid = null!;
     private Button _addTechButton = null!;
     private Button _removeTechButton = null!;
@@ -793,4 +796,51 @@ partial class CataloguePanel
     private Button _removeRecipeBtn = null!;
     private Button _exportRecipeBtn = null!;
     private Button _importRecipeBtn = null!;
+
+    private void AddGotoButtonToTab(TabPage tab, TableLayoutPanel layout, string[] path)
+    {
+        var btn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Tag = path,
+        };
+        btn.Click += (s, e) =>
+        {
+            if (s is Button b && b.Tag is string[] p)
+                GoToJsonRequested?.Invoke(b, new GoToJsonEventArgs(p));
+        };
+
+        _gotoJsonBtns.Add(btn);
+
+        var buttonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+        };
+        buttonPanel.Controls.Add(btn);
+
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = new Padding(0, 0, 10, 0),
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.Controls.Add(buttonPanel, 2, 0);
+
+        tab.Controls.Add(header);
+        tab.Controls.Add(layout);
+    }
 }

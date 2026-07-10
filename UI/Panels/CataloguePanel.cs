@@ -11,6 +11,9 @@ public partial class CataloguePanel : UserControl
     /// <summary>Raised when discovery data is modified by the user.</summary>
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     private void RaiseDataModified() => DataModified?.Invoke(this, EventArgs.Empty);
 
     private static readonly Bitmap PlaceholderIcon = new(24, 24);
@@ -559,8 +562,10 @@ public partial class CataloguePanel : UserControl
                 row.Cells[RaceColumns[c].Name].ReadOnly = !hasGroup;
                 if (!hasGroup)
                 {
-                    row.Cells[RaceColumns[c].Name].Style.BackColor = Color.FromArgb(240, 240, 240);
-                    row.Cells[RaceColumns[c].Name].Style.ForeColor = Color.LightGray;
+                    var p = ThemeManager.Effective == AppTheme.Dark
+                        ? ThemeColors.Dark : ThemeColors.Light;
+                    row.Cells[RaceColumns[c].Name].Style.BackColor = p.GridCellDisabledBackground;
+                    row.Cells[RaceColumns[c].Name].Style.ForeColor = p.GridCellDisabledForeground;
                 }
             }
         }
@@ -2077,5 +2082,9 @@ public partial class CataloguePanel : UserControl
             if (row.Cells.Count > 2 && row.Cells[2].Tag is string rawType)
                 row.Cells[2].Value = GetLocalisedLocationType(rawType);
         }
+
+        // Set tooltips for all GOTO JSON buttons
+        foreach (var btn in _gotoJsonBtns)
+            new ToolTip().SetToolTip(btn, UiStrings.Get("goto_json.tooltip"));
     }
 }

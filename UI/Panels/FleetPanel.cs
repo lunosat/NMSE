@@ -1,5 +1,6 @@
 using NMSE.Data;
 using NMSE.Models;
+using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
 
@@ -11,6 +12,12 @@ public partial class FleetPanel : UserControl
     private readonly FreighterPanel _freighterPanel;
     private readonly FrigatePanel _frigatePanel;
     private readonly SquadronPanel _squadronPanel;
+
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
+    /// <summary>Raised when any sub-panel within this panel has its data modified.</summary>
+    public event EventHandler? DataModified;
 
     public FleetPanel(FreighterPanel freighterPanel, FrigatePanel frigatePanel, SquadronPanel squadronPanel)
     {
@@ -28,6 +35,16 @@ public partial class FleetPanel : UserControl
 
         _squadronPanel.Dock = DockStyle.Fill;
         _squadronTab.Controls.Add(_squadronPanel);
+
+        // Forward GOTO JSON requests from sub-panels
+        _freighterPanel.GoToJsonRequested += (s, e) => GoToJsonRequested?.Invoke(this, e);
+        _frigatePanel.GoToJsonRequested += (s, e) => GoToJsonRequested?.Invoke(this, e);
+        _squadronPanel.GoToJsonRequested += (s, e) => GoToJsonRequested?.Invoke(this, e);
+
+        // Forward DataModified from all sub-panels
+        _freighterPanel.DataModified += (s, e) => DataModified?.Invoke(this, e);
+        _frigatePanel.DataModified += (s, e) => DataModified?.Invoke(this, e);
+        _squadronPanel.DataModified += (s, e) => DataModified?.Invoke(this, e);
     }
 
     public void SetDatabase(GameItemDatabase? database)

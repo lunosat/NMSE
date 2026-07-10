@@ -39,6 +39,9 @@ public partial class MilestonePanel : UserControl
     /// <summary>Raised when the user modifies any milestone stat value.</summary>
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     public MilestonePanel()
     {
         InitializeComponent();
@@ -400,5 +403,12 @@ public partial class MilestonePanel : UserControl
 
         foreach (var (label, locKey) in _guildLocalisedLabels)
             label.Text = UiStrings.Get(locKey);
+        foreach (var btn in _gotoJsonBtns)
+            new ToolTip().SetToolTip(btn, UiStrings.Get("goto_json.tooltip"));
+    }
+
+    private void OnGoToJsonClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Stats"));
     }
 }

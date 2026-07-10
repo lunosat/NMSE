@@ -3,6 +3,7 @@ using NMSE.Core;
 using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
+using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
 
@@ -10,6 +11,9 @@ public partial class FreighterPanel : UserControl
 {
     /// <summary>Raised when inventory data is modified by the user.</summary>
     public event EventHandler? DataModified;
+
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
 
     private void RaiseDataModified()
     {
@@ -325,6 +329,9 @@ public partial class FreighterPanel : UserControl
         _techGrid.SetMaxSupportedLabel(UiStrings.Format("common.max_supported", "10x6"));
         _generalGrid.ApplyUiLocalisation();
         _techGrid.ApplyUiLocalisation();
+        new ToolTip().SetToolTip(_gotoJsonBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoInvBtn, UiStrings.Format("goto_json.tooltip_section", _generalPage.Text));
+        new ToolTip().SetToolTip(_gotoTechBtn, UiStrings.Format("goto_json.tooltip_section", _techPage.Text));
         RefreshFreighterTypeCombo();
         RefreshCrewRaceCombo();
     }
@@ -376,6 +383,21 @@ public partial class FreighterPanel : UserControl
         _crewRaceCombo.Items.AddRange(FreighterLogic.GetCrewRaceItems());
         if (currentRace != null) SelectCrewRaceByInternalName(currentRace);
         _crewRaceCombo.EndUpdate();
+    }
+
+    private void OnGoToJsonClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "CurrentFreighter"));
+    }
+
+    private void OnGoToJsonInventoryClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "FreighterInventory"));
+    }
+
+    private void OnGoToJsonTechClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "FreighterInventory_TechOnly"));
     }
 
 }

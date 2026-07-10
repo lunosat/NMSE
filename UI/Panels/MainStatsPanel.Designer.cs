@@ -44,6 +44,12 @@ partial class MainStatsPanel
         _unitsField = new InvariantNumericTextBox { Maximum = uint.MaxValue, Width = 150, Anchor = AnchorStyles.Left | AnchorStyles.Top };
         _nanitesField = new InvariantNumericTextBox { Maximum = uint.MaxValue, Width = 150, Anchor = AnchorStyles.Left | AnchorStyles.Top };
         _quicksilverField = new InvariantNumericTextBox { Maximum = uint.MaxValue, Width = 150, Anchor = AnchorStyles.Left | AnchorStyles.Top };
+        _unitsMaxBtn = new Button { Text = "Max", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(40, 0) };
+        _unitsMaxBtn.Click += (s, e) => { _unitsField.NumericValue = uint.MaxValue; };
+        _nanitesMaxBtn = new Button { Text = "Max", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(40, 0) };
+        _nanitesMaxBtn.Click += (s, e) => { _nanitesField.NumericValue = uint.MaxValue; };
+        _quicksilverMaxBtn = new Button { Text = "Max", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(40, 0) };
+        _quicksilverMaxBtn.Click += (s, e) => { _quicksilverField.NumericValue = uint.MaxValue; };
         _saveNameField = new TextBox { Width = 250 };
         _saveSummaryField = new TextBox { Width = 250 };
         _playTimeField = new TextBox { Width = 150, ReadOnly = true };
@@ -55,6 +61,7 @@ partial class MainStatsPanel
         _easiestPresetCombo.Items.AddRange(DifficultyPresets);
         _hardestPresetCombo = new ComboBox { Width = 150, DropDownStyle = ComboBoxStyle.DropDownList };
         _hardestPresetCombo.Items.AddRange(DifficultyPresets);
+        _expeditionNumberField = new TextBox { Width = 150, ReadOnly = true, Visible = false };
         _accountNameField = new TextBox { Width = 250, ReadOnly = true };
 
         _galaxyField = new Label { AutoSize = true, Padding = new Padding(0, 4, 0, 0) };
@@ -131,7 +138,7 @@ partial class MainStatsPanel
         _voxelXNud = new InvariantNumericTextBox { Width = 150, Minimum = -2048, Maximum = 2047 };
         _voxelYNud = new InvariantNumericTextBox { Width = 150, Minimum = -128, Maximum = 127 };
         _voxelZNud = new InvariantNumericTextBox { Width = 150, Minimum = -2048, Maximum = 2047 };
-        _solarSystemNud = new InvariantNumericTextBox { Width = 150, Minimum = 0, Maximum = 600 };
+        _solarSystemNud = new InvariantNumericTextBox { Width = 150, Minimum = 0, Maximum = 4095 };
         _planetNud = new InvariantNumericTextBox { Width = 150, Minimum = 0, Maximum = 15 };
         _applyCoordinatesBtn = new Button { Text = "Apply Coordinates", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         _applyCoordinatesBtn.Click += OnApplyCoordinates;
@@ -191,14 +198,13 @@ partial class MainStatsPanel
         // Main 3-column layout: left=Stats+SaveInfo, center=CurrentCoords+SpaceBattle, right=EditCoords
         var mainLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Top,
             ColumnCount = 3,
             AutoSize = true,
             Padding = new Padding(8)
         };
-        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28f));
-        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 39f));
-        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33f));
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 400));
+        mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 350));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         // -- Left column: Player Statistics + Save Info --
@@ -216,9 +222,9 @@ partial class MainStatsPanel
         _healthLabel = AddRow(leftLayout, "Health:", _healthField, leftRow++);
         _shieldLabel = AddRow(leftLayout, "Shield:", _shieldField, leftRow++);
         _energyLabel = AddRow(leftLayout, "Energy:", _energyField, leftRow++);
-        _unitsLabel = AddRow(leftLayout, "Units:", _unitsField, leftRow++);
-        _nanitesLabel = AddRow(leftLayout, "Nanites:", _nanitesField, leftRow++);
-        _quicksilverLabel = AddRow(leftLayout, "Quicksilver:", _quicksilverField, leftRow++);
+        _unitsLabel = AddRowWithButton(leftLayout, "Units:", _unitsField, _unitsMaxBtn, leftRow++);
+        _nanitesLabel = AddRowWithButton(leftLayout, "Nanites:", _nanitesField, _nanitesMaxBtn, leftRow++);
+        _quicksilverLabel = AddRowWithButton(leftLayout, "Quicksilver:", _quicksilverField, _quicksilverMaxBtn, leftRow++);
 
         _saveInfoHeader = AddSectionHeader(leftLayout, "Save Info", leftRow++);
         _saveNameLabel = AddRow(leftLayout, "Save Name:", _saveNameField, leftRow++);
@@ -229,7 +235,24 @@ partial class MainStatsPanel
         _currentPresetLabel = AddRow(leftLayout, "Current Preset:", _currentPresetCombo, leftRow++);
         _easiestPresetLabel = AddRow(leftLayout, "Easiest Used:", _easiestPresetCombo, leftRow++);
         _hardestPresetLabel = AddRow(leftLayout, "Hardest Used:", _hardestPresetCombo, leftRow++);
+        _expeditionNumberLabel = AddRow(leftLayout, UiStrings.Get("player.expedition_number"), _expeditionNumberField, leftRow++);
         _accountNameLabel = AddRow(leftLayout, "Account Name:", _accountNameField, leftRow++);
+
+        // Player Outfits section
+        _outfitCombo = new ComboBox { Width = 200, DropDownStyle = ComboBoxStyle.DropDownList, Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top };
+        _outfitLabel = AddRow(leftLayout, "Outfits:", _outfitCombo, leftRow++);
+        _outfitExportBtn = new Button { Text = "Export", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _outfitExportBtn.Click += OnOutfitExport;
+        _outfitImportBtn = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _outfitImportBtn.Click += OnOutfitImport;
+        _outfitCopyBtn = new Button { Text = "Copy to Custom Data", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        _outfitCopyBtn.Click += OnOutfitCopy;
+        _outfitCombo.SelectedIndexChanged += (s, e) => RaiseDataModified();
+        var outfitBtnPanel = new FlowLayoutPanel { AutoSize = true, WrapContents = false, FlowDirection = FlowDirection.LeftToRight, Margin = new Padding(0) };
+        outfitBtnPanel.Controls.Add(_outfitExportBtn);
+        outfitBtnPanel.Controls.Add(_outfitImportBtn);
+        outfitBtnPanel.Controls.Add(_outfitCopyBtn);
+        leftLayout.Controls.Add(outfitBtnPanel, 1, leftRow++);
 
         leftLayout.RowCount = leftRow;
         for (int i = 0; i < leftRow; i++)
@@ -290,12 +313,12 @@ partial class MainStatsPanel
         editLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         int editRow = 0;
 
-        _editCoordsHeader = AddSectionHeader(editLayout, "Edit Coordinates", editRow++);
+        _changeCoordsHeader = AddSectionHeader(editLayout, "Change Coordinates", editRow++);
         _galaxyRangeLabel = AddRow(editLayout, "Galaxy (1–257):", _galaxyNud, editRow++);
         _voxelXLabel = AddRow(editLayout, "Voxel X (-2048–2047):", _voxelXNud, editRow++);
         _voxelYLabel = AddRow(editLayout, "Voxel Y (-128–127):", _voxelYNud, editRow++);
         _voxelZLabel = AddRow(editLayout, "Voxel Z (-2048–2047):", _voxelZNud, editRow++);
-        _solarSystemLabel = AddRow(editLayout, "Solar System (0–600):", _solarSystemNud, editRow++);
+        _solarSystemLabel = AddRow(editLayout, "Solar System (0-4095):", _solarSystemNud, editRow++);
         _planetLabel = AddRow(editLayout, "Planet (0–15):", _planetNud, editRow++);
         editLayout.Controls.Add(_applyCoordinatesBtn, 1, editRow++);
 
@@ -358,9 +381,7 @@ partial class MainStatsPanel
         _editPortalHexLabel = AddRow(editLayout, "Portal Code (Hex):", _portalHexInput, editRow++);
         editLayout.Controls.Add(_convertPortalBtn, 1, editRow++);
 
-        // Small gap before roulette button
-        editLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 8));
-        editRow++;
+        _coordinateRouletteBtn.Margin = new Padding(3, 8, 3, 3);
         editLayout.Controls.Add(_coordinateRouletteBtn, 1, editRow++);
 
         editLayout.RowCount = editRow;
@@ -390,7 +411,7 @@ partial class MainStatsPanel
         _saveUtilsWarning = new Label
         {
             Text = UiStrings.Get("player.save_utils_warning"),
-            ForeColor = Color.Red,
+            ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : Color.Red,
             Font = new Font(Font.FontFamily, 9, FontStyle.Bold),
             AutoSize = true,
             Padding = new Padding(0, 2, 0, 8)
@@ -591,6 +612,9 @@ partial class MainStatsPanel
     private InvariantNumericTextBox _unitsField = null!;
     private InvariantNumericTextBox _nanitesField = null!;
     private InvariantNumericTextBox _quicksilverField = null!;
+    private Button _unitsMaxBtn = null!;
+    private Button _nanitesMaxBtn = null!;
+    private Button _quicksilverMaxBtn = null!;
     private TextBox _saveNameField = null!;
     private TextBox _saveSummaryField = null!;
     private TextBox _playTimeField = null!;
@@ -599,6 +623,8 @@ partial class MainStatsPanel
     private ComboBox _currentPresetCombo = null!;
     private ComboBox _easiestPresetCombo = null!;
     private ComboBox _hardestPresetCombo = null!;
+    private TextBox _expeditionNumberField = null!;
+    private Label _expeditionNumberLabel = null!;
     private TextBox _accountNameField = null!;
 
     // Coordinates
@@ -667,6 +693,12 @@ partial class MainStatsPanel
     // Tab control
     private DoubleBufferedTabControl _tabs = null!;
 
+    // Player Outfits
+    private ComboBox _outfitCombo = null!;
+    private Button _outfitExportBtn = null!;
+    private Button _outfitImportBtn = null!;
+    private Button _outfitCopyBtn = null!;
+
     // Label fields for UI localisation
     private Label _playerStatsHeader = null!;
     private Label _healthLabel = null!;
@@ -684,6 +716,7 @@ partial class MainStatsPanel
     private Label _easiestPresetLabel = null!;
     private Label _hardestPresetLabel = null!;
     private Label _accountNameLabel = null!;
+    private Label _outfitLabel = null!;
     private Label _currentCoordsHeader = null!;
     private Label _galaxyLabel = null!;
     private Label _portalHexLabel = null!;
@@ -699,7 +732,7 @@ partial class MainStatsPanel
     private Label _spaceBattleHeader = null!;
     private Label _warpsToNextLabel = null!;
     private Label _timeToNextLabel = null!;
-    private Label _editCoordsHeader = null!;
+    private Label _changeCoordsHeader = null!;
     private Label _galaxyRangeLabel = null!;
     private Label _voxelXLabel = null!;
     private Label _voxelYLabel = null!;

@@ -11,6 +11,9 @@ public partial class MultitoolPanel : UserControl
     /// <summary>Raised when inventory data is modified by the user.</summary>
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     private JsonArray? _multitools;
     private JsonObject? _playerState;
     private GameItemDatabase? _database;
@@ -74,6 +77,9 @@ public partial class MultitoolPanel : UserControl
         RefreshToolTypeCombo();
         RefreshToolSizeCombo();
         _storeGrid.ApplyUiLocalisation();
+        new ToolTip().SetToolTip(_gotoListBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoSelectedBtn, UiStrings.Format("goto_json.tooltip_section", _detailsLabel.Text));
+        new ToolTip().SetToolTip(_gotoStoreBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_cargo")));
     }
 
     /// <summary>Rebuilds the selector from the current _multitools array.</summary>
@@ -748,6 +754,32 @@ public partial class MultitoolPanel : UserControl
         int canonical = MultitoolLogic.GetCanonicalIsLargeIndex(typeName);
         if (canonical >= 0)
             _toolSize.SelectedIndex = canonical;
+    }
+
+    private void OnGoToJsonListClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Multitools"));
+    }
+
+    private void OnGoToJsonSelectedClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedToolDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Multitools", $"[{idx}]"));
+    }
+
+    private void OnGoToJsonStoreClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedToolDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Multitools", $"[{idx}]", "Store"));
+    }
+
+    private int GetSelectedToolDataIndex()
+    {
+        if (_toolSelector.SelectedIndex < 0 || _toolSelector.SelectedItem is not MultitoolLogic.ToolListItem item)
+            return -1;
+        return item.DataIndex;
     }
 
 }

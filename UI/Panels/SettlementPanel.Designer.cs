@@ -86,11 +86,34 @@ partial class SettlementPanel
         {
             Text = "Settlements",
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 5)
+            Padding = new Padding(0, 0, 0, 5),
+            Anchor = AnchorStyles.Left
         };
         FontManager.ApplyHeadingFont(_titleLabel, 14);
+
+        var headerStrip = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.Controls.Add(_titleLabel, 0, 0);
+
+		var gotoButtonPanel = new FlowLayoutPanel
+		{
+			Dock = DockStyle.Fill,
+			AutoSize = true,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+        headerStrip.Controls.Add(gotoButtonPanel, 2, 0);
+
         topLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        topLayout.Controls.Add(_titleLabel, 0, topRow++);
+        topLayout.Controls.Add(headerStrip, 0, topRow++);
 
         // Top: Settlement selector + Delete button
         var selectorPanel = new FlowLayoutPanel
@@ -112,6 +135,30 @@ partial class SettlementPanel
         selectorPanel.Controls.Add(_deleteSettlementBtn);
         selectorPanel.Controls.Add(_exportSettlementBtn);
         selectorPanel.Controls.Add(_importSettlementBtn);
+		_gotoSettlementsBtn = new Button
+		{
+			FlatStyle = FlatStyle.Flat,
+			FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+			Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+			Size = new Size(28, 24),
+			Text = "\U0001F4D1",
+			Margin = new Padding(1, 3, 1, 1),
+			Cursor = Cursors.Hand,
+		};
+        _gotoSettlementsBtn.Click += OnGoToJsonClicked;
+        gotoButtonPanel.Controls.Add(_gotoSettlementsBtn);
+		_gotoSelectedSettlementBtn = new Button
+		{
+			FlatStyle = FlatStyle.Flat,
+			FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+			Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+			Size = new Size(28, 24),
+			Text = "\U0001F4D1",
+			Margin = new Padding(1, 3, 1, 1),
+			Cursor = Cursors.Hand,
+		};
+        _gotoSelectedSettlementBtn.Click += OnGoToJsonForSelectedClicked;
+        gotoButtonPanel.Controls.Add(_gotoSelectedSettlementBtn);
 
         // Warning
         _settleWarnLabel = new Label
@@ -942,6 +989,8 @@ partial class SettlementPanel
     private Button _deleteSettlementBtn = null!;
     private Button _exportSettlementBtn = null!;
     private Button _importSettlementBtn = null!;
+    private Button _gotoSettlementsBtn = null!;
+    private Button _gotoSelectedSettlementBtn = null!;
     private TextBox _settlementName = null!;
     private TextBox _seedField = null!;
     private Button _generateSeedBtn = null!;

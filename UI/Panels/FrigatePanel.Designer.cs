@@ -25,6 +25,8 @@ partial class FrigatePanel
     {
         this._mainLayout = new System.Windows.Forms.TableLayoutPanel();
         this._leftLayout = new System.Windows.Forms.TableLayoutPanel();
+        this._headerStrip = new System.Windows.Forms.TableLayoutPanel();
+        this._gotoButtonPanelFrigate = new System.Windows.Forms.FlowLayoutPanel();
         this._titleLabel = new System.Windows.Forms.Label();
         this._frigateList = new System.Windows.Forms.ListBox();
         this._btnPanel = new System.Windows.Forms.FlowLayoutPanel();
@@ -33,6 +35,9 @@ partial class FrigatePanel
         this._copyBtn = new System.Windows.Forms.Button();
         this._exportBtn = new System.Windows.Forms.Button();
         this._importBtn = new System.Windows.Forms.Button();
+        this._gotoListBtn = new System.Windows.Forms.Button();
+        this._gotoSelectedBtn = new System.Windows.Forms.Button();
+        this._gotoExpeditionsBtn = new System.Windows.Forms.Button();
         this._detailPanel = new System.Windows.Forms.Panel();
         this._detailLayout = new System.Windows.Forms.TableLayoutPanel();
         this._nameField = new System.Windows.Forms.TextBox();
@@ -75,6 +80,7 @@ partial class FrigatePanel
         this._expeditionStartTimeField = new System.Windows.Forms.DateTimePicker();
         this._mainLayout.SuspendLayout();
         this._leftLayout.SuspendLayout();
+        this._gotoButtonPanelFrigate.SuspendLayout();
         this._btnPanel.SuspendLayout();
         this._detailPanel.SuspendLayout();
         this._detailLayout.SuspendLayout();
@@ -87,15 +93,16 @@ partial class FrigatePanel
         //
         this._mainLayout.Dock = System.Windows.Forms.DockStyle.Fill;
         this._mainLayout.ColumnCount = 3;
-        this._mainLayout.RowCount = 1;
+        this._mainLayout.RowCount = 2;
         this._mainLayout.Padding = new System.Windows.Forms.Padding(10);
         this._mainLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 220F));
         this._mainLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 55F));
         this._mainLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 45F));
+        this._mainLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this._mainLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-        this._mainLayout.Controls.Add(this._leftLayout, 0, 0);
-        this._mainLayout.Controls.Add(this._detailPanel, 1, 0);
-        this._mainLayout.Controls.Add(this._statsPanel, 2, 0);
+        this._mainLayout.Controls.Add(this._leftLayout, 0, 1);
+        this._mainLayout.Controls.Add(this._detailPanel, 1, 1);
+        this._mainLayout.Controls.Add(this._statsPanel, 2, 1);
         //
         // _leftLayout
         //
@@ -109,11 +116,37 @@ partial class FrigatePanel
         this._leftLayout.Controls.Add(this._frigateList, 0, 1);
         this._leftLayout.Controls.Add(this._btnPanel, 0, 2);
         //
+        // _headerStrip
+        //
+        this._headerStrip.AutoSize = true;
+        this._headerStrip.Dock = System.Windows.Forms.DockStyle.Top;
+        this._headerStrip.ColumnCount = 3;
+        this._headerStrip.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.AutoSize));
+        this._headerStrip.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+        this._headerStrip.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.AutoSize));
+        this._headerStrip.Controls.Add(this._titleLabel, 0, 0);
+        this._headerStrip.Controls.Add(this._gotoButtonPanelFrigate, 2, 0);
+        this._headerStrip.Padding = new System.Windows.Forms.Padding(0, 0, 10, 0);
+        this._headerStrip.Margin = new System.Windows.Forms.Padding(0);
+        this._headerStrip.RowCount = 1;
+        this._headerStrip.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
+        this._mainLayout.Controls.Add(this._headerStrip, 0, 0);
+        this._mainLayout.SetColumnSpan(this._headerStrip, 3);
+        //
+        // _gotoButtonPanelFrigate
+        //
+        this._gotoButtonPanelFrigate.AutoSize = true;
+        this._gotoButtonPanelFrigate.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+        this._gotoButtonPanelFrigate.Anchor = System.Windows.Forms.AnchorStyles.Left;
+		this._gotoButtonPanelFrigate.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+		this._gotoButtonPanelFrigate.WrapContents = false;
+        //
         // _titleLabel
         //
         this._titleLabel.Text = "Fleet Frigates";
         FontManager.ApplyHeadingFont(_titleLabel, 14);
         this._titleLabel.AutoSize = true;
+        this._titleLabel.Anchor = System.Windows.Forms.AnchorStyles.Left;
         this._titleLabel.Padding = new System.Windows.Forms.Padding(0, 0, 0, 5);
         //
         // _frigateList
@@ -165,6 +198,45 @@ partial class FrigatePanel
         this._importBtn.AutoSize = true;
         this._importBtn.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
         this._importBtn.MinimumSize = new System.Drawing.Size(75, 0);
+        //
+        // _gotoListBtn
+        //
+		this._gotoListBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		this._gotoListBtn.FlatAppearance.BorderSize = 1;
+		this._gotoListBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        this._gotoListBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        this._gotoListBtn.Size = new System.Drawing.Size(28, 24);
+        this._gotoListBtn.Text = "\U0001F4D1";
+        this._gotoListBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        this._gotoListBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        this._gotoListBtn.Click += OnGoToJsonListClicked;
+        this._gotoButtonPanelFrigate.Controls.Add(this._gotoListBtn);
+        //
+        // _gotoSelectedBtn
+        //
+		this._gotoSelectedBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		this._gotoSelectedBtn.FlatAppearance.BorderSize = 1;
+		this._gotoSelectedBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        this._gotoSelectedBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        this._gotoSelectedBtn.Size = new System.Drawing.Size(28, 24);
+        this._gotoSelectedBtn.Text = "\U0001F4D1";
+        this._gotoSelectedBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        this._gotoSelectedBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        this._gotoSelectedBtn.Click += OnGoToJsonSelectedClicked;
+        this._gotoButtonPanelFrigate.Controls.Add(this._gotoSelectedBtn);
+        //
+        // _gotoExpeditionsBtn
+        //
+		this._gotoExpeditionsBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		this._gotoExpeditionsBtn.FlatAppearance.BorderSize = 1;
+		this._gotoExpeditionsBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        this._gotoExpeditionsBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        this._gotoExpeditionsBtn.Size = new System.Drawing.Size(28, 24);
+        this._gotoExpeditionsBtn.Text = "\U0001F4D1";
+        this._gotoExpeditionsBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        this._gotoExpeditionsBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        this._gotoExpeditionsBtn.Click += OnGoToJsonExpeditionsClicked;
+        this._gotoButtonPanelFrigate.Controls.Add(this._gotoExpeditionsBtn);
         //
         // _detailPanel
         //
@@ -403,6 +475,8 @@ partial class FrigatePanel
         this.Controls.Add(this._mainLayout);
         this._mainLayout.ResumeLayout(false);
         this._leftLayout.ResumeLayout(false);
+        this._gotoButtonPanelFrigate.ResumeLayout(false);
+        this._gotoButtonPanelFrigate.PerformLayout();
         this._btnPanel.ResumeLayout(false);
         this._detailPanel.ResumeLayout(false);
         this._detailLayout.ResumeLayout(false);
@@ -477,6 +551,7 @@ partial class FrigatePanel
                 try { frigate.GetObject("InventoryClass")?.Set("InventoryClass", computedClass); } catch { }
                 _loading = false;
                 RefreshListEntry();
+                RaiseDataModified();
             }
             catch { }
         };
@@ -507,6 +582,7 @@ partial class FrigatePanel
                 _classField.SelectedIndex = computedIdx >= 0 ? computedIdx : 0;
                 _loading = false;
                 RefreshListEntry();
+                RaiseDataModified();
             }
             catch { }
         };
@@ -516,8 +592,9 @@ partial class FrigatePanel
             var frigate = SelectedFrigate();
             if (frigate == null) return;
             string internalRace = _raceField.SelectedIndex >= 0 && _raceField.SelectedIndex < FrigateRaces.Length ? FrigateRaces[_raceField.SelectedIndex] : "";
-            try { frigate.GetObject("Race")?.Set("AlienRace", internalRace); } catch { }
-        };
+                try { frigate.GetObject("Race")?.Set("AlienRace", internalRace); } catch { }
+                RaiseDataModified();
+            };
         _homeSeedField.Leave += (s, e) => SaveSeedField("HomeSystemSeed", _homeSeedField.Text);
         _homeSeedField.KeyDown += (s, e) =>
         {
@@ -559,6 +636,7 @@ partial class FrigatePanel
                     var stats = frigate.GetArray("Stats");
                     if (stats != null && statIdx < stats.Length)
                         RawNumberGuard.SetInt(stats, statIdx, (int)(nud.NumericValue ?? 0));
+                    RaiseDataModified();
                 }
                 catch { }
             };
@@ -621,6 +699,8 @@ partial class FrigatePanel
 
     private System.Windows.Forms.TableLayoutPanel _mainLayout;
     private System.Windows.Forms.TableLayoutPanel _leftLayout;
+    private System.Windows.Forms.TableLayoutPanel _headerStrip;
+    private System.Windows.Forms.FlowLayoutPanel _gotoButtonPanelFrigate;
     private System.Windows.Forms.Label _titleLabel;
     private System.Windows.Forms.ListBox _frigateList;
     private System.Windows.Forms.FlowLayoutPanel _btnPanel;
@@ -629,6 +709,9 @@ partial class FrigatePanel
     private System.Windows.Forms.Button _copyBtn;
     private System.Windows.Forms.Button _exportBtn;
     private System.Windows.Forms.Button _importBtn;
+    private System.Windows.Forms.Button _gotoListBtn;
+    private System.Windows.Forms.Button _gotoSelectedBtn;
+    private System.Windows.Forms.Button _gotoExpeditionsBtn;
     private System.Windows.Forms.Panel _detailPanel;
     private System.Windows.Forms.TableLayoutPanel _detailLayout;
     private System.Windows.Forms.TextBox _nameField;

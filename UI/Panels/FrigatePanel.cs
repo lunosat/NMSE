@@ -10,6 +10,18 @@ namespace NMSE.UI.Panels;
 
 public partial class FrigatePanel : UserControl
 {
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
+    /// <summary>Raised when the user modifies any data within this panel.</summary>
+    public event EventHandler? DataModified;
+
+    private void RaiseDataModified()
+    {
+        if (!_loading)
+            DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
     private JsonArray? _frigates;
     private JsonArray? _expeditions;
     private bool _loading;
@@ -273,6 +285,7 @@ public partial class FrigatePanel : UserControl
             try { frigate.GetObject("InventoryClass")?.Set("InventoryClass", computedClass); } catch { }
             // Refresh list entry to show the updated class in the fleet list
             RefreshListEntry();
+            RaiseDataModified();
         }
         catch { }
     }
@@ -286,6 +299,7 @@ public partial class FrigatePanel : UserControl
             frigate.Set("DamageTaken", 0);
             frigate.Set("RepairsMade", 0);
             _damageLabel.Text = UiStrings.Get("frigate.no_damage");
+            RaiseDataModified();
         }
         catch { }
     }
@@ -323,6 +337,7 @@ public partial class FrigatePanel : UserControl
             _detailPanel.Visible = false;
             _statsPanel.Visible = false;
         }
+        RaiseDataModified();
     }
 
     private void OnCopy(object? sender, EventArgs e)
@@ -342,6 +357,7 @@ public partial class FrigatePanel : UserControl
         _frigates.Add(clone);
         RefreshList();
         _frigateList.SelectedIndex = _frigateList.Items.Count - 1;
+        RaiseDataModified();
     }
 
     private void SaveCurrentField(string key, string value)
@@ -353,6 +369,7 @@ public partial class FrigatePanel : UserControl
         {
             frigate.Set(key, value);
             RefreshListEntry();
+            RaiseDataModified();
         }
         catch { }
     }
@@ -368,6 +385,7 @@ public partial class FrigatePanel : UserControl
             if (RawNumberGuard.IsClampedIntValueUnchanged(existing, value, 0, int.MaxValue))
                 return;
             RawNumberGuard.SetInt(frigate, key, value);
+            RaiseDataModified();
         }
         catch { }
     }
@@ -384,6 +402,7 @@ public partial class FrigatePanel : UserControl
             var arr = frigate.GetArray(key);
             if (arr != null && arr.Length >= 2)
                 arr.Set(1, normalized);
+            RaiseDataModified();
         }
         catch { }
     }
@@ -512,6 +531,7 @@ public partial class FrigatePanel : UserControl
                     _levelUpInField.Text = "1";
                     _levelUpsRemainingField.Text = FrigateLogic.GetLevelUpsRemaining(threshold - 1).ToString(CultureInfo.CurrentCulture);
                     _loading = false;
+                    RaiseDataModified();
                     break;
                 }
             }
@@ -586,6 +606,7 @@ public partial class FrigatePanel : UserControl
 
             // Refresh UI
             OnFrigateSelected(null, EventArgs.Empty);
+            RaiseDataModified();
         }
         catch { }
     }
@@ -605,6 +626,7 @@ public partial class FrigatePanel : UserControl
             var dt = DateTime.SpecifyKind(_expeditionStartTimeField.Value, DateTimeKind.Local);
             long unix = new DateTimeOffset(dt).ToUnixTimeSeconds();
             RawNumberGuard.SetLong(exp, "StartTime", unix);
+            RaiseDataModified();
         }
         catch { }
     }
@@ -666,6 +688,7 @@ public partial class FrigatePanel : UserControl
             _frigates.Add(imported);
             RefreshList();
             _frigateList.SelectedIndex = _frigateList.Items.Count - 1;
+            RaiseDataModified();
         }
         catch (Exception ex)
         {
@@ -729,6 +752,9 @@ public partial class FrigatePanel : UserControl
 
         // Refresh type and race combos with localised display names
         RefreshFrigateTypeCombos();
+        new ToolTip().SetToolTip(_gotoListBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoSelectedBtn, UiStrings.Format("goto_json.tooltip_section", _frigateInfoHeader.Text));
+        new ToolTip().SetToolTip(_gotoExpeditionsBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_expeditions")));
     }
 
     private void RefreshFrigateTypeCombos()
@@ -745,5 +771,22 @@ public partial class FrigatePanel : UserControl
             _typeField.SelectedIndex = currentType;
         if (currentRace >= 0 && currentRace < _raceField.Items.Count)
             _raceField.SelectedIndex = currentRace;
+    }
+
+    private void OnGoToJsonListClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "FleetFrigates"));
+    }
+
+    private void OnGoToJsonSelectedClicked(object? sender, EventArgs e)
+    {
+        int idx = _frigateList.SelectedIndex;
+        if (idx < 0 || _frigates == null || idx >= _frigates.Length) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "FleetFrigates", $"[{idx}]"));
+    }
+
+    private void OnGoToJsonExpeditionsClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "FleetExpeditions"));
     }
 }

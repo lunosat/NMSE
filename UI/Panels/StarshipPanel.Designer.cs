@@ -57,18 +57,12 @@ partial class StarshipPanel
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // outer tabs
 
         // --- Title panel ---
-        var titlePanel = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-        };
         _titleLabel = new Label
         {
             Text = "Starships",
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 2)
+            Padding = new Padding(0, 0, 0, 2),
+            Anchor = AnchorStyles.Left
         };
         FontManager.ApplyHeadingFont(_titleLabel, 14);
         _primaryShipLabel = new Label
@@ -79,9 +73,92 @@ partial class StarshipPanel
             Padding = new Padding(15, 5, 0, 0),
             Font = new Font(Font.FontFamily, 9, FontStyle.Italic),
         };
+
+        var headerStrip = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1
+        };
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var titlePanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+        };
         titlePanel.Controls.Add(_titleLabel);
         titlePanel.Controls.Add(_primaryShipLabel);
-        mainLayout.Controls.Add(titlePanel, 0, 0);
+        headerStrip.Controls.Add(titlePanel, 0, 0);
+
+		var gotoButtonPanel = new FlowLayoutPanel
+		{
+			Dock = DockStyle.Fill,
+			AutoSize = true,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+
+        _gotoListBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoListBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoListBtn.Click += OnGoToJsonListClicked;
+        gotoButtonPanel.Controls.Add(_gotoListBtn);
+
+        _gotoSelectedBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoSelectedBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoSelectedBtn.Click += OnGoToJsonSelectedClicked;
+        gotoButtonPanel.Controls.Add(_gotoSelectedBtn);
+
+        _gotoStoreBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoStoreBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoStoreBtn.Click += OnGoToJsonCargoClicked;
+        gotoButtonPanel.Controls.Add(_gotoStoreBtn);
+
+        _gotoCustBtn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point)
+        };
+        _gotoCustBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoCustBtn.Click += OnGoToJsonCustomisationClicked;
+        gotoButtonPanel.Controls.Add(_gotoCustBtn);
+
+        headerStrip.Controls.Add(gotoButtonPanel, 2, 0);
+
+        mainLayout.Controls.Add(headerStrip, 0, 0);
 
         // --- Ship selector row (above the tabs) ---
         var selectorRow = new TableLayoutPanel
@@ -325,7 +402,7 @@ partial class StarshipPanel
             Text = "\u26A0 Saves only store full Technology slots for your last active Corvette.",
             Font = new Font("Segoe UI Emoji", 9, FontStyle.Bold),
             AutoSize = true,
-            ForeColor = Color.Red,
+            ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : Color.Red,
             Padding = new Padding(5, 5, 0, 0),
             Visible = false,
         };
@@ -565,5 +642,10 @@ partial class StarshipPanel
 
     // Warning label next to Solar sail colour picker
     private Label? _sailColourWarningLabel = null;
+
+    private Button _gotoListBtn = null!;
+    private Button _gotoSelectedBtn = null!;
+    private Button _gotoStoreBtn = null!;
+    private Button _gotoCustBtn = null!;
 }
 

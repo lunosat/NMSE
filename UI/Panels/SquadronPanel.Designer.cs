@@ -37,11 +37,12 @@ partial class SquadronPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 1,
+            RowCount = 2,
             Padding = new Padding(10)
         };
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
         mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        mainLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         // -- Left column: list + buttons --
@@ -59,10 +60,35 @@ partial class SquadronPanel
         {
             Text = "Squadron Pilots",
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 5)
+            Padding = new Padding(0, 0, 0, 5),
+            Anchor = AnchorStyles.Left
         };
         FontManager.ApplyHeadingFont(_titleLabel, 14);
-        leftLayout.Controls.Add(_titleLabel, 0, 0);
+
+        var headerStrip = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            ColumnCount = 3,
+            RowCount = 1,
+            Margin = new Padding(0),
+        };
+        headerStrip.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        headerStrip.Controls.Add(_titleLabel, 0, 0);
+
+		var gotoButtonPanel = new FlowLayoutPanel
+		{
+			AutoSize = true,
+			AutoSizeMode = AutoSizeMode.GrowAndShrink,
+			Anchor = AnchorStyles.Left,
+			FlowDirection = FlowDirection.LeftToRight,
+			WrapContents = false,
+		};
+        headerStrip.Controls.Add(gotoButtonPanel, 2, 0);
+        headerStrip.Padding = new Padding(0, 0, 10, 0);
 
         _pilotList = new ListBox { Dock = DockStyle.Fill };
         _pilotList.SelectedIndexChanged += OnPilotSelected;
@@ -81,13 +107,40 @@ partial class SquadronPanel
         _exportBtn.Click += OnExport;
         _importBtn = new Button { Text = "Import", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(75, 0) };
         _importBtn.Click += OnImport;
+
+        _gotoListBtn = new Button();
+		_gotoListBtn.FlatStyle = FlatStyle.Flat;
+		_gotoListBtn.FlatAppearance.BorderSize = 1;
+		_gotoListBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoListBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoListBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoListBtn.Text = "\U0001F4D1";
+        _gotoListBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoListBtn.Cursor = Cursors.Hand;
+        _gotoListBtn.Click += OnGoToJsonListClicked;
+        gotoButtonPanel.Controls.Add(_gotoListBtn);
+
+        _gotoSelectedBtn = new Button();
+		_gotoSelectedBtn.FlatStyle = FlatStyle.Flat;
+		_gotoSelectedBtn.FlatAppearance.BorderSize = 1;
+		_gotoSelectedBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoSelectedBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        _gotoSelectedBtn.Size = new System.Drawing.Size(28, 24);
+        _gotoSelectedBtn.Text = "\U0001F4D1";
+        _gotoSelectedBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoSelectedBtn.Cursor = Cursors.Hand;
+        _gotoSelectedBtn.Click += OnGoToJsonSelectedClicked;
+        gotoButtonPanel.Controls.Add(_gotoSelectedBtn);
+
         btnPanel.Controls.Add(_deleteBtn);
         btnPanel.Controls.Add(_exportBtn);
         btnPanel.Controls.Add(_importBtn);
         btnPanel.Controls.Add(_countLabel);
         leftLayout.Controls.Add(btnPanel, 0, 2);
 
-        mainLayout.Controls.Add(leftLayout, 0, 0);
+        mainLayout.Controls.Add(headerStrip, 0, 0);
+        mainLayout.SetColumnSpan(headerStrip, 2);
+        mainLayout.Controls.Add(leftLayout, 0, 1);
 
         // -- Right column: detail panel --
         _detailPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Visible = false };
@@ -117,6 +170,7 @@ partial class SquadronPanel
             if (pilot == null || _raceField.SelectedIndex < 0) return;
             SquadronLogic.SetPilotRace(pilot, SquadronLogic.PilotRaces[_raceField.SelectedIndex]);
             RefreshListEntry();
+            RaiseDataModified();
         };
         _raceLabel = AddRow(detailLayout, "Race:", _raceField, row++);
 
@@ -127,7 +181,7 @@ partial class SquadronPanel
             if (_loading) return;
             var pilot = SelectedPilot();
             if (pilot == null || _rankField.SelectedIndex < 0) return;
-            try { pilot.Set("PilotRank", _rankField.SelectedIndex); } catch { }
+            try { pilot.Set("PilotRank", _rankField.SelectedIndex); RaiseDataModified(); } catch { }
             RefreshListEntry();
         };
         _rankLabel = AddRow(detailLayout, "Rank:", _rankField, row++);
@@ -145,6 +199,7 @@ partial class SquadronPanel
                 string res = resource ?? "";
                 try { pilot.GetObject("ShipResource")?.Set("Filename", res); } catch { }
                 try { if (_shipResourceField != null) _shipResourceField.Text = res; } catch { }
+                RaiseDataModified();
             }
             RefreshListEntry();
         };
@@ -180,7 +235,7 @@ partial class SquadronPanel
             if (_loading) return;
             var pilot = SelectedPilot();
             if (pilot == null) return;
-            try { pilot.GetObject("NPCResource")?.Set("Filename", _npcResourceField.Text); } catch { }
+            try { pilot.GetObject("NPCResource")?.Set("Filename", _npcResourceField.Text); RaiseDataModified(); } catch { }
             RefreshListEntry();
         };
         _npcResourceField.KeyDown += (s, e) =>
@@ -195,7 +250,7 @@ partial class SquadronPanel
             if (_loading) return;
             var pilot = SelectedPilot();
             if (pilot == null) return;
-            try { pilot.GetObject("ShipResource")?.Set("Filename", _shipResourceField.Text); } catch { }
+            try { pilot.GetObject("ShipResource")?.Set("Filename", _shipResourceField.Text); RaiseDataModified(); } catch { }
             RefreshListEntry();
         };
         _shipResourceField.KeyDown += (s, e) =>
@@ -210,12 +265,15 @@ partial class SquadronPanel
             if (_loading) return;
             int selectedIndex = _pilotList.SelectedIndex;
             if (_unlockedSlots != null && selectedIndex >= 0 && selectedIndex < _unlockedSlots.Length)
+            {
                 _unlockedSlots.Set(selectedIndex, _unlockedCheck.Checked);
+                RaiseDataModified();
+            }
         };
         _slotUnlockedLabel = AddRow(detailLayout, "Slot Unlocked:", _unlockedCheck, row++);
 
         _detailPanel.Controls.Add(detailLayout);
-        mainLayout.Controls.Add(_detailPanel, 1, 0);
+        mainLayout.Controls.Add(_detailPanel, 1, 1);
 
         Controls.Add(mainLayout);
         ResumeLayout(false);
@@ -248,4 +306,6 @@ partial class SquadronPanel
     private Label _npcResourceLabel = null!;
     private Label _shipResourceLabel = null!;
     private Label _slotUnlockedLabel = null!;
+    private Button _gotoListBtn = null!;
+    private Button _gotoSelectedBtn = null!;
 }

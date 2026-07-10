@@ -14,6 +14,9 @@ public partial class StarshipPanel : UserControl
     /// <summary>Raised when inventory data is modified by the user.</summary>
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user requests navigation to a JSON path in the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     /// <summary>
     /// Raised after auto-stack moves cargo into another inventory so destination
     /// panels can refresh their grids immediately.
@@ -103,9 +106,13 @@ public partial class StarshipPanel : UserControl
                 var ship = _shipOwnership.GetObject(idx);
                 if (ship != null)
                 {
-                    var resource = ship.GetObject("Resource");
-                    if (resource != null && !string.IsNullOrEmpty(filename))
-                        resource.Set("Filename", filename);
+                    var resource = ship?.GetObject("Resource");
+                    string? currentFilename = resource?.GetString("Filename");
+                    bool filenameChanged = resource != null
+                        && !string.IsNullOrEmpty(filename)
+                        && !string.Equals(currentFilename, filename, StringComparison.Ordinal);
+                    if (filenameChanged)
+                        resource!.Set("Filename", filename);
 
                     if (!_loading)
                     {
@@ -116,7 +123,8 @@ public partial class StarshipPanel : UserControl
                         bool isCorvette = StarshipLogic.IsCorvette(filename);
                         LoadCustomisationTab(isCorvette, filename, idx);
 
-                        DataModified?.Invoke(this, EventArgs.Empty);
+                        if (filenameChanged)
+                            DataModified?.Invoke(this, EventArgs.Empty);
                     }
                 }
             }
@@ -224,6 +232,10 @@ public partial class StarshipPanel : UserControl
         RefreshShipTypeCombo();
         _inventoryGrid.ApplyUiLocalisation();
         _techGrid.ApplyUiLocalisation();
+        new ToolTip().SetToolTip(_gotoListBtn, UiStrings.Format("goto_json.tooltip_section", _titleLabel.Text));
+        new ToolTip().SetToolTip(_gotoSelectedBtn, UiStrings.Format("goto_json.tooltip_section", _shipDetailsTabPage.Text));
+        new ToolTip().SetToolTip(_gotoStoreBtn, UiStrings.Format("goto_json.tooltip_section", _cargoTabPage.Text));
+        new ToolTip().SetToolTip(_gotoCustBtn, UiStrings.Format("goto_json.tooltip_section", _customisationTabPage.Text));
     }
 
     /// <summary>
@@ -1535,8 +1547,8 @@ public partial class StarshipPanel : UserControl
     {
         _optimiseIndicator.Text = isOptimised ? "\u2714" : "\u2718";
         _optimiseIndicator.ForeColor = isOptimised
-            ? Color.Green
-            : Color.OrangeRed;
+            ? (ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SuccessGreen : Color.Green)
+            : (ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : Color.OrangeRed);
     }
 
     /// <summary>
@@ -1753,7 +1765,7 @@ public partial class StarshipPanel : UserControl
         {
             Text = UiStrings.Get("starship.customisation_combo_warning"),
             AutoSize = true,
-            ForeColor = Color.DarkOrange,
+            ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : Color.DarkOrange,
             Font = new Font("Segoe UI Emoji", 8.5f, FontStyle.Regular),
             Padding = new Padding(0, 4, 0, 6),
         };
@@ -1936,7 +1948,7 @@ public partial class StarshipPanel : UserControl
                 var swatch = new Panel
                 {
                     Size = new Size(swatchSize, swatchSize),
-                    BackColor = SystemColors.Control,
+                    BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control,
                     BorderStyle = BorderStyle.FixedSingle,
                     Anchor = AnchorStyles.Left,
                     Cursor = Cursors.Hand,
@@ -1968,7 +1980,7 @@ public partial class StarshipPanel : UserControl
                     var swatch = new Panel
                     {
                         Size = new Size(swatchSize, swatchSize),
-                        BackColor = SystemColors.Control,
+                    BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control,
                         BorderStyle = BorderStyle.FixedSingle,
                         Anchor = AnchorStyles.Left,
                         Cursor = Cursors.Hand,
@@ -1997,7 +2009,7 @@ public partial class StarshipPanel : UserControl
                         {
                             Text = "⚠️Note: Sail colour changes are local only and not seen by other players.",
                             AutoSize = true,
-                            ForeColor = Color.DarkOrange,
+                            ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : Color.DarkOrange,
                             Padding = new Padding(6, 5, 0, 0),
                         };
                         rowPanel.Controls.Add(_sailColourWarningLabel);
@@ -2458,7 +2470,7 @@ public partial class StarshipPanel : UserControl
             AutoSize = true,
             Padding = new Padding(2),
             Margin = Padding.Empty,
-            BackColor = SystemColors.Control,
+            BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control,
         };
 
         var tip = new ToolTip();
@@ -2569,6 +2581,39 @@ public partial class StarshipPanel : UserControl
             "METALBOLT" => UiStrings.Get("starship.texture_metalbolt"),
             _ => rawId,
         };
+    }
+
+    private void OnGoToJsonListClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "ShipOwnership"));
+    }
+
+    private void OnGoToJsonSelectedClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedShipDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "ShipOwnership", $"[{idx}]"));
+    }
+
+    private void OnGoToJsonCargoClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedShipDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "ShipOwnership", $"[{idx}]", "Inventory"));
+    }
+
+    private void OnGoToJsonCustomisationClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedShipDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "ShipOwnership", $"[{idx}]", "Resource"));
+    }
+
+    private int GetSelectedShipDataIndex()
+    {
+        if (_shipSelector.SelectedIndex < 0 || _shipSelector.SelectedItem is not StarshipLogic.ShipListItem item)
+            return -1;
+        return item.DataIndex;
     }
 
 }

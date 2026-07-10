@@ -310,9 +310,9 @@ public partial class AccountPanel : UserControl
             if (hasExpeditionCol)
             {
                 // Season grid: include Expedition column
-                string expLabel = row.SeasonId >= 0 ? row.SeasonId.ToString(CultureInfo.CurrentCulture) : "";
+                object expValue = row.SeasonId >= 0 ? (object)row.SeasonId : DBNull.Value;
                 idx = grid.Rows.Add((object?)icon ?? DBNull.Value, row.Id, row.Name,
-                    expLabel, row.Unlocked, row.Redeemed);
+                    expValue, row.Unlocked, row.Redeemed);
             }
             else
             {
@@ -523,8 +523,8 @@ public partial class AccountPanel : UserControl
         _platformMxmlPathBox.Text = path;
         _platformMxmlStatusLabel.Text = File.Exists(path) ? "✓ File found" : "✗ File not found";
         _platformMxmlStatusLabel.ForeColor = File.Exists(path)
-            ? System.Drawing.Color.Green
-            : System.Drawing.Color.Red;
+            ? (ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SuccessGreen : System.Drawing.Color.Green)
+            : (ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : System.Drawing.Color.Red);
     }
 
     /// <summary>

@@ -23,6 +23,8 @@ partial class FreighterPanel
     private void InitializeComponent()
     {
         _mainLayout = new TableLayoutPanel();
+        _headerStrip = new TableLayoutPanel();
+        _gotoButtonPanelFreighter = new FlowLayoutPanel();
         _titleLabel = new Label();
         _subTabs = new DoubleBufferedTabControl();
         _freighterSubPage = new TabPage();
@@ -59,6 +61,9 @@ partial class FreighterPanel
         _buttonPanel = new FlowLayoutPanel();
         _exportBtn = new Button();
         _importBtn = new Button();
+        _gotoJsonBtn = new Button();
+        _gotoInvBtn = new Button();
+        _gotoTechBtn = new Button();
         _invTabs = new DoubleBufferedTabControl();
         _generalPage = new TabPage();
         _generalGrid = new InventoryGridPanel();
@@ -67,6 +72,8 @@ partial class FreighterPanel
         _roomsSubPage = new TabPage();
         _roomList = new ListBox();
         _mainLayout.SuspendLayout();
+        _headerStrip.SuspendLayout();
+        _gotoButtonPanelFreighter.SuspendLayout();
         _subTabs.SuspendLayout();
         _freighterSubPage.SuspendLayout();
         _freighterContentLayout.SuspendLayout();
@@ -89,7 +96,7 @@ partial class FreighterPanel
         // 
         _mainLayout.ColumnCount = 1;
         _mainLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20F));
-        _mainLayout.Controls.Add(_titleLabel, 0, 0);
+        _mainLayout.Controls.Add(_headerStrip, 0, 0);
         _mainLayout.Controls.Add(_subTabs, 0, 1);
         _mainLayout.Dock = DockStyle.Fill;
         _mainLayout.Location = new Point(0, 0);
@@ -101,14 +108,34 @@ partial class FreighterPanel
         _mainLayout.Size = new Size(1384, 995);
         _mainLayout.TabIndex = 0;
         // 
+        // _headerStrip
+        // 
+        _headerStrip.AutoSize = true;
+        _headerStrip.ColumnCount = 3;
+        _headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        _headerStrip.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        _headerStrip.Controls.Add(_titleLabel, 0, 0);
+        _headerStrip.Controls.Add(_gotoButtonPanelFreighter, 2, 0);
+        _headerStrip.Dock = DockStyle.Top;
+        _headerStrip.RowCount = 1;
+        _headerStrip.RowStyles.Add(new RowStyle());
+        // 
+        // _gotoButtonPanelFreighter
+        // 
+        _gotoButtonPanelFreighter.AutoSize = true;
+        _gotoButtonPanelFreighter.Dock = DockStyle.Fill;
+		_gotoButtonPanelFreighter.FlowDirection = FlowDirection.LeftToRight;
+		_gotoButtonPanelFreighter.WrapContents = false;
+        // 
         // _titleLabel
         // 
         _titleLabel.AutoSize = true;
+        _titleLabel.Dock = DockStyle.Fill;
+        _titleLabel.Anchor = AnchorStyles.Left;
         FontManager.ApplyHeadingFont(_titleLabel, 14F);
-        _titleLabel.Location = new Point(13, 10);
         _titleLabel.Name = "_titleLabel";
         _titleLabel.Padding = new Padding(0, 0, 0, 5);
-        _titleLabel.Size = new Size(95, 29);
         _titleLabel.TabIndex = 0;
         _titleLabel.Text = "Freighter";
         // 
@@ -521,6 +548,45 @@ partial class FreighterPanel
         _importBtn.MinimumSize = new Size(70, 0);
         _importBtn.TabIndex = 1;
         _importBtn.Text = "Import Freighter";
+        //
+        // _gotoJsonBtn
+        // 
+		_gotoJsonBtn.FlatStyle = FlatStyle.Flat;
+		_gotoJsonBtn.FlatAppearance.BorderSize = 1;
+		_gotoJsonBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoJsonBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoJsonBtn.Size = new Size(28, 24);
+        _gotoJsonBtn.Text = "\U0001F4D1";
+        _gotoJsonBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoJsonBtn.Cursor = Cursors.Hand;
+        _gotoJsonBtn.Click += OnGoToJsonClicked;
+        _gotoButtonPanelFreighter.Controls.Add(_gotoJsonBtn);
+        //
+        // _gotoInvBtn
+        //
+		_gotoInvBtn.FlatStyle = FlatStyle.Flat;
+		_gotoInvBtn.FlatAppearance.BorderSize = 1;
+		_gotoInvBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoInvBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoInvBtn.Size = new Size(28, 24);
+        _gotoInvBtn.Text = "\U0001F4D1";
+        _gotoInvBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoInvBtn.Cursor = Cursors.Hand;
+        _gotoInvBtn.Click += OnGoToJsonInventoryClicked;
+        _gotoButtonPanelFreighter.Controls.Add(_gotoInvBtn);
+        //
+        // _gotoTechBtn
+        //
+		_gotoTechBtn.FlatStyle = FlatStyle.Flat;
+		_gotoTechBtn.FlatAppearance.BorderSize = 1;
+		_gotoTechBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        _gotoTechBtn.Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point);
+        _gotoTechBtn.Size = new Size(28, 24);
+        _gotoTechBtn.Text = "\U0001F4D1";
+        _gotoTechBtn.Margin = new Padding(1, 3, 1, 1);
+        _gotoTechBtn.Cursor = Cursors.Hand;
+        _gotoTechBtn.Click += OnGoToJsonTechClicked;
+        _gotoButtonPanelFreighter.Controls.Add(_gotoTechBtn);
         // 
         // _invTabs
         // 
@@ -594,6 +660,10 @@ partial class FreighterPanel
         Size = new Size(1384, 995);
         _mainLayout.ResumeLayout(false);
         _mainLayout.PerformLayout();
+        _headerStrip.ResumeLayout(false);
+        _headerStrip.PerformLayout();
+        _gotoButtonPanelFreighter.ResumeLayout(false);
+        _gotoButtonPanelFreighter.PerformLayout();
         _subTabs.ResumeLayout(false);
         _freighterSubPage.ResumeLayout(false);
         _freighterContentLayout.ResumeLayout(false);
@@ -695,6 +765,8 @@ partial class FreighterPanel
     }
 
     private System.Windows.Forms.TableLayoutPanel _mainLayout;
+    private System.Windows.Forms.TableLayoutPanel _headerStrip;
+    private System.Windows.Forms.FlowLayoutPanel _gotoButtonPanelFreighter;
     private System.Windows.Forms.Label _titleLabel;
     private NMSE.UI.Panels.DoubleBufferedTabControl _subTabs;
     private System.Windows.Forms.TabPage _freighterSubPage;
@@ -738,4 +810,7 @@ partial class FreighterPanel
     private NMSE.UI.Panels.InventoryGridPanel _generalGrid;
     private NMSE.UI.Panels.InventoryGridPanel _techGrid;
     private System.Windows.Forms.ListBox _roomList;
+    private System.Windows.Forms.Button _gotoJsonBtn;
+    private System.Windows.Forms.Button _gotoInvBtn;
+    private System.Windows.Forms.Button _gotoTechBtn;
 }

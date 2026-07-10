@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using NMSE.Core;
 using NMSE.Core.Utilities;
 
 namespace NMSE.UI.Controls;
@@ -65,6 +66,9 @@ public class InvariantNumericTextBox : UserControl, ISupportInitialize
     /// </summary>
     private readonly SpinnerPanel _spinner;
 
+    internal TextBox TextBox => _textBox;
+    internal SpinnerPanel Spinner => _spinner;
+
     /// <summary>
     /// The last committed numeric value, or <c>null</c> when the field is empty or invalid.
     /// </summary>
@@ -105,6 +109,34 @@ public class InvariantNumericTextBox : UserControl, ISupportInitialize
         Controls.Add(_spinner);
 
         Height = _textBox.PreferredHeight + 2; // match standard single-line TextBox height
+
+        HandleCreated += OnHandleCreated;
+        HandleDestroyed += OnHandleDestroyed;
+    }
+
+    private bool _subscribed;
+
+    private void OnHandleCreated(object? sender, EventArgs e)
+    {
+        if (_subscribed) return;
+        ThemeManager.ThemeChanged += OnThemeChanged;
+        _subscribed = true;
+        ApplyThemePalette(ThemeColors.Get(ThemeManager.Effective == AppTheme.Dark ? "Dark" : "Light"));
+    }
+
+    private void OnHandleDestroyed(object? sender, EventArgs e)
+    {
+        if (!_subscribed) return;
+        ThemeManager.ThemeChanged -= OnThemeChanged;
+        _subscribed = false;
+    }
+
+    private void OnThemeChanged() => Invalidate();
+
+    internal void ApplyThemePalette(ThemeColors.Palette p)
+    {
+        BackColor = p.InputBackground;
+        Invalidate();
     }
 
 	// Broken into regions for clarity, it's a bit of a messy class but the sections are
@@ -300,8 +332,9 @@ public class InvariantNumericTextBox : UserControl, ISupportInitialize
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
-        // Draw a single-pixel border that matches the WinForms TextBox/NUD appearance
-        ControlPaint.DrawBorder(e.Graphics, ClientRectangle, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+        var p = ThemeManager.Effective == AppTheme.Dark
+            ? ThemeColors.Dark : ThemeColors.Light;
+        ControlPaint.DrawBorder(e.Graphics, ClientRectangle, p.MenuBorder, ButtonBorderStyle.Solid);
     }
 
     /// <summary>
@@ -485,7 +518,7 @@ public class InvariantNumericTextBox : UserControl, ISupportInitialize
     /// A lightweight panel that draws two triangular arrow buttons stacked vertically,
     /// mimicking the spinner portion of a standard <see cref="NumericUpDown"/>.
     /// </summary>
-    private sealed class SpinnerPanel : Control
+    internal sealed class SpinnerPanel : Control
     {
         /// <summary>
         /// The owning <see cref="InvariantNumericTextBox"/> instance.
@@ -570,25 +603,28 @@ public class InvariantNumericTextBox : UserControl, ISupportInitialize
         /// <param name="sz">The desired arrow size.</param>
         private void DrawButton(Graphics g, Rectangle rect, bool up, bool pressed, bool hot, int sz)
         {
+            var p = ThemeManager.Effective == AppTheme.Dark
+                ? ThemeColors.Dark : ThemeColors.Light;
+
             // Background (fill without anti-alias for crisp rectangles)
             var prevSmoothing = g.SmoothingMode;
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
 
-            Color bg = !Enabled ? SystemColors.Control
-                     : pressed ? SystemColors.ControlDark
-                     : hot ? SystemColors.ControlLight
-                     : SystemColors.Control;
+            Color bg = !Enabled ? p.Background
+                     : pressed ? p.ButtonBackground
+                     : hot ? p.MenuHighlightBackground
+                     : p.InputBackground;
             using var brush = new SolidBrush(bg);
             g.FillRectangle(brush, rect);
 
             // Border
-            ControlPaint.DrawBorder(g, rect, SystemColors.ControlDark, ButtonBorderStyle.Solid);
+            ControlPaint.DrawBorder(g, rect, p.MenuBorder, ButtonBorderStyle.Solid);
             g.SmoothingMode = prevSmoothing;
 
             // Arrow glyph - equilateral(ish) triangle centred in the button
             // using PointF for sub-pixel precision so both orientations
             // produce visually identical results.
-            Color arrowColor = Enabled ? SystemColors.ControlText : SystemColors.GrayText;
+            Color arrowColor = Enabled ? p.ForegroundText : p.SecondaryText;
             using var arrowBrush = new SolidBrush(arrowColor);
             float cx = rect.X + rect.Width  / 2f;
             float cy = rect.Y + rect.Height / 2f;

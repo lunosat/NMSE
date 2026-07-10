@@ -1,4 +1,5 @@
 using NMSE.Core;
+using NMSE.Data;
 
 namespace NMSE.UI.Panels;
 
@@ -205,7 +206,9 @@ partial class MilestonePanel
         AddGuildField(guildRight, "milestone.smuggled_value", "^SMUGGLE_VALUE");
 
         scroll1.Controls.Add(section1);
+        tab1.Controls.Add(CreateGotoHeader(out var tab1GotoBtn));
         tab1.Controls.Add(scroll1);
+        _gotoJsonBtns.Add(tab1GotoBtn);
         _tabControl.TabPages.Add(tab1);
 
         // --- Tab 2: Other Stats ---
@@ -437,7 +440,9 @@ partial class MilestonePanel
 
         otherStacker.Controls.Add(section3);
         scroll2.Controls.Add(otherStacker);
+        tab2.Controls.Add(CreateGotoHeader(out var tab2GotoBtn));
         tab2.Controls.Add(scroll2);
+        _gotoJsonBtns.Add(tab2GotoBtn);
         _tabControl.TabPages.Add(tab2);
 
         Controls.Add(_tabControl);
@@ -447,4 +452,44 @@ partial class MilestonePanel
     }
 
     private DoubleBufferedTabControl _tabControl = null!;
+    private readonly List<Button> _gotoJsonBtns = [];
+
+    private TableLayoutPanel CreateGotoHeader(out Button btn)
+    {
+        btn = new Button
+        {
+            FlatStyle = FlatStyle.Flat,
+            FlatAppearance = { BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark, BorderSize = 1 },
+            Font = new Font("Segoe UI Emoji", 9F, FontStyle.Regular, GraphicsUnit.Point),
+            Size = new Size(28, 24),
+            Text = "\U0001F4D1",
+            Margin = new Padding(1, 3, 1, 1),
+            Cursor = Cursors.Hand,
+        };
+        btn.Click += OnGoToJsonClicked;
+
+        var buttonPanel = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+        };
+        buttonPanel.Controls.Add(btn);
+
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 3,
+            RowCount = 1,
+            Padding = new Padding(0, 0, 10, 0),
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.Controls.Add(buttonPanel, 2, 0);
+
+        return header;
+    }
 }

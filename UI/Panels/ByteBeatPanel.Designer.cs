@@ -1,3 +1,4 @@
+using NMSE.Core;
 using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
@@ -27,6 +28,7 @@ partial class ByteBeatPanel
         this._exportBtn = new System.Windows.Forms.Button();
         this._importBtn = new System.Windows.Forms.Button();
         this._deleteBtn = new System.Windows.Forms.Button();
+        this._gotoJsonBtn = new System.Windows.Forms.Button();
         this._infoLabel = new System.Windows.Forms.Label();
         this._detailPanel = new System.Windows.Forms.Panel();
         this._detailLayout = new System.Windows.Forms.TableLayoutPanel();
@@ -57,13 +59,14 @@ partial class ByteBeatPanel
         //
         this._mainLayout.Dock = System.Windows.Forms.DockStyle.Fill;
         this._mainLayout.ColumnCount = 2;
-        this._mainLayout.RowCount = 1;
+        this._mainLayout.RowCount = 2;
         this._mainLayout.Padding = new System.Windows.Forms.Padding(10);
         this._mainLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 220F));
         this._mainLayout.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+        this._mainLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this._mainLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
-        this._mainLayout.Controls.Add(this._leftLayout, 0, 0);
-        this._mainLayout.Controls.Add(this._detailPanel, 1, 0);
+        this._mainLayout.Controls.Add(this._leftLayout, 0, 1);
+        this._mainLayout.Controls.Add(this._detailPanel, 1, 1);
         //
         // _leftLayout
         //
@@ -73,7 +76,28 @@ partial class ByteBeatPanel
         this._leftLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
         this._leftLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F));
         this._leftLayout.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
-        this._leftLayout.Controls.Add(this._titleLabel, 0, 0);
+        //
+        // Header strip
+        //
+        this._byteBeatHeaderStrip = new System.Windows.Forms.TableLayoutPanel();
+        this._byteBeatHeaderStrip.AutoSize = true;
+        this._byteBeatHeaderStrip.Dock = System.Windows.Forms.DockStyle.Top;
+        this._byteBeatHeaderStrip.ColumnCount = 3;
+        this._byteBeatHeaderStrip.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.AutoSize));
+        this._byteBeatHeaderStrip.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+        this._byteBeatHeaderStrip.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.AutoSize));
+        this._byteBeatHeaderStrip.Controls.Add(this._titleLabel, 0, 0);
+        this._byteBeatHeaderStrip.Padding = new System.Windows.Forms.Padding(0, 0, 10, 0);
+        this._byteBeatHeaderStrip.Margin = new System.Windows.Forms.Padding(0);
+        this._byteBeatHeaderStrip.RowCount = 1;
+        this._byteBeatHeaderStrip.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.AutoSize));
+        this._byteBeatGotoPanel = new System.Windows.Forms.FlowLayoutPanel();
+        this._byteBeatGotoPanel.AutoSize = true;
+        this._byteBeatGotoPanel.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+        this._byteBeatGotoPanel.Anchor = System.Windows.Forms.AnchorStyles.Left;
+		this._byteBeatGotoPanel.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+		this._byteBeatGotoPanel.WrapContents = false;
+        this._byteBeatHeaderStrip.Controls.Add(this._byteBeatGotoPanel, 2, 0);
         this._leftLayout.Controls.Add(this._songList, 0, 1);
         this._leftLayout.Controls.Add(this._btnPanel, 0, 2);
         //
@@ -83,6 +107,7 @@ partial class ByteBeatPanel
         FontManager.ApplyHeadingFont(_titleLabel, 14);
         this._titleLabel.AutoSize = true;
         this._titleLabel.Padding = new System.Windows.Forms.Padding(0, 0, 0, 5);
+        this._titleLabel.Anchor = System.Windows.Forms.AnchorStyles.Left;
         //
         // _songList
         //
@@ -122,6 +147,19 @@ partial class ByteBeatPanel
         this._deleteBtn.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
         this._deleteBtn.MinimumSize = new System.Drawing.Size(75, 0);
         this._deleteBtn.Click += OnDeleteSong;
+        //
+        // _gotoJsonBtn
+        //
+		this._gotoJsonBtn.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+		this._gotoJsonBtn.FlatAppearance.BorderSize = 1;
+		this._gotoJsonBtn.FlatAppearance.BorderColor = ThemeManager.Effective == AppTheme.Dark ? Color.FromArgb(100, 100, 100) : SystemColors.ControlDark;
+        this._gotoJsonBtn.Font = new System.Drawing.Font("Segoe UI Emoji", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+        this._gotoJsonBtn.Size = new System.Drawing.Size(28, 24);
+        this._gotoJsonBtn.Text = "\U0001F4D1";
+        this._gotoJsonBtn.Margin = new System.Windows.Forms.Padding(1, 3, 1, 1);
+        this._gotoJsonBtn.Cursor = System.Windows.Forms.Cursors.Hand;
+        this._gotoJsonBtn.Click += OnGoToJsonClicked;
+        this._byteBeatGotoPanel.Controls.Add(this._gotoJsonBtn);
         //
         // _infoLabel
         //
@@ -216,9 +254,13 @@ partial class ByteBeatPanel
         // ByteBeatPanel
         //
         this.DoubleBuffered = true;
+        this._mainLayout.Controls.Add(this._byteBeatHeaderStrip, 0, 0);
+        this._mainLayout.SetColumnSpan(this._byteBeatHeaderStrip, 2);
         this.Controls.Add(this._mainLayout);
         this._mainLayout.ResumeLayout(false);
         this._leftLayout.ResumeLayout(false);
+        this._byteBeatGotoPanel.ResumeLayout(false);
+        this._byteBeatGotoPanel.PerformLayout();
         this._btnPanel.ResumeLayout(false);
         this._detailPanel.ResumeLayout(false);
         this._detailLayout.ResumeLayout(false);
@@ -240,18 +282,22 @@ partial class ByteBeatPanel
         _dataLabels = new Label[8];
 
         _sectionDetailsLabel = AddSectionHeader(_detailLayout, "Song Details", row++);
+        _nameField.Leave += (s, e) => RaiseDataModified();
         _nameField.KeyDown += (s, e) =>
         {
             if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _nameField.Parent?.Focus(); }
         };
+        _authorUsernameField.Leave += (s, e) => RaiseDataModified();
         _authorUsernameField.KeyDown += (s, e) =>
         {
             if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _authorUsernameField.Parent?.Focus(); }
         };
+        _authorOnlineIdField.Leave += (s, e) => RaiseDataModified();
         _authorOnlineIdField.KeyDown += (s, e) =>
         {
             if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _authorOnlineIdField.Parent?.Focus(); }
         };
+        _authorPlatformField.Leave += (s, e) => RaiseDataModified();
         _authorPlatformField.KeyDown += (s, e) =>
         {
             if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _authorPlatformField.Parent?.Focus(); }
@@ -265,6 +311,7 @@ partial class ByteBeatPanel
         for (int i = 0; i < 8; i++)
         {
             int idx = i;
+            _dataFields[i].Leave += (s, e) => RaiseDataModified();
             _dataFields[i].KeyDown += (s, e) =>
             {
                 if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; _dataFields[idx].Parent?.Focus(); }
@@ -273,6 +320,10 @@ partial class ByteBeatPanel
         }
 
         _sectionLibraryLabel = AddSectionHeader(_detailLayout, "Library Settings", row++);
+        _shuffleField.CheckedChanged += (s, e) => RaiseDataModified();
+        _autoplayOnFootField.CheckedChanged += (s, e) => RaiseDataModified();
+        _autoplayInShipField.CheckedChanged += (s, e) => RaiseDataModified();
+        _autoplayInVehicleField.CheckedChanged += (s, e) => RaiseDataModified();
         _detailLayout.Controls.Add(_shuffleField, 1, row++);
         _detailLayout.Controls.Add(_autoplayOnFootField, 1, row++);
         _detailLayout.Controls.Add(_autoplayInShipField, 1, row++);
@@ -285,12 +336,15 @@ partial class ByteBeatPanel
 
     private System.Windows.Forms.TableLayoutPanel _mainLayout;
     private System.Windows.Forms.TableLayoutPanel _leftLayout;
+    private System.Windows.Forms.TableLayoutPanel _byteBeatHeaderStrip;
+    private System.Windows.Forms.FlowLayoutPanel _byteBeatGotoPanel;
     private System.Windows.Forms.Label _titleLabel;
     private System.Windows.Forms.ListBox _songList;
     private System.Windows.Forms.FlowLayoutPanel _btnPanel;
     private System.Windows.Forms.Button _exportBtn;
     private System.Windows.Forms.Button _importBtn;
     private System.Windows.Forms.Button _deleteBtn;
+    private System.Windows.Forms.Button _gotoJsonBtn;
     private System.Windows.Forms.Label _infoLabel;
     private System.Windows.Forms.Panel _detailPanel;
     private System.Windows.Forms.TableLayoutPanel _detailLayout;

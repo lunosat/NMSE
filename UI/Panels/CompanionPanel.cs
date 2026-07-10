@@ -3,6 +3,7 @@ using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.UI.Controls;
+using NMSE.UI.Util;
 using System.Globalization;
 
 namespace NMSE.UI.Panels;
@@ -28,6 +29,9 @@ public partial class CompanionPanel : UserControl
     /// <summary>Raised whenever companion data is modified by the user.</summary>
     public event EventHandler? DataModified;
 
+    /// <summary>Raised when the user clicks a "Go to JSON" button to navigate to the Raw JSON Editor.</summary>
+    public event EventHandler<GoToJsonEventArgs>? GoToJsonRequested;
+
     private void RaiseDataModified() => DataModified?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Cached per-slot allowed move IDs, gathered from all movesets. Index 0-4.</summary>
@@ -52,6 +56,7 @@ public partial class CompanionPanel : UserControl
     {
         InitializeComponent();
         SetupLayout();
+
         // InitialiseMoveSlotData is deferred until first LoadBattleData
         // because PetBattleMovesetDatabase/PetBattleMoveDatabase are loaded
         // AFTER panel construction in MainForm.
@@ -627,7 +632,9 @@ public partial class CompanionPanel : UserControl
         string text = item?.ToString() ?? "";
 
         Color textColour = (item == _unrecognisedTypeEntry)
-            ? Color.Red
+            ? (ThemeManager.Effective == AppTheme.Dark
+                ? ThemeColors.Dark.ErrorRed
+                : ThemeColors.Light.ErrorRed)
             : e.ForeColor;
 
         using var brush = new SolidBrush(textColour);
@@ -1180,8 +1187,8 @@ public partial class CompanionPanel : UserControl
                 _accessoryCombos[i].Items.Clear();
                 _accessoryCombos[i].SelectedIndex = -1;
                 _accessoryDescriptorLabels[i].Text = "";
-                _accessoryPrimarySwatches[i].BackColor = SystemColors.Control;
-                _accessoryAltSwatches[i].BackColor = SystemColors.Control;
+                _accessoryPrimarySwatches[i].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
+                _accessoryAltSwatches[i].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
                 _accessoryScaleFields[i].Text = "1.0";
             }
             return;
@@ -1233,8 +1240,8 @@ public partial class CompanionPanel : UserControl
             // Read current slot data
             int selectedIdx = 0;
             _accessoryDescriptorLabels[uiRow].Text = "";
-            _accessoryPrimarySwatches[uiRow].BackColor = SystemColors.Control;
-            _accessoryAltSwatches[uiRow].BackColor = SystemColors.Control;
+            _accessoryPrimarySwatches[uiRow].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
+            _accessoryAltSwatches[uiRow].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
             _accessoryScaleFields[uiRow].Text = "1.0";
 
             if (slotActive && pacEntry != null && saveIndex >= 0)
@@ -1346,7 +1353,7 @@ public partial class CompanionPanel : UserControl
             }
         }
         catch { }
-        return SystemColors.Control;
+        return ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
     }
 
     /// <summary>Handles accessory combo selection change for a given UI row.</summary>
@@ -1375,8 +1382,8 @@ public partial class CompanionPanel : UserControl
                 cd.Set("Scale", 1.0);
             }
             _accessoryDescriptorLabels[uiRow].Text = "";
-            _accessoryPrimarySwatches[uiRow].BackColor = SystemColors.Control;
-            _accessoryAltSwatches[uiRow].BackColor = SystemColors.Control;
+            _accessoryPrimarySwatches[uiRow].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
+            _accessoryAltSwatches[uiRow].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
             _accessoryScaleFields[uiRow].Text = "1.0";
             RaiseDataModified();
             return;
@@ -1453,7 +1460,7 @@ public partial class CompanionPanel : UserControl
             AutoSize = true,
             Padding = new Padding(2),
             Margin = Padding.Empty,
-            BackColor = SystemColors.Control,
+            BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control,
         };
 
         var tip = new ToolTip();
@@ -1581,8 +1588,8 @@ public partial class CompanionPanel : UserControl
         {
             _accessoryCombos[uiRow].SelectedIndex = 0; // "None"
             _accessoryDescriptorLabels[uiRow].Text = "";
-            _accessoryPrimarySwatches[uiRow].BackColor = SystemColors.Control;
-            _accessoryAltSwatches[uiRow].BackColor = SystemColors.Control;
+            _accessoryPrimarySwatches[uiRow].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
+            _accessoryAltSwatches[uiRow].BackColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.InputBackground : SystemColors.Control;
             _accessoryScaleFields[uiRow].Text = "1.0";
         }
         finally { _loading = false; }
@@ -2843,6 +2850,53 @@ public partial class CompanionPanel : UserControl
         // No-op: edits are applied directly to the underlying JsonObjects.
     }
 
+    private void OnGoToJsonPetsClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Pets"));
+    }
+
+    private void OnGoToJsonSelectedPetClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedPetDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Pets", $"[{idx}]"));
+    }
+
+    private void OnGoToJsonEggsClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Eggs"));
+    }
+
+    private void OnGoToJsonSelectedEggClicked(object? sender, EventArgs e)
+    {
+        int idx = GetSelectedEggDataIndex();
+        if (idx < 0) return;
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "Eggs", $"[{idx}]"));
+    }
+
+    private void OnGoToJsonPetBattleTeamClicked(object? sender, EventArgs e)
+    {
+        GoToJsonRequested?.Invoke(this, new GoToJsonEventArgs("PlayerStateData", "PetBattleTeam"));
+    }
+
+    private int GetSelectedPetDataIndex()
+    {
+        int idx = _companionList.SelectedIndex;
+        if (idx < 0 || idx >= _entries.Count) return -1;
+        var entry = _entries[idx];
+        if (entry.Source != "Pet") return -1;
+        return entry.OriginalIndex;
+    }
+
+    private int GetSelectedEggDataIndex()
+    {
+        int idx = _companionList.SelectedIndex;
+        if (idx < 0 || idx >= _entries.Count) return -1;
+        var entry = _entries[idx];
+        if (entry.Source != "Egg") return -1;
+        return entry.OriginalIndex;
+    }
+
     public void ApplyUiLocalisation()
     {
         _titleLabel.Text = UiStrings.Get("companion.title");
@@ -2975,5 +3029,10 @@ public partial class CompanionPanel : UserControl
         _induceEggBtn.Text = UiStrings.GetOrNull("companion.induce_egg") ?? "Induce Egg";
         _placeEggInExosuitBtn.Text = UiStrings.GetOrNull("companion.place_egg_in_exosuit") ?? "Place Egg in Exosuit";
         _makeHatchableBtn.Text = UiStrings.GetOrNull("companion.make_hatchable") ?? "Make Hatchable";
+        new ToolTip().SetToolTip(_gotoPetsBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_pets")));
+        new ToolTip().SetToolTip(_gotoSelectedPetBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_pets") + " " + UiStrings.Get("goto_json.nav_details")));
+        new ToolTip().SetToolTip(_gotoEggsBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_eggs")));
+        new ToolTip().SetToolTip(_gotoSelectedEggBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_eggs") + " " + UiStrings.Get("goto_json.nav_details")));
+        new ToolTip().SetToolTip(_gotoPetBattleTeamBtn, UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_battle_team")));
     }
 }
