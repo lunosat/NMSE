@@ -98,6 +98,50 @@ public class AppConfig
     /// Last selected BCP 47 language tag (e.g. "en-GB", "ja-JP").
     /// Defaults to "en-GB" if not set.
     /// </summary>
+    /// <summary>
+    /// User-configured backup directory path, or null to use the default
+    /// (EXE-relative "Save Backups" with TEMP fallback).
+    /// </summary>
+    public string? BackupDirectory
+    {
+        get => GetProperty("BackupDirectory");
+        set => SetProperty("BackupDirectory", value);
+    }
+
+    /// <summary>
+    /// Gets or sets the recent backup directories MRU list, stored as pipe-separated paths.
+    /// </summary>
+    public List<string> RecentBackupDirectories
+    {
+        get
+        {
+            var raw = GetProperty("RecentBackupDirectories");
+            if (string.IsNullOrEmpty(raw)) return new List<string>();
+            return raw.Split('|', StringSplitOptions.RemoveEmptyEntries).ToList();
+        }
+        set
+        {
+            if (value is null || value.Count == 0)
+                SetProperty("RecentBackupDirectories", null);
+            else
+                SetProperty("RecentBackupDirectories", string.Join("|", value));
+        }
+    }
+
+    /// <summary>
+    /// Adds a backup directory to the recent backup directories MRU list.
+    /// </summary>
+    public void AddRecentBackupDirectory(string directory)
+    {
+        var list = RecentBackupDirectories;
+        list.RemoveAll(d => string.Equals(d, directory, PathComparison));
+        list.Insert(0, directory);
+        while (list.Count > MaxRecentDirectories)
+            list.RemoveAt(list.Count - 1);
+        RecentBackupDirectories = list;
+        BackupDirectory = directory;
+    }
+
     public string Language
     {
         get => GetProperty("Language") ?? "en-GB";
