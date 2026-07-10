@@ -8,6 +8,7 @@ using NMSE.Data;
 using NMSE.IO;
 using NMSE.Models;
 using NMSE.UI.Panels;
+using NMSE.UI.Util;
 
 namespace NMSE.UI;
 
@@ -29,6 +30,10 @@ public partial class MainFormResources : Form
     private readonly StatusStrip _statusStrip;
     private readonly TabControl _tabControl;
     private ToolStripMenuItem _languageMenu = null!;
+    private ToolStripMenuItem _themeMenu = null!;
+    private ToolStripMenuItem _themeSystemItem = null!;
+    private ToolStripMenuItem _themeLightItem = null!;
+    private ToolStripMenuItem _themeDarkItem = null!;
     // Help menu item references for robust localisation
     // (avoids fragile hardcoded indices that break when items are reordered/added).
     private ToolStripMenuItem _helpMenu = null!;
@@ -43,9 +48,12 @@ public partial class MainFormResources : Form
     private int _totalDatabaseItems;
     private ToolStripComboBox _directoryCombo;
     private ToolStripComboBox _saveSlotCombo;
+    private bool _isGoToJsonNavigation;
     private ToolStripComboBox _saveFileCombo;
     private readonly ToolStripButton _loadButton;
     private readonly ToolStripButton _saveButton;
+    private readonly ToolStripComboBox _backupPathCombo;
+    private readonly ToolStripButton _backupBrowseButton;
 
     // Tab panels
     private readonly MainStatsPanel _mainStatsPanel;
@@ -126,11 +134,13 @@ public partial class MainFormResources : Form
         _tabControl = new DoubleBufferedTabControl();
         _statusLabel = new ToolStripStatusLabel("Ready");
         _itemCountLabel = new ToolStripStatusLabel("") { Alignment = ToolStripItemAlignment.Right };
-        _directoryCombo = new ToolStripComboBox { AutoSize = false, Width = 550 };
+        _directoryCombo = new ToolStripComboBox { AutoSize = false, Width = 440 };
         _saveSlotCombo = new ToolStripComboBox { AutoSize = false, Width = 300 };
         _saveFileCombo = new ToolStripComboBox { AutoSize = false, Width = 220 };
         _loadButton = new ToolStripButton("Load");
         _saveButton = new ToolStripButton("Save") { Enabled = false };
+        _backupPathCombo = new ToolStripComboBox { AutoSize = false, Width = 250 };
+        _backupBrowseButton = new ToolStripButton("Browse...");
 
         // Create panels
         _mainStatsPanel = new MainStatsPanel();
@@ -162,7 +172,7 @@ public partial class MainFormResources : Form
         _multitoolPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _shipPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _shipPanel.CrossInventoryTransferCompleted += OnStarshipCrossInventoryTransferCompleted;
-        _freighterPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _fleetPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _vehiclePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _cataloguePanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _accountPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
@@ -172,6 +182,24 @@ public partial class MainFormResources : Form
         _settlementPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _companionPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
         _companionPanel.ExosuitCargoModified += OnCompanionExosuitCargoModified;
+        _byteBeatPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+        _rawJsonPanel.DataModified += (s, e) => _hasUnsavedChanges = true;
+
+        // Wire up GOTO JSON navigation from sub-panels
+        _fleetPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _freighterPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _frigatePanel.GoToJsonRequested += OnGoToJsonRequested;
+        _squadronPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _vehiclePanel.GoToJsonRequested += OnGoToJsonRequested;
+        _companionPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _basePanel.GoToJsonRequested += OnGoToJsonRequested;
+        _cataloguePanel.GoToJsonRequested += OnGoToJsonRequested;
+        _milestonePanel.GoToJsonRequested += OnGoToJsonRequested;
+        _settlementPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _byteBeatPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _exosuitPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _multitoolPanel.GoToJsonRequested += OnGoToJsonRequested;
+        _shipPanel.GoToJsonRequested += OnGoToJsonRequested;
 
         // Wire up Save Utilities reload event
         _mainStatsPanel.ReloadRequested += (s, e) =>
@@ -187,6 +215,11 @@ public partial class MainFormResources : Form
         InitializeToolbar();
         InitializeStatusBar();
         InitializeTabs();
+
+        // Subscribe to theme changes so the form re-themes when the user picks a new theme.
+        ThemeManager.ThemeChanged += ReapplyTheme;
+        // Apply the initial theme to this form so the user sees it from the first paint.
+        ThemeApplicator.ApplyToForm(this);
 
         ResumeLayout(false);
         PerformLayout();
@@ -258,6 +291,7 @@ public partial class MainFormResources : Form
 
     private void InitializeForm()
     {
+        BackColor = SystemColors.Control;
         DoubleBuffered = true;
         AutoScaleMode = AutoScaleMode.Font;
         Text = $"{AppName} - Build {VerMajor}.{VerMinor}.{VerPatch} ({SuppGameRel})";
@@ -373,6 +407,16 @@ public partial class MainFormResources : Form
         }
         _menuStrip.Items.Add(_languageMenu);
 
+        // Theme menu (second last, before Help)
+        _themeMenu = new ToolStripMenuItem("&Theme");
+        _themeSystemItem = new ToolStripMenuItem("&System", null, (_, _) => SetTheme(AppTheme.System));
+        _themeLightItem = new ToolStripMenuItem("&Light", null, (_, _) => SetTheme(AppTheme.Light));
+        _themeDarkItem = new ToolStripMenuItem("&Dark", null, (_, _) => SetTheme(AppTheme.Dark));
+        _themeMenu.DropDownItems.Add(_themeSystemItem);
+        _themeMenu.DropDownItems.Add(_themeLightItem);
+        _themeMenu.DropDownItems.Add(_themeDarkItem);
+        _menuStrip.Items.Add(_themeMenu);
+
         // Help menu (store item references for robust localisation)
         _helpMenu = new ToolStripMenuItem("&Help");
         _helpGitHubItem = new ToolStripMenuItem("&GitHub Page", null, OnGitHub);
@@ -395,10 +439,14 @@ public partial class MainFormResources : Form
 
     private void InitializeToolbar()
     {
-        // Row 1: Directory
+        // Row 1: Directory + Backup
         _toolStrip.Items.Add(new ToolStripLabel("Directory:"));
         _toolStrip.Items.Add(_directoryCombo);
         _toolStrip.Items.Add(new ToolStripButton("Browse...", null, OnBrowseDirectory));
+        _toolStrip.Items.Add(new ToolStripSeparator());
+        _toolStrip.Items.Add(new ToolStripLabel("Backup:"));
+        _toolStrip.Items.Add(_backupPathCombo);
+        _toolStrip.Items.Add(_backupBrowseButton);
 
         // Row 2: Save Slot, File, Load, Save
         _toolStrip2.Items.Add(new ToolStripLabel("Save Slot:"));
@@ -411,6 +459,9 @@ public partial class MainFormResources : Form
 
         _loadButton.Click += OnLoadSlot;
         _saveButton.Click += OnSave;
+        _backupBrowseButton.Click += OnBrowseBackup;
+        _backupPathCombo.SelectedIndexChanged += OnBackupComboChanged;
+        _backupPathCombo.Leave += OnBackupPathChanged;
         _directoryCombo.SelectedIndexChanged += OnDirectoryComboChanged;
         _saveSlotCombo.SelectedIndexChanged += (_, _) => PopulateSaveFileCombo();
     }
@@ -507,7 +558,9 @@ public partial class MainFormResources : Form
         }
 
         // Sync data to in-memory JSON and refresh tree when switching to Raw JSON tab
-        if (_tabControl.SelectedTab?.Controls.Count > 0
+        // (but not during GoToJson navigation — the handler does this itself)
+        if (!_isGoToJsonNavigation
+            && _tabControl.SelectedTab?.Controls.Count > 0
             && _tabControl.SelectedTab.Controls[0] == _rawJsonPanel)
         {
             SyncAllPanelData();
@@ -554,6 +607,31 @@ public partial class MainFormResources : Form
         // Reload the exosuit panel cargo grid so the newly placed egg is visible
         if (_loadedTabIndices.Contains(1)) // Exosuit is tab 1
             _exosuitPanel.LoadData(_currentSaveData);
+    }
+
+    /// <summary>
+    /// Handles GOTO JSON requests from panels. Shows confirmation, syncs all panel data,
+    /// switches to the Raw JSON Editor tab, and navigates to the requested path.
+    /// </summary>
+    private void OnGoToJsonRequested(object? sender, GoToJsonEventArgs e)
+    {
+        if (_currentSaveData == null) return;
+
+        var result = MessageBox.Show(this,
+            UiStrings.Get("common.goto_json_confirm"),
+            UiStrings.Get("common.goto_json_title"),
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (result != DialogResult.Yes) return;
+
+        SyncAllPanelData();
+
+        _isGoToJsonNavigation = true;
+        _tabControl.SelectedIndex = 14;
+        _isGoToJsonNavigation = false;
+
+        _rawJsonPanel.RefreshTree(_currentSaveData);
+        _rawJsonPanel.NavigateToPath(e.PathSegments);
     }
 
     /// <summary>
@@ -718,6 +796,9 @@ public partial class MainFormResources : Form
         // Populate the directory dropdown
         string? lastDir = config.LastDirectory;
         RebuildDirectoryDropdown(recent, lastDir);
+
+        // Populate backup path combo with saved recent paths
+        RebuildBackupDropdown(config);
     }
 
     /// <summary>
@@ -981,17 +1062,22 @@ public partial class MainFormResources : Form
                         // show a stale name when the player has renamed their slot.
                         string saveName = "";
                         string difficulty = "";
+                        string? xboxLabelFilePath = null;
                         foreach (var (_, info) in Enumerable.Reverse(entries))
                         {
                             if (info.DataFilePath != null && File.Exists(info.DataFilePath))
                             {
+                                xboxLabelFilePath = info.DataFilePath;
                                 saveName = DetectSaveName(info.DataFilePath);
                                 difficulty = DetectDifficulty(info.DataFilePath);
                                 if (!string.IsNullOrEmpty(saveName)) break;
                             }
                         }
 
-                        string label = BuildSlotLabel($"Xbox: Slot {slotNum}", saveName, difficulty);
+                        string? xboxExpeditionTag = (xboxLabelFilePath != null
+                            && SaveFileManager.DetectActiveContextFast(xboxLabelFilePath, out bool xboxIsExp)
+                            && xboxIsExp) ? UiStrings.Get("slot.expedition") : null;
+                        string label = BuildSlotLabel($"Xbox: Slot {slotNum}", saveName, difficulty, xboxExpeditionTag);
                         _saveSlotCombo.Items.Add(label);
                     }
 
@@ -1056,7 +1142,9 @@ public partial class MainFormResources : Form
                 }
                 catch { }
 
-                string label = BuildSlotLabel($"PS4: Slot {n}", saveName, difficulty);
+                SaveFileManager.DetectActiveContextFromJson(labelJson, out bool ps4IsExpedition);
+                string? ps4ExpeditionTag = ps4IsExpedition ? UiStrings.Get("slot.expedition") : null;
+                string label = BuildSlotLabel($"PS4: Slot {n}", saveName, difficulty, ps4ExpeditionTag);
                 _saveSlotCombo.Items.Add(label);
             }
         }
@@ -1091,7 +1179,9 @@ public partial class MainFormResources : Form
                     string labelFile = slotFiles[^1];
                     string difficulty = DetectDifficulty(labelFile);
                     string saveName = DetectSaveName(labelFile);
-                    string label = BuildSlotLabel($"Slot {i + 1}", saveName, difficulty);
+                    SaveFileManager.DetectActiveContextFast(labelFile, out bool pcIsExpedition);
+                    string? pcExpeditionTag = pcIsExpedition ? UiStrings.Get("slot.expedition") : null;
+                    string label = BuildSlotLabel($"Slot {i + 1}", saveName, difficulty, pcExpeditionTag);
                     _saveSlotCombo.Items.Add(label);
                 }
             }
@@ -1118,7 +1208,9 @@ public partial class MainFormResources : Form
                         string labelFile   = slotFiles[^1];
                         string difficulty  = DetectDifficulty(labelFile);
                         string saveName    = DetectSaveName(labelFile);
-                        string label       = BuildSlotLabel($"PS4: Slot {i + 1}", saveName, difficulty);
+                        SaveFileManager.DetectActiveContextFast(labelFile, out bool ps4MdIsExpedition);
+                        string? ps4MdExpeditionTag = ps4MdIsExpedition ? UiStrings.Get("slot.expedition") : null;
+                        string label       = BuildSlotLabel($"PS4: Slot {i + 1}", saveName, difficulty, ps4MdExpeditionTag);
                         _saveSlotCombo.Items.Add(label);
                     }
                 }
@@ -1313,14 +1405,15 @@ public partial class MainFormResources : Form
     }
 
     /// <summary>
-    /// Build a slot label combining prefix, save name, and difficulty.
-    /// Format: "Slot N - SaveName - DIFFICULTY" or "Slot N - DIFFICULTY" or "Slot N".
+    /// Build a slot label combining prefix, save name, difficulty, and optional expedition tag.
+    /// Format: "Slot N - SaveName - DIFFICULTY" or "Slot N - DIFFICULTY - EXPEDITION" or "Slot N".
     /// </summary>
-    private static string BuildSlotLabel(string prefix, string saveName, string difficulty)
+    private static string BuildSlotLabel(string prefix, string saveName, string difficulty, string? expeditionTag = null)
     {
         var parts = new List<string> { prefix };
         if (!string.IsNullOrEmpty(saveName)) parts.Add(saveName);
         if (!string.IsNullOrEmpty(difficulty)) parts.Add(difficulty);
+        if (!string.IsNullOrEmpty(expeditionTag)) parts.Add(expeditionTag);
         return string.Join(" - ", parts);
     }
 
@@ -1350,10 +1443,17 @@ public partial class MainFormResources : Form
             ? existingLabel[..existingLabel.IndexOf(" - ", StringComparison.Ordinal)]
             : existingLabel;
 
-        // Re-detect difficulty from the current file (cheap fast scan).
+        // Re-detect difficulty and expedition from the current file (cheap fast scan).
         string difficulty = _currentFilePath != null ? DetectDifficulty(_currentFilePath) : "";
 
-        string newLabel = BuildSlotLabel(prefix, saveName, difficulty);
+        string? expeditionTag = null;
+        if (_currentFilePath != null)
+        {
+            SaveFileManager.DetectActiveContextFast(_currentFilePath, out bool isExpedition);
+            if (isExpedition) expeditionTag = UiStrings.Get("slot.expedition");
+        }
+
+        string newLabel = BuildSlotLabel(prefix, saveName, difficulty, expeditionTag);
 
         // Swap the item without triggering a SelectedIndexChanged repopulation.
         _saveSlotCombo.Items[slotIdx] = newLabel;
@@ -1400,6 +1500,7 @@ public partial class MainFormResources : Form
             });
 
             _currentFilePath = filePath;
+            SaveFileManager.TryDetectActiveContext(_currentSaveData);
             string? saveDir = Path.GetDirectoryName(filePath);
 
             // If the file was loaded directly (Open File), update the toolbar to reflect it.
@@ -1558,6 +1659,88 @@ public partial class MainFormResources : Form
         }
     }
 
+    private void RebuildBackupDropdown(AppConfig config)
+    {
+        _backupPathCombo.SelectedIndexChanged -= OnBackupComboChanged;
+        _backupPathCombo.Items.Clear();
+
+        var recent = config.RecentBackupDirectories;
+        string resolved = SaveFileManager.ResolveBackupRoot();
+
+        // Ensure the resolved default is always in the list
+        if (!recent.Any(d => string.Equals(d, resolved, StringComparison.OrdinalIgnoreCase)))
+        {
+            recent.Add(resolved);
+            config.RecentBackupDirectories = recent;
+        }
+
+        foreach (var dir in recent)
+            _backupPathCombo.Items.Add(dir);
+
+        string? current = config.BackupDirectory ?? resolved;
+        if (_backupPathCombo.Items.Contains(current))
+            _backupPathCombo.SelectedItem = current;
+        else if (_backupPathCombo.Items.Count > 0)
+            _backupPathCombo.SelectedIndex = 0;
+
+        _backupPathCombo.SelectedIndexChanged += OnBackupComboChanged;
+    }
+
+    private void OnBrowseBackup(object? sender, EventArgs e)
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = UiStrings.Get("dialog.select_backup_dir"),
+            UseDescriptionForTitle = true,
+            SelectedPath = _backupPathCombo.Text
+        };
+
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            var config = AppConfig.Instance;
+            config.AddRecentBackupDirectory(dialog.SelectedPath);
+            config.Save();
+            RebuildBackupDropdown(config);
+        }
+    }
+
+    private void OnBackupComboChanged(object? sender, EventArgs e)
+    {
+        if (_backupPathCombo.SelectedItem is string path && Directory.Exists(path))
+        {
+            var config = AppConfig.Instance;
+            config.AddRecentBackupDirectory(path);
+            config.Save();
+        }
+    }
+
+    private void OnBackupPathChanged(object? sender, EventArgs e)
+    {
+        string path = _backupPathCombo.Text.Trim();
+        var config = AppConfig.Instance;
+
+        if (string.IsNullOrEmpty(path))
+        {
+            config.BackupDirectory = null;
+            config.Save();
+            RebuildBackupDropdown(config);
+            return;
+        }
+
+        if (Directory.Exists(path))
+        {
+            config.AddRecentBackupDirectory(path);
+            config.Save();
+            RebuildBackupDropdown(config);
+        }
+        else
+        {
+            // Revert to previous saved value
+            string resolved = config.BackupDirectory ?? SaveFileManager.ResolveBackupRoot();
+            _backupPathCombo.Text = resolved;
+        }
+    }
+
     /// <summary>
     /// Records a directory as the most recently used, updates the dropdown and persists to config.
     /// </summary>
@@ -1654,6 +1837,7 @@ public partial class MainFormResources : Form
             }
 
             _currentFilePath = containersIndexPath; // Track the containers.index path
+            SaveFileManager.TryDetectActiveContext(_currentSaveData);
 
             _progressBar.Value = 80;
             _loadedTabIndices.Clear();
@@ -1722,6 +1906,7 @@ public partial class MainFormResources : Form
             }
 
             _currentFilePath = memoryDatPath; // Track memory.dat path
+            SaveFileManager.TryDetectActiveContext(_currentSaveData);
 
             _progressBar.Value = 80;
             _loadedTabIndices.Clear();
@@ -1812,14 +1997,21 @@ public partial class MainFormResources : Form
             // Sync all panel data to in-memory JsonObjects
             SyncAllPanelData();
 
-            // Backup the save directory before writing, but only if there are unsaved changes
-            if (_hasUnsavedChanges)
+            // Backup the save directory before writing (always, not just when changes detected)
+            string backupRoot = "";
+            string? saveDir = Path.GetDirectoryName(_currentFilePath);
+            if (saveDir != null)
             {
-                string? saveDir = Path.GetDirectoryName(_currentFilePath);
-                if (saveDir != null)
+                try
                 {
-                    try { SaveFileManager.BackupSaveDirectory(saveDir); }
-                    catch (Exception ex) { Debug.WriteLine($"Backup failed: {ex.Message}"); }
+                    SaveFileManager.BackupSaveDirectory(saveDir);
+                    backupRoot = SaveFileManager.ResolveBackupRoot();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Backup failed: {ex.Message}");
+                    MessageBox.Show(this, $"Backup failed: {ex.Message}", "Debug",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
 
@@ -1848,7 +2040,9 @@ public partial class MainFormResources : Form
                 }
 
                 UpdateCurrentSlotLabel();
-                _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_xboxContainersIndexPath));
+                _statusLabel.Text = string.IsNullOrEmpty(backupRoot)
+                    ? UiStrings.Format("status.save_written", Path.GetFileName(_xboxContainersIndexPath))
+                    : UiStrings.Format("status.save_written_with_backup", Path.GetFileName(_xboxContainersIndexPath), backupRoot);
                 _hasUnsavedChanges = false;
                 MessageBox.Show(this, UiStrings.Get("dialog.save_success"), UiStrings.Get("dialog.success"),
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1882,7 +2076,9 @@ public partial class MainFormResources : Form
                 }
 
                 UpdateCurrentSlotLabel();
-                _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath));
+                _statusLabel.Text = string.IsNullOrEmpty(backupRoot)
+                    ? UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath))
+                    : UiStrings.Format("status.save_written_with_backup", Path.GetFileName(_currentFilePath), backupRoot);
                 _hasUnsavedChanges = false;
                 MessageBox.Show(this, UiStrings.Get("dialog.save_success"), UiStrings.Get("dialog.success"),
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1914,7 +2110,9 @@ public partial class MainFormResources : Form
                     compress: false, writeMeta: writeAccountMeta, platform: _detectedPlatform, slotIndex: 0);
             }
 
-            _statusLabel.Text = UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath!));
+            _statusLabel.Text = string.IsNullOrEmpty(backupRoot)
+                ? UiStrings.Format("status.save_written", Path.GetFileName(_currentFilePath!))
+                : UiStrings.Format("status.save_written_with_backup", Path.GetFileName(_currentFilePath!), backupRoot);
             _hasUnsavedChanges = false;
             UpdateCurrentSlotLabel();
             MessageBox.Show(this, UiStrings.Get("dialog.save_success"), UiStrings.Get("dialog.success"),
@@ -1962,19 +2160,25 @@ public partial class MainFormResources : Form
 
         string dirName = new DirectoryInfo(saveDir).Name;
         string fileName = Path.GetFileName(_currentFilePath);
-        string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-        string backupRoot = Path.Combine(exeDir, "Save Backups");
+        string backupPattern = $"{dirName}_*.zip";
 
-        if (!Directory.Exists(backupRoot))
+        // Search across all existing backup locations (configured, EXE-relative, TEMP)
+        var roots = SaveFileManager.FindExistingBackupRoots();
+        if (roots.Count == 0)
         {
             MessageBox.Show(this, UiStrings.Get("dialog.no_backup_dir"), UiStrings.Get("dialog.restore_backup"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
+        var allBackups = new List<string>();
+        foreach (string root in roots)
+        {
+            allBackups.AddRange(Directory.GetFiles(root, backupPattern));
+        }
+
         // Find the most recent backup ZIP for this save directory
-        string backupPattern = $"{dirName}_*.zip";
-        var backups = Directory.GetFiles(backupRoot, backupPattern)
+        var backups = allBackups
             .OrderByDescending(f => File.GetCreationTimeUtc(f))
             .ToList();
 
@@ -2024,18 +2228,24 @@ public partial class MainFormResources : Form
 
         string dirName = new DirectoryInfo(saveDir).Name;
         string fileName = Path.GetFileName(_currentFilePath);
-        string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-        string backupRoot = Path.Combine(exeDir, "Save Backups");
+        string backupPattern = $"{dirName}_*.zip";
 
-        if (!Directory.Exists(backupRoot))
+        // Search across all existing backup locations (configured, EXE-relative, TEMP)
+        var roots = SaveFileManager.FindExistingBackupRoots();
+        if (roots.Count == 0)
         {
             MessageBox.Show(this, UiStrings.Get("dialog.no_backup_dir"), UiStrings.Get("dialog.restore_backup_single"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        string backupPattern = $"{dirName}_*.zip";
-        var backups = Directory.GetFiles(backupRoot, backupPattern)
+        var allBackups = new List<string>();
+        foreach (string root in roots)
+        {
+            allBackups.AddRange(Directory.GetFiles(root, backupPattern));
+        }
+
+        var backups = allBackups
             .OrderByDescending(f => File.GetCreationTimeUtc(f))
             .ToList();
 
@@ -2140,6 +2350,7 @@ public partial class MainFormResources : Form
                 // the same context transforms that LoadSaveFile applies so that all
                 // panels and meta-file extraction can resolve these virtual keys.
                 SaveFileManager.RegisterContextTransforms(_currentSaveData);
+                SaveFileManager.TryDetectActiveContext(_currentSaveData);
 
                 // Capture the diff baseline before any panel LoadData is called so that
                 // the baseline reflects the imported state (see LoadSaveData for details).
@@ -2458,6 +2669,42 @@ public partial class MainFormResources : Form
     }
 
     /// <summary>
+    /// Sets the active application theme, re-applies it to this form, and updates
+    /// the check marks on the Theme menu.
+    /// </summary>
+    private void SetTheme(AppTheme theme)
+    {
+        ThemeManager.SetTheme(theme);
+        // SetTheme fires ThemeChanged which triggers ReapplyTheme, so we don't
+        // need to call ThemeApplicator.ApplyToForm here directly. But re-applying
+        // is idempotent and protects against the event not being subscribed yet.
+        ThemeApplicator.ApplyToForm(this);
+        UpdateThemeMenuChecks();
+    }
+
+    /// <summary>
+    /// Called by the theme manager when the active theme changes. Re-applies
+    /// the theme to the form and refreshes the menu check marks.
+    /// </summary>
+	private void ReapplyTheme()
+	{
+		ThemeApplicator.ApplyToForm(this);
+		_mainStatsPanel.RefreshGlyphButtonImages();
+		UpdateThemeMenuChecks();
+	}
+
+    /// <summary>
+    /// Updates the checked state of the Theme menu items to reflect the current theme.
+    /// </summary>
+    private void UpdateThemeMenuChecks()
+    {
+        var current = ThemeManager.Current;
+        _themeSystemItem.Checked = current == AppTheme.System;
+        _themeLightItem.Checked = current == AppTheme.Light;
+        _themeDarkItem.Checked = current == AppTheme.Dark;
+    }
+
+    /// <summary>
     /// Re-loads data for every panel that has already been loaded (i.e. whose tab
     /// the user has visited at least once). This is called after a language switch
     /// so that cached display names are replaced with the new translations.
@@ -2529,6 +2776,12 @@ public partial class MainFormResources : Form
             }
             // Language (use stored field reference, BCP 47 tags stay as-is)
             _languageMenu.Text = UiStrings.Get("menu.language");
+            // Theme (localised labels + checked state for current selection)
+            _themeMenu.Text = UiStrings.Get("theme_menu");
+            _themeSystemItem.Text = UiStrings.Get("theme_system");
+            _themeLightItem.Text = UiStrings.Get("theme_light");
+            _themeDarkItem.Text = UiStrings.Get("theme_dark");
+            UpdateThemeMenuChecks();
             // Help (use stored field references to avoid fragile hardcoded indices)
             _helpMenu.Text = UiStrings.Get("menu.help");
             _helpGitHubItem.Text = UiStrings.Get("menu.help.github");
@@ -3041,6 +3294,8 @@ public partial class MainFormResources : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        SaveContext.Reset();
+
         // Prompt if there are unsaved changes
         if (_hasUnsavedChanges && _currentSaveData != null)
         {
