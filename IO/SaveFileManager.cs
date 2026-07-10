@@ -1,3 +1,4 @@
+using NMSE.Core;
 using NMSE.Models;
 using System.Buffers;
 using System.Globalization;
@@ -161,26 +162,75 @@ public class SaveFileManager
     }
 
     /// <summary>
+    /// Resolves the backup root directory. Priority:
+    /// 1. User-configured path (<see cref="Config.AppConfig.BackupDirectory"/>)
+    /// 2. EXE-relative "Save Backups" folder
+    /// 3. %TEMP%\NMSE\Save Backups (fallback)
+    /// Creates the directory if it doesn't exist.
+    /// </summary>
+    public static string ResolveBackupRoot()
+    {
+        // 1. User-configured path
+        string? configured = Config.AppConfig.Instance.BackupDirectory;
+        if (!string.IsNullOrEmpty(configured))
+        {
+            Directory.CreateDirectory(configured);
+            return configured;
+        }
+
+        // 2. EXE-relative
+        string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+        string exeRoot = Path.Combine(exeDir, "Save Backups");
+        try
+        {
+            Directory.CreateDirectory(exeRoot);
+            return exeRoot;
+        }
+        catch
+        {
+            // 3. TEMP fallback
+            string tempRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
+            Directory.CreateDirectory(tempRoot);
+            return tempRoot;
+        }
+    }
+
+    /// <summary>
+    /// Returns all existing backup root directories that may contain backup ZIPs,
+    /// in priority order. Does not create directories. Used by restore UI to find
+    /// backups regardless of where they were written.
+    /// </summary>
+    public static List<string> FindExistingBackupRoots()
+    {
+        var roots = new List<string>();
+
+        // 1. User-configured path (if set and exists)
+        string? configured = Config.AppConfig.Instance.BackupDirectory;
+        if (!string.IsNullOrEmpty(configured) && Directory.Exists(configured))
+            roots.Add(configured);
+
+        // 2. EXE-relative (if exists)
+        string exeRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Save Backups");
+        if (Directory.Exists(exeRoot))
+            roots.Add(exeRoot);
+
+        // 3. TEMP fallback (if exists)
+        string tempRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
+        if (Directory.Exists(tempRoot))
+            roots.Add(tempRoot);
+
+        return roots;
+    }
+
+    /// <summary>
     /// Creates a timestamped zip backup of all .hg files in the save directory,
-    /// retaining up to 10 backups.  Falls back to the system temp directory if
-    /// the exe-relative backup folder cannot be created (e.g. under Wine).
+    /// retaining up to 10 backups.  Uses <see cref="ResolveBackupRoot"/> to
+    /// determine the backup location.
     /// </summary>
     /// <param name="saveDirectory">The save directory to back up.</param>
     public static void BackupSaveDirectory(string saveDirectory)
     {
-        string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-
-        // If the primary backup location isn't writable, try Temp
-        string backupRoot = Path.Combine(exeDir, "Save Backups");
-        try
-        {
-            Directory.CreateDirectory(backupRoot);
-        }
-        catch
-        {
-            backupRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
-            Directory.CreateDirectory(backupRoot);
-        }
+        string backupRoot = ResolveBackupRoot();
 
         string dirName = new DirectoryInfo(saveDirectory).Name;
         string backupPattern = $"{dirName}_*.zip";
@@ -569,7 +619,9 @@ using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, Fi
     }
 
     /// <summary>
-    /// Register the ActiveContext-based path transforms on a loaded save.
+    /// Register the context-based path transforms on a loaded save.
+    /// Uses shape-driven logic: prefers ExpeditionContext when ActiveContext is "Season"
+    /// (or when ExpeditionContext exists and BaseContext does not), otherwise prefers BaseContext.
     /// </summary>
     internal static void RegisterContextTransforms(JsonObject result)
     {
@@ -578,11 +630,14 @@ using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, Fi
             result.RegisterTransform("PlayerStateData", obj =>
             {
                 if (obj is not JsonObject root) return "PlayerStateData";
-                var activeContext = root.Get("ActiveContext") as string;
-                if (activeContext == "Main" && root.GetValue("BaseContext.PlayerStateData") != null)
-                    return "BaseContext.PlayerStateData";
-                if (activeContext == "Season" && root.GetValue("ExpeditionContext.PlayerStateData") != null)
+                // Prefer ExpeditionContext if ActiveContext says "Season" (or if ExpeditionContext exists
+                // and BaseContext does not).
+                if (root.GetValue("ExpeditionContext.PlayerStateData") != null
+                    && (root.GetValue("BaseContext.PlayerStateData") == null
+                        || string.Equals(root.Get("ActiveContext") as string, "Season", StringComparison.Ordinal)))
                     return "ExpeditionContext.PlayerStateData";
+                if (root.GetValue("BaseContext.PlayerStateData") != null)
+                    return "BaseContext.PlayerStateData";
                 return "PlayerStateData";
             });
         }
@@ -592,11 +647,12 @@ using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, Fi
             result.RegisterTransform("SpawnStateData", obj =>
             {
                 if (obj is not JsonObject root) return "SpawnStateData";
-                var activeContext = root.Get("ActiveContext") as string;
-                if (activeContext == "Main" && root.GetValue("BaseContext.SpawnStateData") != null)
-                    return "BaseContext.SpawnStateData";
-                if (activeContext == "Season" && root.GetValue("ExpeditionContext.SpawnStateData") != null)
+                if (root.GetValue("ExpeditionContext.SpawnStateData") != null
+                    && (root.GetValue("BaseContext.SpawnStateData") == null
+                        || string.Equals(root.Get("ActiveContext") as string, "Season", StringComparison.Ordinal)))
                     return "ExpeditionContext.SpawnStateData";
+                if (root.GetValue("BaseContext.SpawnStateData") != null)
+                    return "BaseContext.SpawnStateData";
                 return "SpawnStateData";
             });
         }
@@ -874,78 +930,8 @@ using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, Fi
     {
         try
         {
-            string text;
-            byte[] header = new byte[16];
-
-            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (fs.Read(header, 0, 16) < 16) return 0;
-
-            if (header[0] == Lz4Magic[0] && header[1] == Lz4Magic[1] &&
-                header[2] == Lz4Magic[2] && header[3] == Lz4Magic[3])
-            {
-                // LZ4 compressed - read only the first block
-                int compressedLen = header[4] | (header[5] << 8) | (header[6] << 16) | (header[7] << 24);
-                int uncompressedLen = header[8] | (header[9] << 8) | (header[10] << 16) | (header[11] << 24);
-                if (compressedLen <= 0 || uncompressedLen <= 0) return 0;
-                if (compressedLen > 256 * 1024 * 1024 || uncompressedLen > 256 * 1024 * 1024) return 0;
-
-                byte[] compressedBlock = new byte[compressedLen];
-                int totalRead = 0;
-                while (totalRead < compressedLen)
-                {
-                    int n = fs.Read(compressedBlock, totalRead, compressedLen - totalRead);
-                    if (n <= 0) break;
-                    totalRead += n;
-                }
-
-                using var blockStream = new MemoryStream(compressedBlock, 0, totalRead);
-                using var lz4Stream = new Lz4DecompressorStream(blockStream, uncompressedLen);
-                byte[] decompressed = new byte[uncompressedLen];
-                int read = 0;
-                while (read < uncompressedLen)
-                {
-                    int n = lz4Stream.Read(decompressed, read, uncompressedLen - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-                text = Latin1.GetString(decompressed, 0, read);
-            }
-            else if (IsHgsv2Header(header, 16))
-            {
-                // HGSAVEV2 format (post-Omega Xbox): decompress first frame
-                text = DecompressHgsv2FirstFrame(fs) ?? "";
-                if (string.IsNullOrEmpty(text)) return 0;
-            }
-            else if (IsNomanSkyHeader(header))
-            {
-                // PS4/PS5 NOMANSKY header. JSON starts at offset 0x70
-                fs.Position = 0x70;
-                int limit = (int)Math.Min(fs.Length - fs.Position, 64 * 1024);
-                byte[] prefix = new byte[limit];
-                int read = 0;
-                while (read < limit)
-                {
-                    int n = fs.Read(prefix, read, limit - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-                text = Encoding.UTF8.GetString(prefix, 0, read);
-            }
-            else
-            {
-                // Uncompressed - read a limited prefix
-                int limit = (int)Math.Min(fs.Length, 64 * 1024);
-                byte[] prefix = new byte[limit];
-                fs.Position = 0;
-                int read = 0;
-                while (read < limit)
-                {
-                    int n = fs.Read(prefix, read, limit - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-                text = Latin1.GetString(prefix, 0, read);
-            }
+            string? text = ReadFirstJsonBlock(filePath);
+            if (string.IsNullOrEmpty(text)) return 0;
 
             // Try PresetGameMode first (human-readable or obfuscated key "pwt")
             int result = ScanKeyForGameMode(text, "\"PresetGameMode\"");
@@ -985,76 +971,8 @@ using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, Fi
     {
         try
         {
-            string text;
-            byte[] header = new byte[16];
-
-            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (fs.Read(header, 0, 16) < 16) return "";
-
-            if (header[0] == Lz4Magic[0] && header[1] == Lz4Magic[1] &&
-                header[2] == Lz4Magic[2] && header[3] == Lz4Magic[3])
-            {
-                int compressedLen = header[4] | (header[5] << 8) | (header[6] << 16) | (header[7] << 24);
-                int uncompressedLen = header[8] | (header[9] << 8) | (header[10] << 16) | (header[11] << 24);
-                if (compressedLen <= 0 || uncompressedLen <= 0) return "";
-                if (compressedLen > 256 * 1024 * 1024 || uncompressedLen > 256 * 1024 * 1024) return "";
-
-                byte[] compressedBlock = new byte[compressedLen];
-                int totalRead = 0;
-                while (totalRead < compressedLen)
-                {
-                    int n = fs.Read(compressedBlock, totalRead, compressedLen - totalRead);
-                    if (n <= 0) break;
-                    totalRead += n;
-                }
-
-                using var blockStream = new MemoryStream(compressedBlock, 0, totalRead);
-                using var lz4Stream = new Lz4DecompressorStream(blockStream, uncompressedLen);
-                byte[] decompressed = new byte[uncompressedLen];
-                int read = 0;
-                while (read < uncompressedLen)
-                {
-                    int n = lz4Stream.Read(decompressed, read, uncompressedLen - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-                text = Encoding.UTF8.GetString(decompressed, 0, read);
-            }
-            else if (IsHgsv2Header(header, 16))
-            {
-                // HGSAVEV2 format (post-Omega Xbox): decompress first frame
-                text = DecompressHgsv2FirstFrame(fs) ?? "";
-                if (string.IsNullOrEmpty(text)) return "";
-            }
-            else if (IsNomanSkyHeader(header))
-            {
-                // PS4/PS5 NOMANSKY header. JSON starts at offset 0x70
-                fs.Position = 0x70;
-                int limit = (int)Math.Min(fs.Length - fs.Position, 64 * 1024);
-                byte[] prefix = new byte[limit];
-                int read = 0;
-                while (read < limit)
-                {
-                    int n = fs.Read(prefix, read, limit - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-                text = Encoding.UTF8.GetString(prefix, 0, read);
-            }
-            else
-            {
-                int limit = (int)Math.Min(fs.Length, 64 * 1024);
-                byte[] prefix = new byte[limit];
-                fs.Position = 0;
-                int read = 0;
-                while (read < limit)
-                {
-                    int n = fs.Read(prefix, read, limit - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-                text = Encoding.UTF8.GetString(prefix, 0, read);
-            }
+            string? text = ReadFirstJsonBlock(filePath);
+            if (string.IsNullOrEmpty(text)) return "";
 
             // Try both deobfuscated and obfuscated SaveName keys
             // "SaveName" or "Pk4" (obfuscated key for SaveName)
@@ -1105,6 +1023,146 @@ using var outFs = new FileStream(filePath, FileMode.Create, FileAccess.Write, Fi
         return ExtractJsonStringValue(json, "\"SaveName\"")
             ?? ExtractJsonStringValue(json, "\"Pk4\"")
             ?? "";
+    }
+
+    /// <summary>
+    /// Reads and decompresses the first JSON block of a save file for fast header scanning.
+    /// Handles LZ4-compressed, HGSAVEV2 (Xbox), PS4 NOMANSKY, and uncompressed formats.
+    /// Returns the raw text content of the first block, or null on failure.
+    /// </summary>
+    private static string? ReadFirstJsonBlock(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
+        try
+        {
+            byte[] header = new byte[16];
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (fs.Read(header, 0, 16) < 16) return null;
+
+            if (header[0] == Lz4Magic[0] && header[1] == Lz4Magic[1] &&
+                header[2] == Lz4Magic[2] && header[3] == Lz4Magic[3])
+            {
+                // LZ4 compressed - read only the first block
+                int compressedLen = header[4] | (header[5] << 8) | (header[6] << 16) | (header[7] << 24);
+                int uncompressedLen = header[8] | (header[9] << 8) | (header[10] << 16) | (header[11] << 24);
+                if (compressedLen <= 0 || uncompressedLen <= 0) return null;
+                if (compressedLen > 256 * 1024 * 1024 || uncompressedLen > 256 * 1024 * 1024) return null;
+
+                byte[] compressedBlock = new byte[compressedLen];
+                int totalRead = 0;
+                while (totalRead < compressedLen)
+                {
+                    int n = fs.Read(compressedBlock, totalRead, compressedLen - totalRead);
+                    if (n <= 0) break;
+                    totalRead += n;
+                }
+
+                using var blockStream = new MemoryStream(compressedBlock, 0, totalRead);
+                using var lz4Stream = new Lz4DecompressorStream(blockStream, uncompressedLen);
+                byte[] decompressed = new byte[uncompressedLen];
+                int read = 0;
+                while (read < uncompressedLen)
+                {
+                    int n = lz4Stream.Read(decompressed, read, uncompressedLen - read);
+                    if (n <= 0) break;
+                    read += n;
+                }
+                return Latin1.GetString(decompressed, 0, read);
+            }
+            else if (IsHgsv2Header(header, 16))
+            {
+                // HGSAVEV2 format (post-Omega Xbox): decompress first frame
+                return DecompressHgsv2FirstFrame(fs);
+            }
+            else if (IsNomanSkyHeader(header))
+            {
+                // PS4/PS5 NOMANSKY header. JSON starts at offset 0x70
+                fs.Position = 0x70;
+                int limit = (int)Math.Min(fs.Length - fs.Position, 64 * 1024);
+                byte[] prefix = new byte[limit];
+                int read = 0;
+                while (read < limit)
+                {
+                    int n = fs.Read(prefix, read, limit - read);
+                    if (n <= 0) break;
+                    read += n;
+                }
+                return Encoding.UTF8.GetString(prefix, 0, read);
+            }
+            else
+            {
+                // Uncompressed - read a limited prefix
+                int limit = (int)Math.Min(fs.Length, 64 * 1024);
+                byte[] prefix = new byte[limit];
+                fs.Position = 0;
+                int read = 0;
+                while (read < limit)
+                {
+                    int n = fs.Read(prefix, read, limit - read);
+                    if (n <= 0) break;
+                    read += n;
+                }
+                return Latin1.GetString(prefix, 0, read);
+            }
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Quickly detect whether a save file is an Expedition (Season) save.
+    /// Returns true and sets isExpedition=true only if the first JSON block contains
+    /// "ActiveContext":"Season" (or obfuscated form). Returns false otherwise.
+    /// </summary>
+    public static bool DetectActiveContextFast(string filePath, out bool isExpedition)
+    {
+        isExpedition = false;
+        string? text = ReadFirstJsonBlock(filePath);
+        if (string.IsNullOrEmpty(text)) return false;
+        return TryDetectActiveContext(text, out isExpedition);
+    }
+
+    /// <summary>
+    /// Detect the expedition flag from an already-extracted JSON string (used for PS4 memory.dat).
+    /// </summary>
+    public static bool DetectActiveContextFromJson(string json, out bool isExpedition)
+    {
+        isExpedition = false;
+        if (string.IsNullOrEmpty(json)) return false;
+        return TryDetectActiveContext(json, out isExpedition);
+    }
+
+    /// <summary>
+    /// Common logic: scan text for ActiveContext (obfuscated key "XTp") and check if value is "Season".
+    /// </summary>
+    private static bool TryDetectActiveContext(string text, out bool isExpedition)
+    {
+        isExpedition = false;
+        try
+        {
+            int idx = text.IndexOf("\"ActiveContext\"", StringComparison.Ordinal);
+            if (idx < 0) idx = text.IndexOf("\"XTp\"", StringComparison.Ordinal);
+            if (idx < 0) return false;
+            int colonIdx = text.IndexOf(':', idx);
+            if (colonIdx < 0) return false;
+            int quoteStart = text.IndexOf('"', colonIdx + 1);
+            if (quoteStart < 0) return false;
+            int quoteEnd = text.IndexOf('"', quoteStart + 1);
+            if (quoteEnd < 0) return false;
+            string value = text.Substring(quoteStart + 1, quoteEnd - quoteStart - 1);
+            isExpedition = string.Equals(value, "Season", StringComparison.Ordinal);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Sets <see cref="SaveContext.IsExpeditionSave"/> based on the ActiveContext in an already-parsed
+    /// JSON tree.  Resets to false when ActiveContext is not "Season".
+    /// </summary>
+    public static void TryDetectActiveContext(JsonObject data)
+    {
+        bool isExpedition = data != null && string.Equals(data.Get("ActiveContext") as string, "Season", StringComparison.Ordinal);
+        SaveContext.SetExpedition(isExpedition);
     }
 
     /// <summary>
