@@ -1,5 +1,38 @@
 [
 	{
+		"Id": "^SWARM_TROPHY_R",
+		"Name": "Prismatic Core",
+		"Name_LocStr": "BLD_SWARM_TROPHY_NAME",
+		"Subtitle_LocStr": "BLD_SWARM_TROPHY_SUB",
+		"Category": "season",
+		"ProductId": "SWARM_TROPHY_R",
+		"MustBeUnlocked": true,
+		"SeasonId": 22,
+		"StageId": -1
+	},
+	{
+		"Id": "^SWARM_TROPHY_G",
+		"Name": "Prismatic Core",
+		"Name_LocStr": "BLD_SWARM_TROPHY_NAME",
+		"Subtitle_LocStr": "BLD_SWARM_TROPHY_SUB",
+		"Category": "season",
+		"ProductId": "SWARM_TROPHY_G",
+		"MustBeUnlocked": true,
+		"SeasonId": 22,
+		"StageId": -1
+	},
+	{
+		"Id": "^SWARM_TROPHY_B",
+		"Name": "Prismatic Core",
+		"Name_LocStr": "BLD_SWARM_TROPHY_NAME",
+		"Subtitle_LocStr": "BLD_SWARM_TROPHY_SUB",
+		"Category": "season",
+		"ProductId": "SWARM_TROPHY_B",
+		"MustBeUnlocked": true,
+		"SeasonId": 22,
+		"StageId": -1
+	},
+	{
 		"Id": "^EXPD_TITLE22",
 		"Name": "Title: 'the Fragmented'",
 		"Name_LocStr": "UI_EXPD_TITLE_22_NAME",
