@@ -48,6 +48,7 @@ public partial class ExportConfigPanel : UserControl
         SetField(_extFields, "Discovery", cfg.DiscoveryExt);
         SetField(_extFields, "Settlement", cfg.SettlementExt);
         SetField(_extFields, "ByteBeat", cfg.ByteBeatExt);
+        SetField(_extFields, "Outfit", cfg.OutfitExt);
 
         // Templates
         SetField(_templateFields, "Exosuit Cargo", cfg.ExosuitCargoTemplate);
@@ -73,6 +74,7 @@ public partial class ExportConfigPanel : UserControl
         SetField(_templateFields, "Discovery", cfg.DiscoveryTemplate);
         SetField(_templateFields, "Settlement", cfg.SettlementTemplate);
         SetField(_templateFields, "ByteBeat", cfg.ByteBeatTemplate);
+        SetField(_templateFields, "Outfit", cfg.OutfitTemplate);
     }
 
     /// <summary>
@@ -105,6 +107,7 @@ public partial class ExportConfigPanel : UserControl
         cfg.DiscoveryExt = GetField(_extFields, "Discovery", cfg.DiscoveryExt);
         cfg.SettlementExt = GetField(_extFields, "Settlement", cfg.SettlementExt);
         cfg.ByteBeatExt = GetField(_extFields, "ByteBeat", cfg.ByteBeatExt);
+        cfg.OutfitExt = GetField(_extFields, "Outfit", cfg.OutfitExt);
 
         // Templates
         cfg.ExosuitCargoTemplate = GetField(_templateFields, "Exosuit Cargo", cfg.ExosuitCargoTemplate);
@@ -130,6 +133,7 @@ public partial class ExportConfigPanel : UserControl
         cfg.DiscoveryTemplate = GetField(_templateFields, "Discovery", cfg.DiscoveryTemplate);
         cfg.SettlementTemplate = GetField(_templateFields, "Settlement", cfg.SettlementTemplate);
         cfg.ByteBeatTemplate = GetField(_templateFields, "ByteBeat", cfg.ByteBeatTemplate);
+        cfg.OutfitTemplate = GetField(_templateFields, "Outfit", cfg.OutfitTemplate);
     }
 
     // --- Event Handlers --------------------------------------------
@@ -143,20 +147,20 @@ public partial class ExportConfigPanel : UserControl
             try
             {
                 ExportConfig.Instance.SaveToFile(ConfigFilePath);
-                _statusLabel.ForeColor = Color.Green;
+                _statusLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SuccessGreen : Color.Green;
                 _statusLabel.Text = warnings.Count > 0
                     ? $"Settings saved. {string.Join(" ", warnings)}"
                     : "Settings saved.";
             }
             catch (Exception ex)
             {
-                _statusLabel.ForeColor = Color.Red;
+                _statusLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.ErrorRed : Color.Red;
                 _statusLabel.Text = $"Save failed: {ex.Message}";
             }
         }
         else
         {
-            _statusLabel.ForeColor = Color.Orange;
+            _statusLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.WarningOrange : Color.Orange;
             _statusLabel.Text = UiStrings.Get("export_config.status_applied_no_path");
         }
     }
@@ -173,7 +177,7 @@ public partial class ExportConfigPanel : UserControl
         {
             ExportConfig.SetInstance(new ExportConfig());
             LoadConfig();
-            _statusLabel.ForeColor = Color.Green;
+            _statusLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SuccessGreen : Color.Green;
             _statusLabel.Text = UiStrings.Get("export_config.status_reset");
         }
     }
@@ -241,7 +245,8 @@ public partial class ExportConfigPanel : UserControl
             "export_config.template_companion", "export_config.template_base",
             "export_config.template_chest", "export_config.template_storage",
             "export_config.template_discovery", "export_config.template_settlement",
-            "export_config.template_bytebeat"
+            "export_config.template_bytebeat",
+            "export_config.template_outfit"
         };
         if (_templateLabels != null)
         {

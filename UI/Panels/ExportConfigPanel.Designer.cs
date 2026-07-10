@@ -1,3 +1,4 @@
+using NMSE.Core;
 using NMSE.Data;
 using NMSE.UI.Util;
 
@@ -93,7 +94,7 @@ partial class ExportConfigPanel
         //
         this._statusLabel.Text = "";
         this._statusLabel.AutoSize = true;
-        this._statusLabel.ForeColor = System.Drawing.Color.Green;
+        this._statusLabel.ForeColor = ThemeManager.Effective == AppTheme.Dark ? ThemeColors.Dark.SuccessGreen : System.Drawing.Color.Green;
         this._statusLabel.Padding = new System.Windows.Forms.Padding(12, 6, 0, 0);
         //
         // buttonPanel contents
@@ -134,7 +135,7 @@ partial class ExportConfigPanel
             "Frigate", "Squadron",
             "Exocraft", "Exocraft Cargo", "Exocraft Tech",
             "Companion", "Base", "Chest", "Storage",
-            "Discovery", "Settlement", "ByteBeat"
+            "Discovery", "Settlement", "ByteBeat", "Outfit"
         ];
 
         for (int i = 0; i < labels.Length; i++)
@@ -179,7 +180,7 @@ partial class ExportConfigPanel
             "Frigate", "Squadron",
             "Exocraft", "Exocraft Cargo", "Exocraft Tech",
             "Companion", "Base", "Chest", "Storage",
-            "Discovery", "Settlement", "ByteBeat"
+            "Discovery", "Settlement", "ByteBeat", "Outfit"
         ];
 
         _templateLabels = new Label[labels.Length];
