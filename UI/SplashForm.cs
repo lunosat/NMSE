@@ -54,6 +54,14 @@ internal sealed class SplashForm : Form
             // Non-critical. Works fine without an icon.
         }
 
+        // DPI scaling — handle is created above so DeviceDpi is valid.
+        float dpiScale = (float)DeviceDpi / 96f;
+
+        Size = new Size(
+            (int)(420f * dpiScale + 0.5f),
+            (int)(190f * dpiScale + 0.5f)
+        );
+
         var titleLabel = new Label
         {
             Text = MainFormResources.AppName,
@@ -62,7 +70,7 @@ internal sealed class SplashForm : Form
             TextAlign = ContentAlignment.BottomCenter,
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = 80,
+            Height = (int)(80f * dpiScale + 0.5f),
         };
 
         _loadingLabel = new Label
@@ -73,8 +81,8 @@ internal sealed class SplashForm : Form
             TextAlign = ContentAlignment.TopCenter,
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = 36,
-            Padding = new Padding(0, 8, 0, 0),
+            Height = (int)(36f * dpiScale + 0.5f),
+            Padding = new Padding(0, (int)(8f * dpiScale + 0.5f), 0, 0),
         };
 
         _progressBar = new GreenProgressBar
@@ -82,7 +90,7 @@ internal sealed class SplashForm : Form
             Minimum = 0,
             Maximum = 100,
             Value = 0,
-            Height = 18,
+            Height = (int)(18f * dpiScale + 0.5f),
             Dock = DockStyle.Fill,
         };
 
@@ -91,8 +99,12 @@ internal sealed class SplashForm : Form
         var barPanel = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 30,
-            Padding = new Padding(20, 0, 20, 12),
+            Height = (int)(30f * dpiScale + 0.5f),
+            Padding = new Padding(
+                (int)(20 * dpiScale + 0.5f), 0,
+                (int)(20 * dpiScale + 0.5f),
+                (int)(12 * dpiScale + 0.5f)
+            ),
         };
         barPanel.Controls.Add(_progressBar);
 
