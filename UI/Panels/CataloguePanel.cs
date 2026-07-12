@@ -62,7 +62,6 @@ public partial class CataloguePanel : UserControl
     public CataloguePanel()
     {
         InitializeComponent();
-        SetupLayout();
     }
 
     /// <summary>
