@@ -59,4 +59,101 @@ public class ResolveSaveInventoryTypeTests
         var item = new GameItem { Id = "TEST", ItemType = "Others", Category = "Curiosity" };
         Assert.False(InventoryStackDatabase.CanAddItemToInventory(item, isTechOnly: true, isCargo: false));
     }
+
+    [Fact]
+    public void ResolveInventoryTypeForItem_SubstanceSourceTable_AlwaysResolvesAsSubstance()
+    {
+        // Substances in non-standard JSON files (e.g. Others.json) must resolve
+        // as Substance regardless of the target inventory context.
+        var item = new GameItem
+        {
+            Id = "^SWARMDUST",
+            ItemType = "Others",
+            SourceTable = "Substance"
+        };
+        Assert.Equal("Substance", InventoryStackDatabase.ResolveInventoryTypeForItem(item));
+        Assert.Equal("Substance", InventoryStackDatabase.ResolveInventoryTypeForItem(item, isTechInventory: true));
+    }
+
+    [Fact]
+    public void ResolveInventoryTypeForItem_TechnologySourceTable_ResolvesAsTechnologyInTechInventory()
+    {
+        // Technology items in non-standard JSON files must resolve as Technology
+        // when the target inventory is tech-only.
+        var item = new GameItem
+        {
+            Id = "^S22_LINK",
+            ItemType = "Others",
+            SourceTable = "Technology"
+        };
+        Assert.Equal("Technology", InventoryStackDatabase.ResolveInventoryTypeForItem(item, isTechInventory: true));
+    }
+
+    [Fact]
+    public void ResolveInventoryTypeForItem_TechnologySourceTable_ResolvesAsProductInCargoInventory()
+    {
+        // Technology items in non-standard JSON files must resolve as Product
+        // when the target inventory is cargo (non-tech).
+        var item = new GameItem
+        {
+            Id = "^S22_LINK",
+            ItemType = "Others",
+            SourceTable = "Technology"
+        };
+        Assert.Equal("Product", InventoryStackDatabase.ResolveInventoryTypeForItem(item, isTechInventory: false));
+    }
+
+    [Fact]
+    public void ResolveInventoryTypeForItem_EmptySourceTable_FallsThroughToItemType()
+    {
+        // Items with no SourceTable should fall through to standard ItemType mapping.
+        var item = new GameItem
+        {
+            Id = "TEST",
+            ItemType = "Others",
+            SourceTable = ""
+        };
+        Assert.Equal("Product", InventoryStackDatabase.ResolveInventoryTypeForItem(item));
+    }
+
+    [Fact]
+    public void ResolveInventoryTypeForItem_ChargeValueOverrideTakesPrecedence()
+    {
+        // Items with ChargeValue > 0 from tech source files must resolve as Technology
+        // regardless of SourceTable.
+        var item = new GameItem
+        {
+            Id = "HDRIVEBOOST",
+            ItemType = "Technology",
+            SourceTable = "Technology",
+            ChargeValue = 25
+        };
+        Assert.Equal("Technology", InventoryStackDatabase.ResolveInventoryTypeForItem(item));
+    }
+
+    [Fact]
+    public void CanAddItem_SubstanceInOthersJson_AcceptedByCargoInventory()
+    {
+        var item = new GameItem
+        {
+            Id = "^SWARMDUST",
+            ItemType = "Others",
+            Category = "Substance",
+            SourceTable = "Substance"
+        };
+        Assert.True(InventoryStackDatabase.CanAddItemToInventory(item, isTechOnly: false, isCargo: true));
+    }
+
+    [Fact]
+    public void CanAddItem_TechnologyInOthersJson_RejectedByCargoInventory()
+    {
+        var item = new GameItem
+        {
+            Id = "^S22_LINK",
+            ItemType = "Others",
+            Category = "Technology",
+            SourceTable = "Technology"
+        };
+        Assert.False(InventoryStackDatabase.CanAddItemToInventory(item, isTechOnly: false, isCargo: true));
+    }
 }

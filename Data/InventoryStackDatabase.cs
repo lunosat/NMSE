@@ -200,6 +200,29 @@ public static class InventoryStackDatabase
     /// </summary>
     public static string ResolveInventoryTypeForItem(GameItem item)
     {
+        return ResolveInventoryTypeForItem(item, isTechInventory: false);
+    }
+
+    /// <summary>
+    /// Resolves the save-file <c>InventoryType</c> for a specific <see cref="GameItem"/>
+    /// within the context of the target inventory.
+    /// <para>
+    /// Procedural items are always Technology.  Non-procedural items from
+    /// technology-source JSON files ("Technology", "Upgrades",
+    /// "Constructed Technology") are Technology when they carry charge data
+    /// (<c>ChargeValue &gt; 0</c>, populated from the game's <c>ChargeAmount</c>
+    /// field).  Items in those same files without charge data are products
+    /// that happen to live in the technology table (e.g. NAV_DATA_DROP).
+    /// </para>
+    /// <para>
+    /// As a fallback, items whose <c>SourceTable</c> is "Substance" are always
+    /// resolved as Substance (e.g. Corrupted Ichor in Others.json).  Items
+    /// whose SourceTable is "Technology" are resolved as Technology only when
+    /// the target inventory is a tech-only inventory; in cargo they are Product.
+    /// </para>
+    /// </summary>
+    public static string ResolveInventoryTypeForItem(GameItem item, bool isTechInventory)
+    {
         // Procedural items are always technology in the save file, regardless
         // of the JSON file they came from.
         if (item.IsProcedural)
@@ -212,6 +235,18 @@ public static class InventoryStackDatabase
         // ResolveInventoryType would otherwise misclassify as Product.
         if (item.ChargeValue > 0 && IsTechnologySourceType(item.ItemType))
             return "Technology";
+
+        // SourceTable fallback for items in non-standard JSON files (e.g. Others.json).
+        // Substance items are always substances; Technology items are Technology
+        // only in tech inventories (in cargo they are Product).
+        if (!string.IsNullOrEmpty(item.SourceTable))
+        {
+            if (item.SourceTable.Equals("Substance", StringComparison.OrdinalIgnoreCase))
+                return "Substance";
+            if (isTechInventory
+                && item.SourceTable.Equals("Technology", StringComparison.OrdinalIgnoreCase))
+                return "Technology";
+        }
 
         return ResolveInventoryType(item.ItemType);
     }
@@ -249,7 +284,16 @@ public static class InventoryStackDatabase
     /// </summary>
     public static string ResolveSaveInventoryType(GameItem item)
     {
-        return ResolveInventoryTypeForItem(item);
+        return ResolveSaveInventoryType(item, isTechInventory: false);
+    }
+
+    /// <summary>
+    /// Resolves the save-file <c>InventoryType</c> for a known <see cref="GameItem"/>
+    /// being written to an inventory slot, with knowledge of the target inventory context.
+    /// </summary>
+    public static string ResolveSaveInventoryType(GameItem item, bool isTechInventory)
+    {
+        return ResolveInventoryTypeForItem(item, isTechInventory);
     }
 
     /// <summary>
@@ -270,7 +314,7 @@ public static class InventoryStackDatabase
     /// <param name="isCargo">True if the target inventory is cargo (no tech allowed).</param>
     public static bool CanAddItemToInventory(GameItem item, bool isTechOnly, bool isCargo)
     {
-        string invType = ResolveInventoryTypeForItem(item);
+        string invType = ResolveInventoryTypeForItem(item, isTechOnly);
 
         // CanPickUp excludes maintenance-category technology
         if (invType == "Technology"
@@ -316,7 +360,19 @@ public static class InventoryStackDatabase
         }
 
         if (isCargo)
-            return invType != "Technology";
+        {
+            // Cargo rejects true Technology items.  Items in tech-source JSON files
+            // with charge data are always Technology.  Items whose SourceTable is
+            // "Technology" are also true tech that should not go in cargo, even
+            // though they resolve as Product for save-file purposes (e.g. ^S22_LINK
+            // in Others.json).
+            if (invType == "Technology")
+                return false;
+            if (!string.IsNullOrEmpty(item.SourceTable)
+                && item.SourceTable.Equals("Technology", StringComparison.OrdinalIgnoreCase))
+                return false;
+            return true;
+        }
 
         return true;
     }

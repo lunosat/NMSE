@@ -527,7 +527,16 @@ public static class Categorizer
             itemId.StartsWith("U_TECHBOX_", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        // Default: valid items with unrecognized groups go to Others.json
+        // Default: valid items with unrecognized groups.
+        // Use SourceTable to route to the correct type-specific file before
+        // falling back to Others.json.  This prevents substances and technology
+        // that have new Group values (e.g. from game updates) from being
+        // misclassified as generic products in Others.json.
+        string sourceTable = (item.GetValueOrDefault("SourceTable")?.ToString() ?? "").Trim();
+        if (sourceTable.Equals("Substance", StringComparison.OrdinalIgnoreCase))
+            return "Raw Materials.json";
+        if (sourceTable.Equals("Technology", StringComparison.OrdinalIgnoreCase))
+            return "Technology.json";
         return "Others.json";
     }
 }
