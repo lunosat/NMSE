@@ -1471,8 +1471,8 @@ public partial class InventoryGridPanel : UserControl
     /// Resolves the save-file InventoryType for a specific game item,
     /// using <c>IsProcedural</c> to correctly classify procedural tech modules.
     /// </summary>
-    private static string ResolveInventoryTypeForItem(GameItem item)
-        => InventoryStackDatabase.ResolveInventoryTypeForItem(item);
+    private string ResolveInventoryTypeForItem(GameItem item)
+        => InventoryStackDatabase.ResolveInventoryTypeForItem(item, _isTechInventory);
 
     /// <summary>
     /// Resolves the save-file InventoryType accounting for the target inventory.
