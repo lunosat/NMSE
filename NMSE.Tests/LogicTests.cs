@@ -1614,6 +1614,50 @@ public class LogicTests
         Assert.Null(FreighterLogic.FindFreighterBase(json));
     }
 
+    [Fact]
+    public void FreighterLogic_DetectFreighterRooms_NullInput_ReturnsEmpty()
+    {
+        var result = FreighterLogic.DetectFreighterRooms(null);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public void FreighterLogic_DetectFreighterRooms_WithRooms_ShowsInstalledAndNotInstalled()
+    {
+        var baseObj = JsonObject.Parse(@"{
+            ""Objects"": [
+                { ""ObjectID"": ""^FRE_ROOM_SCAN"" },
+                { ""ObjectID"": ""^FRE_ROOM_SHOP"" },
+                { ""ObjectID"": ""^FRE_CORR_A"" }
+            ]
+        }");
+
+        var result = FreighterLogic.DetectFreighterRooms(baseObj);
+        Assert.Equal(FreighterLogic.KnownRooms.Count, result.Count);
+
+        // Scanner Room and Galactic Trade Room should be installed (checkmark)
+        Assert.Contains(result, r => r.Contains("Scanner Room") && r.Contains("\u2705"));
+        Assert.Contains(result, r => r.Contains("Galactic Trade Room") && r.Contains("\u2705"));
+
+        // Fleet Command Room should NOT be installed (cross)
+        Assert.Contains(result, r => r.Contains("Fleet Command Room") && r.Contains("\u274C"));
+    }
+
+    [Fact]
+    public void FreighterLogic_DetectFreighterRooms_EmptyObjects_AllNotInstalled()
+    {
+        var baseObj = JsonObject.Parse(@"{ ""Objects"": [] }");
+        var result = FreighterLogic.DetectFreighterRooms(baseObj);
+        Assert.Equal(FreighterLogic.KnownRooms.Count, result.Count);
+        Assert.All(result, r => Assert.Contains("\u274C", r));
+    }
+
+    [Fact]
+    public void FreighterLogic_KnownRooms_HasExpectedCount()
+    {
+        Assert.Equal(30, FreighterLogic.KnownRooms.Count);
+    }
+
     // --- FrigateLogic ------------------------------------------------
 
     [Fact]
@@ -5522,6 +5566,7 @@ public class LogicTests
     [InlineData("Exotic", "Ship")]
     [InlineData("Solar", "Ship")]
     [InlineData("Living Ship", "AlienShip")]
+    [InlineData("The Wraith", "AlienShip")]
     [InlineData("Sentinel", "RobotShip")]
     [InlineData("Corvette", "Corvette")]
     public void StarshipLogic_GetOwnerTypeForShip_ReturnsCorrectOwner(string shipType, string expectedOwner)

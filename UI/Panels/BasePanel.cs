@@ -4,6 +4,7 @@ using NMSE.Core;
 using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
+using NMSE.UI.Controls;
 using NMSE.UI.Util;
 
 namespace NMSE.UI.Panels;
@@ -175,7 +176,7 @@ internal class BasesSubPanel : UserControl
 
     // Base Info section (right column)
     private readonly TextBox _baseName;
-    private readonly TextBox _baseItems;
+    private TextBox _baseItems = null!;
     private string? _pendingBaseName;
 
     // NPC Summon
@@ -203,12 +204,83 @@ internal class BasesSubPanel : UserControl
     private Label? _nameLabel;
     private Label? _itemsLabel;
 
+    // Freighter rooms section (in Objects tab)
+    private Label _freighterRoomsTitle = null!;
+    private ListBox _freighterRoomList = null!;
+    private Panel _objectsFreighterPanel = null!;
+
     // State
     private bool _loading;
     private JsonObject? _playerState;
     private readonly List<NpcWorkerItem> _npcWorkers = new();
     private readonly List<BaseInfoItem> _baseInfoItems = new();
     private readonly Random _rng = new();
+
+    // Objects tab
+    private readonly DoubleBufferedTabControl _rightTabs;
+    private readonly TabPage _infoTab;
+    private readonly TabPage _objectsTab;
+
+    // Objects tab - base fields (editable)
+    private InvariantNumericTextBox _objBaseVersion = null!;
+    private InvariantNumericTextBox _objOriginalBaseVersion = null!;
+    private TextBox _objGalacticAddress = null!;
+    private InvariantNumericTextBox _objPositionX = null!;
+    private InvariantNumericTextBox _objPositionY = null!;
+    private InvariantNumericTextBox _objPositionZ = null!;
+    private InvariantNumericTextBox _objForwardX = null!;
+    private InvariantNumericTextBox _objForwardY = null!;
+    private InvariantNumericTextBox _objForwardZ = null!;
+    private InvariantNumericTextBox _objUserData = null!;
+    private InvariantNumericTextBox _objLastUpdateTimestamp = null!;
+    private TextBox _objRID = null!;
+    private InvariantNumericTextBox _objScreenshotAtX = null!;
+    private InvariantNumericTextBox _objScreenshotAtY = null!;
+    private InvariantNumericTextBox _objScreenshotAtZ = null!;
+    private InvariantNumericTextBox _objScreenshotPosX = null!;
+    private InvariantNumericTextBox _objScreenshotPosY = null!;
+    private InvariantNumericTextBox _objScreenshotPosZ = null!;
+    private CheckBox _objIsReported = null!;
+    private CheckBox _objIsFeatured = null!;
+    private TextBox _objAutoPower = null!;
+
+    // Objects tab - base fields (read-only)
+    private TextBox _objBaseType = null!;
+    private TextBox _objOwnerLID = null!;
+    private TextBox _objOwnerUID = null!;
+    private TextBox _objOwnerUSN = null!;
+    private TextBox _objOwnerPTK = null!;
+    private TextBox _objOwnerTS = null!;
+    private TextBox _objLastEditedById = null!;
+    private TextBox _objLastEditedByUsername = null!;
+    private TextBox _objGameMode = null!;
+    private TextBox _objDifficulty = null!;
+    private TextBox _objPlatformToken = null!;
+
+    // Objects tab - labels (for localisation)
+    private readonly List<(string key, Label control)> _objectsLabels = new();
+
+    // Objects tab - object list
+    private TextBox _objectSearchBox = null!;
+    private Button _objectSearchClearBtn = null!;
+    private ListBox _objectList = null!;
+
+    // Objects tab - object detail fields
+    private InvariantNumericTextBox _objectDetailTimestamp = null!;
+    private TextBox _objectDetailObjectID = null!;
+    private InvariantNumericTextBox _objectDetailUserData = null!;
+    private InvariantNumericTextBox _objectDetailPositionX = null!;
+    private InvariantNumericTextBox _objectDetailPositionY = null!;
+    private InvariantNumericTextBox _objectDetailPositionZ = null!;
+    private InvariantNumericTextBox _objectDetailUpX = null!;
+    private InvariantNumericTextBox _objectDetailUpY = null!;
+    private InvariantNumericTextBox _objectDetailUpZ = null!;
+    private InvariantNumericTextBox _objectDetailAtX = null!;
+    private InvariantNumericTextBox _objectDetailAtY = null!;
+    private InvariantNumericTextBox _objectDetailAtZ = null!;
+
+    // Objects tab - detail labels (for localisation)
+    private readonly List<(string key, Label control)> _objectDetailLabels = new();
 
     public BasesSubPanel()
     {
@@ -366,18 +438,25 @@ internal class BasesSubPanel : UserControl
 
         outerContent.Controls.Add(leftLayout, 0, 0);
 
-        // --- Right column: NPC section + Base Info section ---
+        // --- Right column: Tabbed Info + Objects ---
+        _rightTabs = new DoubleBufferedTabControl { Dock = DockStyle.Fill };
+        _infoTab = new TabPage("Info");
+        _objectsTab = BuildObjectsTab();
+
+        // --- Right column: NPC section + Base Info section + Freighter Rooms ---
         var rightLayout = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             ColumnCount = 3,
-            RowCount = 12,
+            RowCount = 13,
             Padding = new Padding(0)
         };
         rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         rightLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (int i = 0; i < 11; i++)
+        for (int i = 0; i < 12; i++)
             rightLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -388,7 +467,7 @@ internal class BasesSubPanel : UserControl
         {
             Text = UiStrings.Get("base.npc_header"),
             AutoSize = true,
-            Padding = new Padding(0, 0, 0, 4)
+            Padding = new Padding(0, 8, 0, 4)
         };
         FontManager.ApplyHeadingFont(_npcTitle, 11);
         rightLayout.Controls.Add(_npcTitle, 0, row);
@@ -482,9 +561,6 @@ internal class BasesSubPanel : UserControl
         };
         _nameLabel = AddRow(rightLayout, UiStrings.Get("base.name_label"), _baseName, row); row++;
 
-        _baseItems = new TextBox { Dock = DockStyle.Fill, ReadOnly = true };
-        _itemsLabel = AddRow(rightLayout, UiStrings.Get("base.items_label"), _baseItems, row); row++;
-
         // Buttons panel row 1: Export / Import / Move Base Computer
         var buttonPanel = new FlowLayoutPanel
         {
@@ -557,8 +633,18 @@ internal class BasesSubPanel : UserControl
         terrainButtonPanel.Controls.Add(_clearAllTerrainExceptBasesBtn);
         rightLayout.Controls.Add(terrainButtonPanel, 0, row);
         rightLayout.SetColumnSpan(terrainButtonPanel, 3);
+        row++;
 
-        outerContent.Controls.Add(rightLayout, 1, 0);
+        var baseFieldsPanel = BuildBaseFieldsPanel();
+        rightLayout.Controls.Add(baseFieldsPanel, 0, row);
+        rightLayout.SetColumnSpan(baseFieldsPanel, 3);
+
+        var infoScrollPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
+        infoScrollPanel.Controls.Add(rightLayout);
+        _infoTab.Controls.Add(infoScrollPanel);
+        _rightTabs.TabPages.Add(_infoTab);
+        _rightTabs.TabPages.Add(_objectsTab);
+        outerContent.Controls.Add(_rightTabs, 1, 0);
 
         outerLayout.Controls.Add(outerContent, 0, 1);
 
@@ -591,6 +677,7 @@ internal class BasesSubPanel : UserControl
         _clearTerrainEditsBtn.Enabled = false;
         _clearAllTerrainEditsBtn.Enabled = false;
         _clearAllTerrainExceptBasesBtn.Enabled = false;
+        ClearObjectFields();
 
         try
         {
@@ -623,7 +710,7 @@ internal class BasesSubPanel : UserControl
                 }
             }
 
-            // Load PersistentPlayerBases (only HomePlanetBase with BaseVersion >= 3)
+            // Load PersistentPlayerBases (HomePlanetBase and FreighterBase with BaseVersion >= 3)
             var bases = _playerState.GetArray("PersistentPlayerBases");
             if (bases != null)
             {
@@ -639,9 +726,15 @@ internal class BasesSubPanel : UserControl
                         int baseVersion = 0;
                         try { baseVersion = baseObj.GetInt("BaseVersion"); } catch { }
 
-                        if ("HomePlanetBase".Equals(baseType, StringComparison.OrdinalIgnoreCase) && baseVersion >= 3)
+                        bool isHome = "HomePlanetBase".Equals(baseType, StringComparison.OrdinalIgnoreCase);
+                        bool isFreighter = "FreighterBase".Equals(baseType, StringComparison.OrdinalIgnoreCase);
+                        if ((isHome || isFreighter) && baseVersion >= 3)
                         {
-                            string name = baseObj.GetString("Name") ?? UiStrings.Format("base.fallback_base_name", i + 1);
+                            string name;
+                            if (isFreighter)
+                                name = _playerState.GetString("PlayerFreighterName") ?? UiStrings.Format("base.fallback_base_name", i + 1);
+                            else
+                                name = baseObj.GetString("Name") ?? UiStrings.Format("base.fallback_base_name", i + 1);
                             int objectCount = 0;
                             try
                             {
@@ -650,7 +743,7 @@ internal class BasesSubPanel : UserControl
                             }
                             catch { }
 
-                            var item = new BaseInfoItem(name, baseObj, i, objectCount);
+                            var item = new BaseInfoItem(name, baseObj, i, objectCount, isFreighter);
                             _baseInfoItems.Add(item);
                             _baseList.Items.Add(item);
                         }
@@ -884,18 +977,37 @@ internal class BasesSubPanel : UserControl
             _baseItems.Text = "";
             _exportBtn.Enabled = false;
             _importBtn.Enabled = false;
-        _moveBaseComputerBtn.Enabled = false;
-        _deleteBaseBtn.Enabled = false;
-        _clearTerrainEditsBtn.Enabled = false;
-        _pendingBaseName = null;
-        UpdateSummonButtonState();
-        UpdateMoveButtonStates();
-        return;
+            _moveBaseComputerBtn.Enabled = false;
+            _deleteBaseBtn.Enabled = false;
+            _clearTerrainEditsBtn.Enabled = false;
+            _clearAllTerrainEditsBtn.Enabled = true;
+            _clearAllTerrainExceptBasesBtn.Enabled = true;
+            _pendingBaseName = null;
+            UpdateSummonButtonState();
+            UpdateMoveButtonStates();
+            UpdateFreighterBaseControls(false);
+            ClearObjectFields();
+            return;
         }
 
-        _baseName.Text = item.Data.GetString("Name") ?? "";
-        _baseName.Enabled = true;
-        _pendingBaseName = _baseName.Text;
+        bool isFreighter = item.IsFreighterBase;
+
+        // For freighter bases, show the freighter name (read from PlayerFreighterName,
+        // not the base entry which is always empty). For planetary bases, show the
+        // base's own Name field.
+        if (isFreighter)
+        {
+            string freighterName = _playerState?.GetString("PlayerFreighterName") ?? "";
+            _baseName.Text = freighterName;
+            _baseName.Enabled = false;
+            _pendingBaseName = null;
+        }
+        else
+        {
+            _baseName.Text = item.Data.GetString("Name") ?? "";
+            _baseName.Enabled = true;
+            _pendingBaseName = _baseName.Text;
+        }
 
         int objectCount = 0;
         try
@@ -907,11 +1019,37 @@ internal class BasesSubPanel : UserControl
         _baseItems.Text = objectCount.ToString(CultureInfo.CurrentCulture);
         _exportBtn.Enabled = true;
         _importBtn.Enabled = true;
-        _moveBaseComputerBtn.Enabled = true;
+        _moveBaseComputerBtn.Enabled = !isFreighter;
         _deleteBaseBtn.Enabled = true;
-        _clearTerrainEditsBtn.Enabled = true;
+        _clearTerrainEditsBtn.Enabled = !isFreighter;
+        _clearAllTerrainEditsBtn.Enabled = !isFreighter;
+        _clearAllTerrainExceptBasesBtn.Enabled = !isFreighter;
+        UpdateFreighterBaseControls(isFreighter);
+
+        if (isFreighter)
+        {
+            var rooms = FreighterLogic.DetectFreighterRooms(item.Data);
+            _freighterRoomList.BeginUpdate();
+            _freighterRoomList.Items.Clear();
+            foreach (var room in rooms)
+                _freighterRoomList.Items.Add(room);
+            _freighterRoomList.EndUpdate();
+        }
+
         UpdateSummonButtonState();
         UpdateMoveButtonStates();
+        LoadObjectFields();
+    }
+
+    /// <summary>
+    /// Shows or hides the freighter-specific controls (freighter rooms list)
+    /// based on whether the selected base is a freighter base.
+    /// </summary>
+    private void UpdateFreighterBaseControls(bool isFreighterBase)
+    {
+        _objectsFreighterPanel.Visible = isFreighterBase;
+        if (!isFreighterBase)
+            _freighterRoomList.Items.Clear();
     }
 
     private void UpdateSummonButtonState()
@@ -945,6 +1083,7 @@ internal class BasesSubPanel : UserControl
 
     private void OnBaseNameChanged(object? sender, EventArgs e)
     {
+        if (_loading) return;
         if (_baseList.SelectedItem is not BaseInfoItem item) return;
         string newName = _baseName.Text.Trim();
         if (newName == _pendingBaseName) return;
@@ -1268,6 +1407,856 @@ internal class BasesSubPanel : UserControl
         }
     }
 
+    private TabPage BuildObjectsTab()
+    {
+        var tab = new TabPage("Objects");
+
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 4,
+            Padding = new Padding(0)
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // row 0: title
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // row 1: items
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));     // row 2: freighter panel
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // row 3: object split
+
+        var objectsTitle = new Label
+        {
+            Text = UiStrings.Get("base.obj_heading"),
+            AutoSize = true,
+            Padding = new Padding(0, 8, 0, 4)
+        };
+        FontManager.ApplyHeadingFont(objectsTitle, 11);
+        _objectsLabels.Add(("base.obj_heading", objectsTitle));
+        layout.Controls.Add(objectsTitle, 0, 0);
+
+        _baseItems = new TextBox { Dock = DockStyle.Fill, Enabled = false };
+        _itemsLabel = new Label { Text = UiStrings.Get("base.items_label"), AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 5, 10, 0) };
+        _objectsLabels.Add(("base.items_label", _itemsLabel));
+        var itemsRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, AutoSize = true, Margin = Padding.Empty, Padding = Padding.Empty };
+        itemsRow.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        itemsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        itemsRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        itemsRow.Controls.Add(_itemsLabel, 0, 0);
+        itemsRow.Controls.Add(_baseItems, 1, 0);
+        layout.Controls.Add(itemsRow, 0, 1);
+
+        // Freighter rooms panel (visible only for freighter bases)
+        _objectsFreighterPanel = new Panel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            Padding = new Padding(0)
+        };
+        _freighterRoomsTitle = new Label
+        {
+            Text = UiStrings.Get("base.freighter_rooms_header"),
+            AutoSize = true,
+            Padding = new Padding(0, 8, 0, 4),
+            Dock = DockStyle.Top
+        };
+        FontManager.ApplyHeadingFont(_freighterRoomsTitle, 11);
+        _freighterRoomList = new ListBox
+        {
+            Dock = DockStyle.Top,
+            SelectionMode = SelectionMode.None,
+            IntegralHeight = false,
+            MaximumSize = new Size(0, 160)
+        };
+        // WinForms Dock=Top reverse order: last added = topmost
+        _objectsFreighterPanel.Controls.Add(_freighterRoomList);
+        _objectsFreighterPanel.Controls.Add(_freighterRoomsTitle);
+        _objectsFreighterPanel.Visible = false;
+        layout.Controls.Add(_objectsFreighterPanel, 0, 2);
+
+        var objectSplitPanel = BuildObjectSplitPanel();
+        layout.Controls.Add(objectSplitPanel, 0, 3);
+
+        tab.Controls.Add(layout);
+        return tab;
+    }
+
+    private TableLayoutPanel BuildBaseFieldsPanel()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 7,
+            Padding = new Padding(0)
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 0: label
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 1: "X"
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));    // col 2: xField
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 3: "Y"
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));    // col 4: yField
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 5: "Z"
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));    // col 6: zField
+
+        int row = 0;
+
+        _objBaseVersion = new InvariantNumericTextBox { Width = 55, Anchor = AnchorStyles.Left };
+        _objBaseVersion.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldWide(panel, "base.obj_base_version", _objBaseVersion, row);
+        row++;
+
+        _objOriginalBaseVersion = new InvariantNumericTextBox { Width = 55, Anchor = AnchorStyles.Left };
+        _objOriginalBaseVersion.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldWide(panel, "base.obj_original_base_version", _objOriginalBaseVersion, row);
+        row++;
+
+        _objGalacticAddress = new TextBox { Dock = DockStyle.Fill };
+        _objGalacticAddress.Leave += OnBaseFieldTextChanged;
+        AddObjFieldHalf(panel, "base.obj_galactic_address", _objGalacticAddress, row);
+        panel.SetColumnSpan(_objGalacticAddress, 2);
+        row++;
+
+        _objPositionX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objPositionX.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objPositionY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objPositionY.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objPositionZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objPositionZ.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldVector(panel, "base.obj_position",
+            "X", _objPositionX, "Y", _objPositionY, "Z", _objPositionZ, row);
+        row++;
+
+        _objForwardX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objForwardX.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objForwardY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objForwardY.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objForwardZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objForwardZ.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldVector(panel, "base.obj_forward",
+            "X", _objForwardX, "Y", _objForwardY, "Z", _objForwardZ, row);
+        row++;
+
+        _objUserData = new InvariantNumericTextBox { Width = 195, Anchor = AnchorStyles.Left };
+        _objUserData.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldWide(panel, "base.obj_user_data", _objUserData, row);
+        row++;
+
+        _objRID = new TextBox { Width = 195, Anchor = AnchorStyles.Left };
+        _objRID.Leave += OnBaseFieldTextChanged;
+        AddObjFieldWide(panel, "base.obj_rid", _objRID, row);
+        row++;
+        row++;
+
+        _objLastUpdateTimestamp = new InvariantNumericTextBox { Width = 165, Anchor = AnchorStyles.Left };
+        _objLastUpdateTimestamp.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldWide(panel, "base.obj_last_update_timestamp", _objLastUpdateTimestamp, row);
+        row++;
+
+        _objAutoPower = new TextBox { Width = 195, Anchor = AnchorStyles.Left };
+        _objAutoPower.Leave += OnBaseFieldTextChanged;
+        AddObjFieldWide(panel, "base.obj_auto_power", _objAutoPower, row);
+        row++;
+
+        _objScreenshotAtX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objScreenshotAtX.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objScreenshotAtY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objScreenshotAtY.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objScreenshotAtZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objScreenshotAtZ.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldVector(panel, "base.obj_screenshot_at",
+            "X", _objScreenshotAtX, "Y", _objScreenshotAtY, "Z", _objScreenshotAtZ, row);
+        row++;
+
+        _objScreenshotPosX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objScreenshotPosX.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objScreenshotPosY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objScreenshotPosY.NumericValueChanged += OnBaseFieldNumericChanged;
+        _objScreenshotPosZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objScreenshotPosZ.NumericValueChanged += OnBaseFieldNumericChanged;
+        AddObjFieldVector(panel, "base.obj_screenshot_pos",
+            "X", _objScreenshotPosX, "Y", _objScreenshotPosY, "Z", _objScreenshotPosZ, row);
+        row++;
+
+        _objIsReported = new CheckBox { AutoSize = true };
+        _objIsReported.CheckedChanged += OnBaseFieldCheckedChanged;
+        AddObjFieldPaired(panel, "base.obj_is_reported", _objIsReported,
+            "base.obj_is_featured", _objIsFeatured = new CheckBox { AutoSize = true }, row);
+        _objIsFeatured.CheckedChanged += OnBaseFieldCheckedChanged;
+        row++;
+
+        var readOnlySep = new Label { AutoSize = false, Height = 8 };
+        panel.Controls.Add(readOnlySep, 0, row);
+        panel.SetColumnSpan(readOnlySep, 7);
+        row++;
+
+        AddObjFieldPaired(panel, "base.obj_base_type",
+            _objBaseType = new TextBox { Dock = DockStyle.Fill, Enabled = false },
+            "base.obj_game_mode",
+            _objGameMode = new TextBox { Dock = DockStyle.Fill, Enabled = false }, row);
+        row++;
+
+        AddObjFieldPaired(panel, "base.obj_difficulty",
+            _objDifficulty = new TextBox { Dock = DockStyle.Fill, Enabled = false },
+            "base.obj_platform_token",
+            _objPlatformToken = new TextBox { Dock = DockStyle.Fill, Enabled = false }, row);
+        row++;
+
+        AddObjFieldPaired(panel, "base.obj_owner_lid",
+            _objOwnerLID = new TextBox { Dock = DockStyle.Fill, Enabled = false },
+            "base.obj_owner_uid",
+            _objOwnerUID = new TextBox { Dock = DockStyle.Fill, Enabled = false }, row);
+        row++;
+
+        AddObjFieldPaired(panel, "base.obj_owner_usn",
+            _objOwnerUSN = new TextBox { Dock = DockStyle.Fill, Enabled = false },
+            "base.obj_owner_ptk",
+            _objOwnerPTK = new TextBox { Dock = DockStyle.Fill, Enabled = false }, row);
+        row++;
+
+        AddObjFieldPaired(panel, "base.obj_owner_ts",
+            _objOwnerTS = new TextBox { Dock = DockStyle.Fill, Enabled = false },
+            "base.obj_last_edited_by_id",
+            _objLastEditedById = new TextBox { Dock = DockStyle.Fill, Enabled = false }, row);
+        row++;
+
+        _objLastEditedByUsername = new TextBox { Dock = DockStyle.Fill, Enabled = false };
+        AddObjFieldWide(panel, "base.obj_last_edited_by_username", _objLastEditedByUsername, row);
+
+        return panel;
+    }
+
+    private TableLayoutPanel BuildObjectSplitPanel()
+    {
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 29));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 71));
+
+        var listPanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 2
+        };
+        listPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        listPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        listPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        listPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        _objectSearchBox = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            PlaceholderText = UiStrings.Get("base.objects_filter")
+        };
+        _objectSearchBox.TextChanged += OnObjectSearchChanged;
+        listPanel.Controls.Add(_objectSearchBox, 0, 0);
+
+        _objectSearchClearBtn = new Button
+        {
+            Text = "\u2715",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink
+        };
+        _objectSearchClearBtn.Click += (_, _) => _objectSearchBox.Text = "";
+        listPanel.Controls.Add(_objectSearchClearBtn, 1, 0);
+
+        _objectList = new ListBox
+        {
+            Dock = DockStyle.Fill,
+            SelectionMode = SelectionMode.One,
+            IntegralHeight = false
+        };
+        _objectList.SelectedIndexChanged += OnObjectSelected;
+        listPanel.Controls.Add(_objectList, 0, 1);
+        listPanel.SetColumnSpan(_objectList, 2);
+
+        panel.Controls.Add(listPanel, 0, 0);
+
+        var detailPanel = BuildObjectDetailPanel();
+        panel.Controls.Add(detailPanel, 1, 0);
+
+        return panel;
+    }
+
+    private TableLayoutPanel BuildObjectDetailPanel()
+    {
+        // 7 columns: label | "X" | xField | "Y" | yField | "Z" | zField
+        // Scalar fields span columns 1-6 as a single value.
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 7,
+            RowCount = 7
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 0: label
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 1: "X"
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));    // col 2: xField
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 3: "Y"
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33));    // col 4: yField
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));       // col 5: "Z"
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));    // col 6: zField
+        for (int i = 0; i < 6; i++)
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        int row = 0;
+
+        _objectDetailTimestamp = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailTimestamp.NumericValueChanged += OnObjectFieldNumericChanged;
+        AddDetailFieldWide(panel, "base.obj_detail_timestamp", _objectDetailTimestamp, row);
+        row++;
+
+        _objectDetailObjectID = new TextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailObjectID.Leave += OnObjectFieldTextChanged;
+        AddDetailFieldWide(panel, "base.obj_detail_object_id", _objectDetailObjectID, row);
+        row++;
+
+        _objectDetailUserData = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailUserData.NumericValueChanged += OnObjectFieldNumericChanged;
+        AddDetailFieldWide(panel, "base.obj_detail_user_data", _objectDetailUserData, row);
+        row++;
+
+        _objectDetailPositionX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailPositionX.NumericValueChanged += OnObjectFieldNumericChanged;
+        _objectDetailPositionY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailPositionY.NumericValueChanged += OnObjectFieldNumericChanged;
+        _objectDetailPositionZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailPositionZ.NumericValueChanged += OnObjectFieldNumericChanged;
+        AddDetailVectorRow(panel, "base.obj_detail_position",
+            "X", _objectDetailPositionX, "Y", _objectDetailPositionY, "Z", _objectDetailPositionZ, row);
+        row++;
+
+        _objectDetailUpX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailUpX.NumericValueChanged += OnObjectFieldNumericChanged;
+        _objectDetailUpY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailUpY.NumericValueChanged += OnObjectFieldNumericChanged;
+        _objectDetailUpZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailUpZ.NumericValueChanged += OnObjectFieldNumericChanged;
+        AddDetailVectorRow(panel, "base.obj_detail_up",
+            "X", _objectDetailUpX, "Y", _objectDetailUpY, "Z", _objectDetailUpZ, row);
+        row++;
+
+        _objectDetailAtX = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailAtX.NumericValueChanged += OnObjectFieldNumericChanged;
+        _objectDetailAtY = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailAtY.NumericValueChanged += OnObjectFieldNumericChanged;
+        _objectDetailAtZ = new InvariantNumericTextBox { Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        _objectDetailAtZ.NumericValueChanged += OnObjectFieldNumericChanged;
+        AddDetailVectorRow(panel, "base.obj_detail_at",
+            "X", _objectDetailAtX, "Y", _objectDetailAtY, "Z", _objectDetailAtZ, row);
+
+        return panel;
+    }
+
+    private void AddDetailFieldWide(TableLayoutPanel panel, string locKey, Control field, int row)
+    {
+        var label = new Label
+        {
+            Text = UiStrings.Get(locKey),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 3, 10, 0)
+        };
+        _objectDetailLabels.Add((locKey, label));
+        panel.Controls.Add(label, 0, row);
+        panel.Controls.Add(field, 1, row);
+        panel.SetColumnSpan(field, 6);
+    }
+
+    private void AddDetailVectorRow(TableLayoutPanel panel, string locKey,
+        string xLabel, InvariantNumericTextBox xField,
+        string yLabel, InvariantNumericTextBox yField,
+        string zLabel, InvariantNumericTextBox zField, int row)
+    {
+        var label = new Label
+        {
+            Text = UiStrings.Get(locKey),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 3, 10, 0)
+        };
+        _objectDetailLabels.Add((locKey, label));
+        panel.Controls.Add(label, 0, row);
+        panel.Controls.Add(new Label { Text = xLabel, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 3, 4, 0) }, 1, row);
+        panel.Controls.Add(xField, 2, row);
+        panel.Controls.Add(new Label { Text = yLabel, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(4, 3, 4, 0) }, 3, row);
+        panel.Controls.Add(yField, 4, row);
+        panel.Controls.Add(new Label { Text = zLabel, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(4, 3, 4, 0) }, 5, row);
+        panel.Controls.Add(zField, 6, row);
+    }
+
+    private void AddObjField(TableLayoutPanel panel, string locKey, Control field, int row, int labelCol, int valueCol)
+    {
+        var label = new Label
+        {
+            Text = UiStrings.Get(locKey),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0)
+        };
+        _objectsLabels.Add((locKey, label));
+        panel.Controls.Add(label, labelCol, row);
+        panel.Controls.Add(field, valueCol, row);
+    }
+
+    private void AddObjFieldWide(TableLayoutPanel panel, string locKey, Control field, int row)
+    {
+        var label = new Label
+        {
+            Text = UiStrings.Get(locKey),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0)
+        };
+        _objectsLabels.Add((locKey, label));
+        panel.Controls.Add(label, 0, row);
+        panel.Controls.Add(field, 1, row);
+        panel.SetColumnSpan(field, 6);
+    }
+
+    private void AddObjFieldHalf(TableLayoutPanel panel, string locKey, Control field, int row)
+    {
+        var label = new Label
+        {
+            Text = UiStrings.Get(locKey),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0)
+        };
+        _objectsLabels.Add((locKey, label));
+        panel.Controls.Add(label, 0, row);
+        panel.Controls.Add(field, 1, row);
+        panel.SetColumnSpan(field, 3);
+    }
+
+    private void AddObjFieldVector(TableLayoutPanel panel, string locKey,
+        string xLabel, Control xField,
+        string yLabel, Control yField,
+        string zLabel, Control zField, int row)
+    {
+        var label = new Label
+        {
+            Text = UiStrings.Get(locKey),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0)
+        };
+        _objectsLabels.Add((locKey, label));
+        panel.Controls.Add(label, 0, row);
+        panel.Controls.Add(new Label { Text = xLabel, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 5, 4, 0) }, 1, row);
+        panel.Controls.Add(xField, 2, row);
+        panel.Controls.Add(new Label { Text = yLabel, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(4, 5, 4, 0) }, 3, row);
+        panel.Controls.Add(yField, 4, row);
+        panel.Controls.Add(new Label { Text = zLabel, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(4, 5, 4, 0) }, 5, row);
+        panel.Controls.Add(zField, 6, row);
+    }
+
+    private void AddObjFieldPaired(TableLayoutPanel panel,
+        string locKey1, Control field1,
+        string locKey2, Control field2, int row)
+    {
+        var label1 = new Label
+        {
+            Text = UiStrings.Get(locKey1),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0)
+        };
+        _objectsLabels.Add((locKey1, label1));
+        panel.Controls.Add(label1, 0, row);
+        var wrap1 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty };
+        wrap1.Controls.Add(field1);
+        panel.Controls.Add(wrap1, 1, row);
+        panel.SetColumnSpan(wrap1, 3);
+
+        var label2 = new Label
+        {
+            Text = UiStrings.Get(locKey2),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Padding = new Padding(0, 5, 10, 0)
+        };
+        _objectsLabels.Add((locKey2, label2));
+        panel.Controls.Add(label2, 4, row);
+        var wrap2 = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty };
+        wrap2.Controls.Add(field2);
+        panel.Controls.Add(wrap2, 5, row);
+        panel.SetColumnSpan(wrap2, 2);
+    }
+
+
+    private void LoadObjectFields()
+    {
+        if (_baseList.SelectedItem is not BaseInfoItem item)
+        {
+            ClearObjectFields();
+            return;
+        }
+
+        bool wasLoading = _loading;
+        var baseObj = item.Data;
+        _loading = true;
+        try
+        {
+            _objBaseVersion.NumericValue = GetDoubleSafe(baseObj, "BaseVersion");
+            _objOriginalBaseVersion.NumericValue = GetDoubleSafe(baseObj, "OriginalBaseVersion");
+            _objGalacticAddress.Text = GetGalacticAddressText(baseObj);
+            LoadVector3(baseObj, "Position", _objPositionX, _objPositionY, _objPositionZ);
+            LoadVector3(baseObj, "Forward", _objForwardX, _objForwardY, _objForwardZ);
+            _objUserData.NumericValue = GetDoubleSafe(baseObj, "UserData");
+            _objLastUpdateTimestamp.NumericValue = GetDoubleSafe(baseObj, "LastUpdateTimestamp");
+            _objRID.Text = baseObj.GetString("RID") ?? "";
+            LoadVector3(baseObj, "ScreenshotAt", _objScreenshotAtX, _objScreenshotAtY, _objScreenshotAtZ);
+            LoadVector3(baseObj, "ScreenshotPos", _objScreenshotPosX, _objScreenshotPosY, _objScreenshotPosZ);
+            _objIsReported.Checked = baseObj.GetBool("IsReported");
+            _objIsFeatured.Checked = baseObj.GetBool("IsFeatured");
+            _objAutoPower.Text = baseObj.GetString("AutoPowerSetting.BaseAutoPowerSetting") ?? "";
+
+            _objBaseType.Text = baseObj.GetString("BaseType.PersistentBaseTypes") ?? "";
+            _objGameMode.Text = baseObj.GetString("GameMode.PresetGameMode") ?? "";
+            _objDifficulty.Text = baseObj.GetString("Difficulty.DifficultyPreset.DifficultyPresetType") ?? "";
+            _objPlatformToken.Text = baseObj.GetString("PlatformToken") ?? "";
+            _objOwnerLID.Text = baseObj.GetString("Owner.LID") ?? "";
+            _objOwnerUID.Text = baseObj.GetString("Owner.UID") ?? "";
+            _objOwnerUSN.Text = baseObj.GetString("Owner.USN") ?? "";
+            _objOwnerPTK.Text = baseObj.GetString("Owner.PTK") ?? "";
+            _objOwnerTS.Text = GetDoubleSafe(baseObj, "Owner.TS")?.ToString(CultureInfo.InvariantCulture) ?? "";
+            _objLastEditedById.Text = baseObj.GetString("LastEditedById") ?? "";
+            _objLastEditedByUsername.Text = baseObj.GetString("LastEditedByUsername") ?? "";
+
+            LoadObjectList(baseObj);
+        }
+        finally
+        {
+            _loading = wasLoading;
+        }
+    }
+
+    private void ClearObjectFields()
+    {
+        bool wasLoading = _loading;
+        _loading = true;
+        try
+        {
+            _objBaseVersion.NumericValue = null;
+            _objOriginalBaseVersion.NumericValue = null;
+            _objGalacticAddress.Text = "";
+            _objPositionX.NumericValue = null;
+            _objPositionY.NumericValue = null;
+            _objPositionZ.NumericValue = null;
+            _objForwardX.NumericValue = null;
+            _objForwardY.NumericValue = null;
+            _objForwardZ.NumericValue = null;
+            _objUserData.NumericValue = null;
+            _objLastUpdateTimestamp.NumericValue = null;
+            _objRID.Text = "";
+            _objScreenshotAtX.NumericValue = null;
+            _objScreenshotAtY.NumericValue = null;
+            _objScreenshotAtZ.NumericValue = null;
+            _objScreenshotPosX.NumericValue = null;
+            _objScreenshotPosY.NumericValue = null;
+            _objScreenshotPosZ.NumericValue = null;
+            _objIsReported.Checked = false;
+            _objIsFeatured.Checked = false;
+            _objAutoPower.Text = "";
+            _objBaseType.Text = "";
+            _objGameMode.Text = "";
+            _objDifficulty.Text = "";
+            _objPlatformToken.Text = "";
+            _objOwnerLID.Text = "";
+            _objOwnerUID.Text = "";
+            _objOwnerUSN.Text = "";
+            _objOwnerPTK.Text = "";
+            _objOwnerTS.Text = "";
+            _objLastEditedById.Text = "";
+            _objLastEditedByUsername.Text = "";
+            _objectList.Items.Clear();
+            ClearObjectDetail();
+        }
+        finally
+        {
+            _loading = wasLoading;
+        }
+    }
+
+    private void LoadObjectList(JsonObject baseObj)
+    {
+        _objectList.Items.Clear();
+        var objects = baseObj.GetArray("Objects");
+        if (objects == null) return;
+
+        for (int i = 0; i < objects.Length; i++)
+        {
+            try
+            {
+                var obj = objects.GetObject(i);
+                string objectId = obj.GetString("ObjectID") ?? "";
+                var item = new BaseObjectItem(objectId, obj, i);
+                _objectList.Items.Add(item);
+            }
+            catch { }
+        }
+    }
+
+    private void LoadObjectDetail(JsonObject obj)
+    {
+        bool wasLoading = _loading;
+        _loading = true;
+        try
+        {
+            _objectDetailTimestamp.NumericValue = GetDoubleSafe(obj, "Timestamp");
+            _objectDetailObjectID.Text = obj.GetString("ObjectID") ?? "";
+            _objectDetailUserData.NumericValue = GetDoubleSafe(obj, "UserData");
+            LoadVector3(obj, "Position", _objectDetailPositionX, _objectDetailPositionY, _objectDetailPositionZ);
+            LoadVector3(obj, "Up", _objectDetailUpX, _objectDetailUpY, _objectDetailUpZ);
+            LoadVector3(obj, "At", _objectDetailAtX, _objectDetailAtY, _objectDetailAtZ);
+        }
+        finally
+        {
+            _loading = wasLoading;
+        }
+    }
+
+    private void ClearObjectDetail()
+    {
+        bool wasLoading = _loading;
+        _loading = true;
+        try
+        {
+            _objectDetailTimestamp.NumericValue = null;
+            _objectDetailObjectID.Text = "";
+            _objectDetailUserData.NumericValue = null;
+            _objectDetailPositionX.NumericValue = null;
+            _objectDetailPositionY.NumericValue = null;
+            _objectDetailPositionZ.NumericValue = null;
+            _objectDetailUpX.NumericValue = null;
+            _objectDetailUpY.NumericValue = null;
+            _objectDetailUpZ.NumericValue = null;
+            _objectDetailAtX.NumericValue = null;
+            _objectDetailAtY.NumericValue = null;
+            _objectDetailAtZ.NumericValue = null;
+        }
+        finally
+        {
+            _loading = wasLoading;
+        }
+    }
+
+    private void OnObjectSelected(object? sender, EventArgs e)
+    {
+        if (_objectList.SelectedItem is BaseObjectItem item)
+            LoadObjectDetail(item.Data);
+        else
+            ClearObjectDetail();
+    }
+
+    private void OnObjectSearchChanged(object? sender, EventArgs e)
+    {
+        string filter = _objectSearchBox.Text.Trim();
+        _objectList.SelectedIndexChanged -= OnObjectSelected;
+        _objectList.BeginUpdate();
+        var allItems = new List<BaseObjectItem>();
+        for (int i = 0; i < _objectList.Items.Count; i++)
+        {
+            if (_objectList.Items[i] is BaseObjectItem objItem)
+                allItems.Add(objItem);
+        }
+
+        _objectList.Items.Clear();
+        foreach (var item in allItems)
+        {
+            if (string.IsNullOrEmpty(filter) ||
+                item.ObjectId.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                _objectList.Items.Add(item);
+            }
+        }
+        _objectList.EndUpdate();
+        _objectList.SelectedIndexChanged += OnObjectSelected;
+        ClearObjectDetail();
+    }
+
+    private void OnBaseFieldNumericChanged(object? sender, EventArgs e)
+    {
+        if (_loading) return;
+        if (_baseList.SelectedItem is not BaseInfoItem item) return;
+        if (sender is not InvariantNumericTextBox nud) return;
+
+        var baseObj = item.Data;
+
+        if (nud == _objBaseVersion && nud.NumericValue is double bv)
+            baseObj.Set("BaseVersion", bv);
+        else if (nud == _objOriginalBaseVersion && nud.NumericValue is double obv)
+            baseObj.Set("OriginalBaseVersion", obv);
+        else if (nud == _objPositionX && nud.NumericValue is double px)
+            SetVectorComponent(baseObj, "Position", 0, px);
+        else if (nud == _objPositionY && nud.NumericValue is double py)
+            SetVectorComponent(baseObj, "Position", 1, py);
+        else if (nud == _objPositionZ && nud.NumericValue is double pz)
+            SetVectorComponent(baseObj, "Position", 2, pz);
+        else if (nud == _objForwardX && nud.NumericValue is double fx)
+            SetVectorComponent(baseObj, "Forward", 0, fx);
+        else if (nud == _objForwardY && nud.NumericValue is double fy)
+            SetVectorComponent(baseObj, "Forward", 1, fy);
+        else if (nud == _objForwardZ && nud.NumericValue is double fz)
+            SetVectorComponent(baseObj, "Forward", 2, fz);
+        else if (nud == _objUserData && nud.NumericValue is double ud)
+            baseObj.Set("UserData", ud);
+        else if (nud == _objLastUpdateTimestamp && nud.NumericValue is double ts)
+            baseObj.Set("LastUpdateTimestamp", ts);
+        else if (nud == _objScreenshotAtX && nud.NumericValue is double sax)
+            SetVectorComponent(baseObj, "ScreenshotAt", 0, sax);
+        else if (nud == _objScreenshotAtY && nud.NumericValue is double say)
+            SetVectorComponent(baseObj, "ScreenshotAt", 1, say);
+        else if (nud == _objScreenshotAtZ && nud.NumericValue is double saz)
+            SetVectorComponent(baseObj, "ScreenshotAt", 2, saz);
+        else if (nud == _objScreenshotPosX && nud.NumericValue is double spx)
+            SetVectorComponent(baseObj, "ScreenshotPos", 0, spx);
+        else if (nud == _objScreenshotPosY && nud.NumericValue is double spy)
+            SetVectorComponent(baseObj, "ScreenshotPos", 1, spy);
+        else if (nud == _objScreenshotPosZ && nud.NumericValue is double spz)
+            SetVectorComponent(baseObj, "ScreenshotPos", 2, spz);
+
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnBaseFieldTextChanged(object? sender, EventArgs e)
+    {
+        if (_loading) return;
+        if (_baseList.SelectedItem is not BaseInfoItem item) return;
+        if (sender == null) return;
+
+        var baseObj = item.Data;
+
+        if (sender == _objGalacticAddress)
+            baseObj.Set("GalacticAddress", _objGalacticAddress.Text);
+        else if (sender == _objRID)
+            baseObj.Set("RID", _objRID.Text);
+        else if (sender == _objAutoPower)
+        {
+            var autoPower = baseObj.GetObject("AutoPowerSetting");
+            if (autoPower != null)
+                autoPower.Set("BaseAutoPowerSetting", _objAutoPower.Text);
+            else
+                baseObj.Set("AutoPowerSetting.BaseAutoPowerSetting", _objAutoPower.Text);
+        }
+
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnBaseFieldCheckedChanged(object? sender, EventArgs e)
+    {
+        if (_loading) return;
+        if (_baseList.SelectedItem is not BaseInfoItem item) return;
+
+        var baseObj = item.Data;
+
+        if (sender == _objIsReported)
+            baseObj.Set("IsReported", _objIsReported.Checked);
+        else if (sender == _objIsFeatured)
+            baseObj.Set("IsFeatured", _objIsFeatured.Checked);
+
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnObjectFieldNumericChanged(object? sender, EventArgs e)
+    {
+        if (_loading) return;
+        if (_objectList.SelectedItem is not BaseObjectItem item) return;
+        if (sender is not InvariantNumericTextBox nud) return;
+
+        var obj = item.Data;
+
+        if (nud == _objectDetailTimestamp && nud.NumericValue is double val)
+            obj.Set("Timestamp", val);
+        else if (nud == _objectDetailUserData && nud.NumericValue is double ud)
+            obj.Set("UserData", ud);
+        else if (nud == _objectDetailPositionX && nud.NumericValue is double px)
+            SetVectorComponent(obj, "Position", 0, px);
+        else if (nud == _objectDetailPositionY && nud.NumericValue is double py)
+            SetVectorComponent(obj, "Position", 1, py);
+        else if (nud == _objectDetailPositionZ && nud.NumericValue is double pz)
+            SetVectorComponent(obj, "Position", 2, pz);
+        else if (nud == _objectDetailUpX && nud.NumericValue is double ux)
+            SetVectorComponent(obj, "Up", 0, ux);
+        else if (nud == _objectDetailUpY && nud.NumericValue is double uy)
+            SetVectorComponent(obj, "Up", 1, uy);
+        else if (nud == _objectDetailUpZ && nud.NumericValue is double uz)
+            SetVectorComponent(obj, "Up", 2, uz);
+        else if (nud == _objectDetailAtX && nud.NumericValue is double ax)
+            SetVectorComponent(obj, "At", 0, ax);
+        else if (nud == _objectDetailAtY && nud.NumericValue is double ay)
+            SetVectorComponent(obj, "At", 1, ay);
+        else if (nud == _objectDetailAtZ && nud.NumericValue is double az)
+            SetVectorComponent(obj, "At", 2, az);
+
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnObjectFieldTextChanged(object? sender, EventArgs e)
+    {
+        if (_loading) return;
+        if (_objectList.SelectedItem is not BaseObjectItem item) return;
+        if (sender == _objectDetailObjectID)
+            item.Data.Set("ObjectID", _objectDetailObjectID.Text);
+
+        DataModified?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static double? GetDoubleSafe(JsonObject obj, string key)
+    {
+        try { return obj.GetDouble(key); }
+        catch { return null; }
+    }
+
+    private static string GetGalacticAddressText(JsonObject obj)
+    {
+        try
+        {
+            var value = obj.Get("GalacticAddress");
+            if (value == null) return "";
+            return CoordinateHelper.NormalizeGalacticAddress(value);
+        }
+        catch { return ""; }
+    }
+
+    private static void LoadVector3(JsonObject obj, string key,
+        InvariantNumericTextBox x, InvariantNumericTextBox y, InvariantNumericTextBox z)
+    {
+        try
+        {
+            var arr = obj.GetArray(key);
+            if (arr != null && arr.Length >= 3)
+            {
+                x.NumericValue = arr.GetDouble(0);
+                y.NumericValue = arr.GetDouble(1);
+                z.NumericValue = arr.GetDouble(2);
+                return;
+            }
+        }
+        catch { }
+        x.NumericValue = null;
+        y.NumericValue = null;
+        z.NumericValue = null;
+    }
+
+    private static void SetVectorComponent(JsonObject obj, string key, int index, double value)
+    {
+        var arr = obj.GetArray(key);
+        if (arr == null)
+        {
+            arr = new JsonArray();
+            for (int i = 0; i <= index; i++)
+                arr.Add(0.0);
+            obj.Set(key, arr);
+        }
+        while (arr.Length <= index)
+            arr.Add(0.0);
+        arr.Set(index, value);
+    }
+
     private static Label AddRow(TableLayoutPanel layout, string label, Control field, int row)
     {
         var lbl = new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Padding = new Padding(0, 5, 10, 0) };
@@ -1280,6 +2269,7 @@ internal class BasesSubPanel : UserControl
     {
         _npcTitle.Text = UiStrings.Get("base.npc_header");
         _baseTitle.Text = UiStrings.Get("base.base_header");
+        _freighterRoomsTitle.Text = UiStrings.Get("base.freighter_rooms_header");
         _baseListTitle.Text = UiStrings.Get("base.base_list_title");
         if (_npcLabel != null) _npcLabel.Text = UiStrings.Get("base.npc_label");
         if (_raceLabel != null) _raceLabel.Text = UiStrings.Get("base.npc_race_label");
@@ -1323,6 +2313,14 @@ internal class BasesSubPanel : UserControl
                 _npcSelector.SelectedIndex = selIdx;
             _npcSelector.EndUpdate();
         }
+
+        foreach (var (key, label) in _objectsLabels)
+            label.Text = UiStrings.Get(key);
+        foreach (var (key, label) in _objectDetailLabels)
+            label.Text = UiStrings.Get(key);
+        _objectSearchBox.PlaceholderText = UiStrings.Get("base.objects_filter");
+        _infoTab.Text = UiStrings.Get("base.info_tab");
+        _objectsTab.Text = UiStrings.Get("base.objects_tab");
     }
 
     /// <summary>
@@ -1448,8 +2446,11 @@ internal class BasesSubPanel : UserControl
         if (_baseList.SelectedItem is not BaseInfoItem selected) return;
         if (_playerState == null) return;
 
+        string confirmKey = selected.IsFreighterBase
+            ? "base.delete_freighter_base_confirm"
+            : "base.delete_base_confirm";
         var result = MessageBox.Show(this,
-            UiStrings.Format("base.delete_base_confirm", selected.DisplayName),
+            UiStrings.Format(confirmKey, selected.DisplayName),
             UiStrings.Get("base.delete_base_title"),
             MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
         if (result != DialogResult.Yes) return;
@@ -1606,6 +2607,7 @@ internal class BasesSubPanel : UserControl
         public string DisplayName { get; set; }
         public JsonObject Data { get; }
         public int ObjectCount { get; }
+        public bool IsFreighterBase { get; }
 
         // Tracks the entry's position in the PersistentPlayerBases array.
         // Updated in tandem with SwapPlayerBases calls so the list always reflects
@@ -1621,17 +2623,21 @@ internal class BasesSubPanel : UserControl
             }
         }
 
-        public BaseInfoItem(string displayName, JsonObject data, int dataIndex, int objectCount)
+        public BaseInfoItem(string displayName, JsonObject data, int dataIndex, int objectCount, bool isFreighterBase = false)
         {
             DisplayName = displayName;
             Data = data;
             DataIndex = dataIndex;
             ObjectCount = objectCount;
+            IsFreighterBase = isFreighterBase;
         }
 
         // The display includes the raw array index (e.g. "[7] My Cool Base Name") so
         // players can identify a base's position in PersistentPlayerBases while reordering.
-        public override string ToString() => $"[{DataIndex}] {DisplayName}";
+        // Freighter bases are suffixed with [F] to distinguish them.
+        public override string ToString() => IsFreighterBase
+            ? $"[{DataIndex}] [F] {DisplayName}"
+            : $"[{DataIndex}] {DisplayName}";
     }
 
     private sealed class BaseObjectItem
