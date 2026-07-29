@@ -875,7 +875,7 @@ internal static class StarshipLogic
     {
         return shipTypeName switch
         {
-            "Living Ship" => "AlienShip",
+            "Living Ship" or "The Wraith" => "AlienShip",
             "Sentinel" => "RobotShip",
             "Corvette" => "Corvette",
             _ => "Ship" // Fighter, Hauler, Explorer, Shuttle, Exotic, Solar, etc.
