@@ -195,76 +195,63 @@ public partial class MainStatsPanel : UserControl
             // Third person camera
             try { _thirdPersonCharCam.Checked = saveData.GetObject("CommonStateData")?.GetBool("UsesThirdPersonCharacterCam") ?? false; } catch { _thirdPersonCharCam.Checked = false; }
 
-            // Account name (player USN from discovery owners)
+            // Account name: live/primary owner only (not every discovery USN).
             try
             {
                 string usn = "";
                 var commonState = saveData.GetObject("CommonStateData");
-                // UsedDiscoveryOwnersV2 is a direct child of CommonStateData, NOT under SeasonData
                 var owners = commonState?.GetArray("UsedDiscoveryOwnersV2");
-                if (owners != null && owners.Length > 0)
+                var bases = playerState.GetArray("PersistentPlayerBases");
+
+                static string UsnFromBases(JsonArray? basesArr, string uid)
                 {
-                    var names = new HashSet<string>();
-                    for (int i = 0; i < owners.Length; i++)
+                    if (basesArr == null || string.IsNullOrEmpty(uid)) return "";
+                    for (int i = 0; i < basesArr.Length; i++)
                     {
                         try
                         {
-                            var name = owners.GetObject(i).GetString("USN") ?? "";
-                            if (!string.IsNullOrEmpty(name))
-                                names.Add(name);
+                            var owner = basesArr.GetObject(i)?.GetObject("Owner");
+                            if (owner == null) continue;
+                            if ((owner.GetString("UID") ?? "") != uid) continue;
+                            var name = owner.GetString("USN") ?? "";
+                            if (!string.IsNullOrEmpty(name)) return name;
                         }
                         catch { }
                     }
-
-                    if (names.Count > 0)
-                    {
-                        usn = string.Join(" / ", names);
-                    }
-                    else
-                    {
-                        // Fallback: match by UID through PersistentPlayerBases
-                        var uids = new List<string>();
-                        for (int i = 0; i < owners.Length; i++)
-                        {
-                            try
-                            {
-                                var uid = owners.GetObject(i).GetString("UID") ?? "";
-                                if (!string.IsNullOrEmpty(uid))
-                                    uids.Add(uid);
-                            }
-                            catch { }
-                        }
-
-                        if (uids.Count > 0)
-                        {
-                            var bases = playerState.GetArray("PersistentPlayerBases");
-                            if (bases != null)
-                            {
-                                var fallbackNames = new HashSet<string>();
-                                for (int i = 0; i < bases.Length; i++)
-                                {
-                                    try
-                                    {
-                                        var owner = bases.GetObject(i).GetObject("Owner");
-                                        if (owner != null)
-                                        {
-                                            var ownerUid = owner.GetString("UID") ?? "";
-                                            if (!string.IsNullOrEmpty(ownerUid) && uids.Contains(ownerUid))
-                                            {
-                                                var ownerUsn = owner.GetString("USN") ?? "";
-                                                if (!string.IsNullOrEmpty(ownerUsn))
-                                                    fallbackNames.Add(ownerUsn);
-                                            }
-                                        }
-                                    }
-                                    catch { }
-                                }
-                                if (fallbackNames.Count > 0)
-                                    usn = string.Join(" / ", fallbackNames);
-                            }
-                        }
-                    }
+                    return "";
                 }
+
+                if (owners != null && owners.Length > 0)
+                {
+                    // Prefer first owner (live account is kept first); optional: match Platform->PTK.
+                    int primaryIdx = 0;
+                    try
+                    {
+                        string platform = saveData.GetString("Platform") ?? "";
+                        string wantPtk = platform.StartsWith("Win", StringComparison.OrdinalIgnoreCase) ? "ST"
+                            : platform.StartsWith("PS", StringComparison.OrdinalIgnoreCase) ? "PS"
+                            : platform.StartsWith("XB", StringComparison.OrdinalIgnoreCase) ? "XB"
+                            : "";
+                        if (!string.IsNullOrEmpty(wantPtk))
+                        {
+                            for (int i = 0; i < owners.Length; i++)
+                            {
+                                if ((owners.GetObject(i)?.GetString("PTK") ?? "") == wantPtk)
+                                {
+                                    primaryIdx = i;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+
+                    var primary = owners.GetObject(primaryIdx);
+                    usn = primary?.GetString("USN") ?? "";
+                    if (string.IsNullOrEmpty(usn))
+                        usn = UsnFromBases(bases, primary?.GetString("UID") ?? "");
+                }
+
                 string displayName = string.IsNullOrEmpty(usn) ? UiStrings.Get("player.name_fallback") : usn;
                 _accountNameField.Text = displayName;
                 PlayerName = displayName;
