@@ -166,16 +166,26 @@ public class SaveFileManager
     /// 1. User-configured path (<see cref="Config.AppConfig.BackupDirectory"/>)
     /// 2. EXE-relative "Save Backups" folder
     /// 3. %TEMP%\NMSE\Save Backups (fallback)
-    /// Creates the directory if it doesn't exist.
+    /// Creates the directory if it doesn't exist. If the configured path cannot be
+    /// created (e.g. the drive is unavailable or permissions are insufficient),
+    /// falls back to the EXE-relative folder and then to TEMP so backups are never
+    /// silently skipped.
     /// </summary>
     public static string ResolveBackupRoot()
     {
-        // 1. User-configured path
+        // 1. User-configured path (fall through on failure)
         string? configured = Config.AppConfig.Instance.BackupDirectory;
         if (!string.IsNullOrEmpty(configured))
         {
-            Directory.CreateDirectory(configured);
-            return configured;
+            try
+            {
+                Directory.CreateDirectory(configured);
+                return configured;
+            }
+            catch
+            {
+                // Fall through to the EXE-relative location
+            }
         }
 
         // 2. EXE-relative
@@ -199,33 +209,67 @@ public class SaveFileManager
     /// Returns all existing backup root directories that may contain backup ZIPs,
     /// in priority order. Does not create directories. Used by restore UI to find
     /// backups regardless of where they were written.
+    /// The same directory is never returned twice, even when the user-configured
+    /// path overlaps the EXE-relative or TEMP fallback (e.g. when the default
+    /// backup folder was selected from the toolbar combo).
     /// </summary>
     public static List<string> FindExistingBackupRoots()
     {
         var roots = new List<string>();
+        var seen = new HashSet<string>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+        void AddIfMissing(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            string normalized = NormalizeRootPath(path);
+            if (seen.Add(normalized))
+                roots.Add(normalized);
+        }
 
         // 1. User-configured path (if set and exists)
         string? configured = Config.AppConfig.Instance.BackupDirectory;
         if (!string.IsNullOrEmpty(configured) && Directory.Exists(configured))
-            roots.Add(configured);
+            AddIfMissing(configured);
 
         // 2. EXE-relative (if exists)
         string exeRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Save Backups");
         if (Directory.Exists(exeRoot))
-            roots.Add(exeRoot);
+            AddIfMissing(exeRoot);
 
         // 3. TEMP fallback (if exists)
         string tempRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
         if (Directory.Exists(tempRoot))
-            roots.Add(tempRoot);
+            AddIfMissing(tempRoot);
 
         return roots;
     }
 
     /// <summary>
-    /// Creates a timestamped zip backup of all .hg files in the save directory,
+    /// Returns a fully-qualified path without trailing directory separators,
+    /// so equivalent spellings of the same directory compare equal.
+    /// </summary>
+    private static string NormalizeRootPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    /// <summary>
+    /// Creates a timestamped zip backup of the files in the save directory,
     /// retaining up to 10 backups.  Uses <see cref="ResolveBackupRoot"/> to
     /// determine the backup location.
+    /// The file set depends on the platform detected in the directory:
+    /// PC platforms back up *.hg files plus meta.json; Xbox Game Pass backs up
+    /// all files (GUID-named blobs, containers.index); PS4 with a monolithic
+    /// memory.dat backs up memory.dat plus any *.hg files.
     /// </summary>
     /// <param name="saveDirectory">The save directory to back up.</param>
     public static void BackupSaveDirectory(string saveDirectory)
@@ -257,14 +301,162 @@ public class SaveFileManager
     }
 
     /// <summary>
-    /// Creates a zip containing all .hg files in the given directory tree.
+    /// Returns all backup ZIP paths for the given save directory, across every
+    /// existing backup root (configured, EXE-relative, TEMP), newest first.
+    /// Each backup file is returned at most once even if a directory appears
+    /// in multiple roots (e.g. the configured path overlapping a fallback).
+    /// </summary>
+    /// <param name="saveDirectory">The save directory whose backups are sought.</param>
+    /// <returns>The matching ZIP paths ordered by creation time (newest first).</returns>
+    public static List<string> FindBackupZips(string saveDirectory)
+    {
+        string dirName = new DirectoryInfo(saveDirectory).Name;
+        string backupPattern = $"{dirName}_*.zip";
+
+        var results = new List<string>();
+        var seen = new HashSet<string>(
+            OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        foreach (string root in FindExistingBackupRoots())
+        {
+            try
+            {
+                foreach (string file in Directory.GetFiles(root, backupPattern))
+                {
+                    if (seen.Add(file))
+                        results.Add(file);
+                }
+            }
+            catch
+            {
+                // Skip roots that cannot be enumerated (e.g. unavailable drive)
+            }
+        }
+
+        return results
+            .OrderByDescending(f => File.GetCreationTimeUtc(f))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns the entry names (as stored in the ZIP, including any directory
+    /// prefixes) contained in a backup ZIP.
+    /// </summary>
+    /// <param name="zipPath">Path to the backup ZIP.</param>
+    /// <returns>The full entry names of the ZIP, in archive order.</returns>
+    public static List<string> GetBackupEntryNames(string zipPath)
+    {
+        using var zip = ZipFile.OpenRead(zipPath);
+        return zip.Entries.Select(e => e.FullName).Where(n => n.Length > 0).ToList();
+    }
+
+    /// <summary>
+    /// Returns whether a backup ZIP contains an entry whose file name matches
+    /// <paramref name="fileName"/> (case-insensitive, matched against the final
+    /// path segment of every entry so nested layouts are found).
+    /// </summary>
+    /// <param name="zipPath">Path to the backup ZIP.</param>
+    /// <param name="fileName">The file name to look for.</param>
+    /// <returns><c>true</c> if a matching entry exists.</returns>
+    public static bool BackupContainsFile(string zipPath, string fileName)
+    {
+        using var zip = ZipFile.OpenRead(zipPath);
+        return FindEntryByName(zip, fileName) != null;
+    }
+
+    /// <summary>
+    /// Restores a single file from a backup ZIP to the given destination path.
+    /// The ZIP entry is located by file name (case-insensitive match against the
+    /// final path segment of every entry), which handles backups whose entries
+    /// are stored under directory prefixes.
+    /// </summary>
+    /// <param name="zipPath">Path to the backup ZIP.</param>
+    /// <param name="fileName">The file name to restore.</param>
+    /// <param name="destinationPath">The destination file path (overwritten).</param>
+    /// <returns><c>true</c> if the entry was found and extracted; <c>false</c> otherwise.</returns>
+    public static bool RestoreFileFromBackup(string zipPath, string fileName, string destinationPath)
+    {
+        using var zip = ZipFile.OpenRead(zipPath);
+        var entry = FindEntryByName(zip, fileName);
+        if (entry == null) return false;
+
+        entry.ExtractToFile(destinationPath, overwrite: true);
+        return true;
+    }
+
+    /// <summary>
+    /// Restores every entry of a backup ZIP into the given destination directory,
+    /// preserving the entry directory structure. Entry paths that would escape
+    /// the destination directory (e.g. absolute or parent-relative paths) are
+    /// skipped as a safety measure.
+    /// </summary>
+    /// <param name="zipPath">Path to the backup ZIP.</param>
+    /// <param name="destinationDirectory">The directory to extract into (overwrites existing files).</param>
+    /// <returns>The full paths of the files that were written.</returns>
+    public static List<string> RestoreBackupToDirectory(string zipPath, string destinationDirectory)
+    {
+        var written = new List<string>();
+        string basePath = Path.GetFullPath(destinationDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string basePrefix = basePath + Path.DirectorySeparatorChar;
+
+        using var zip = ZipFile.OpenRead(zipPath);
+        foreach (var entry in zip.Entries)
+        {
+            string entryPath = entry.FullName;
+            if (string.IsNullOrEmpty(entryPath)) continue;
+
+            string fullPath;
+            try
+            {
+                fullPath = Path.GetFullPath(Path.Combine(basePath, entryPath));
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (!fullPath.StartsWith(basePrefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string? parent = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(parent))
+                Directory.CreateDirectory(parent);
+
+            entry.ExtractToFile(fullPath, overwrite: true);
+            written.Add(fullPath);
+        }
+
+        return written;
+    }
+
+    /// <summary>
+    /// Finds the ZIP entry whose file name (final path segment) matches the
+    /// given name case-insensitively. Returns the first match in archive order.
+    /// </summary>
+    private static ZipArchiveEntry? FindEntryByName(ZipArchive zip, string fileName)
+    {
+        foreach (var entry in zip.Entries)
+        {
+            string entryName = Path.GetFileName(entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+            if (string.Equals(entryName, fileName, StringComparison.OrdinalIgnoreCase))
+                return entry;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Creates a zip containing the backup-relevant files of the given directory
+    /// tree. The file set depends on the platform detected in the directory:
+    /// PC platforms back up *.hg files plus meta.json; Xbox Game Pass backs up
+    /// all files (GUID-named blobs, containers.index); PS4 with a monolithic
+    /// memory.dat backs up memory.dat plus any *.hg files.
     /// </summary>
     private static void CreateFilteredZip(string sourceDir, string zipPath)
     {
         using var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create);
         string basePath = Path.GetFullPath(sourceDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-        foreach (string filePath in EnumerateHgFilesSafe(sourceDir))
+        foreach (string filePath in EnumerateBackupFilesSafe(sourceDir))
         {
             string fullFilePath = Path.GetFullPath(filePath);
             if (!fullFilePath.StartsWith(basePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
@@ -276,13 +468,15 @@ public class SaveFileManager
     }
 
     /// <summary>
-    /// Recursively enumerates *.hg files, skipping subdirectories that cannot be accessed.
-    /// This prevents the backup from failing on platforms (e.g. Wine) where permission
-    /// checks behave differently, or when the source directory contains protected system
+    /// Enumerates the files that should be included in a backup of the given
+    /// directory, skipping subdirectories that cannot be accessed. This prevents
+    /// the backup from failing on platforms (e.g. Wine) where permission checks
+    /// behave differently, or when the source directory contains protected system
     /// folders (e.g. loading a .hg from the desktop).
     /// </summary>
-    private static IEnumerable<string> EnumerateHgFilesSafe(string root)
+    private static IEnumerable<string> EnumerateBackupFilesSafe(string root)
     {
+        string[] patterns = BackupFilePatterns(root);
         var dirs = new Queue<string>();
         dirs.Enqueue(root);
 
@@ -293,7 +487,7 @@ public class SaveFileManager
             string[] files;
             try
             {
-                files = Directory.GetFiles(dir, "*.hg", SearchOption.TopDirectoryOnly);
+                files = Directory.GetFiles(dir, "*", SearchOption.TopDirectoryOnly);
             }
             catch
             {
@@ -301,7 +495,10 @@ public class SaveFileManager
             }
 
             foreach (string file in files)
-                yield return file;
+            {
+                if (patterns.Any(p => p == "*" || file.EndsWith(p, StringComparison.OrdinalIgnoreCase)))
+                    yield return file;
+            }
 
             string[] subDirs;
             try
@@ -315,6 +512,26 @@ public class SaveFileManager
 
             foreach (string subDir in subDirs)
                 dirs.Enqueue(subDir);
+        }
+    }
+
+    /// <summary>
+    /// Determines the file suffix patterns included in backups of the given
+    /// directory based on the platform detected there.
+    /// </summary>
+    private static string[] BackupFilePatterns(string root)
+    {
+        switch (DetectPlatform(root))
+        {
+            case Platform.XboxGamePass:
+                // Xbox save data are GUID-named blobs plus containers.index - no .hg files
+                return new[] { "*" };
+            case Platform.PS4 when File.Exists(Path.Combine(root, "memory.dat")):
+                // PS4 monolithic memory.dat holds all slots in a single binary file
+                return new[] { ".hg", ".dat", "meta.json" };
+            default:
+                // PC platforms: save files, meta files, manifests and slot metadata
+                return new[] { ".hg", "meta.json" };
         }
     }
 

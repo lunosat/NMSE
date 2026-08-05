@@ -1,6 +1,8 @@
 using NMSE.IO;
 using NMSE.Data;
 using NMSE.Models;
+using System.IO.Compression;
+using NMSE.Config;
 
 namespace NMSE.Tests;
 
@@ -449,39 +451,33 @@ public class IOLayerTests
         Assert.Equal(0, binaryNameCount);
     }
 
-    // --- Backup filtered zip test ------------------------------------
+    // --- Backup and restore tests ------------------------------------
 
     [Fact]
-    public void SaveFileManager_BackupSaveDirectory_OnlyIncludesHgFiles()
+    public void SaveFileManager_BackupSaveDirectory_IncludesSaveAndMetaFiles()
     {
-        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}");
+        string tmpDir = CreateTempDir();
         string cacheDir = Path.Combine(tmpDir, "cache");
         Directory.CreateDirectory(cacheDir);
 
         try
         {
-            // Create test files: .hg files should be included, everything else excluded
+            // Create test files: .hg and meta.json should be included, everything else excluded
             File.WriteAllText(Path.Combine(tmpDir, "save.hg"), "test save data");
+            File.WriteAllText(Path.Combine(tmpDir, "meta.json"), "{}");
             File.WriteAllText(Path.Combine(cacheDir, "other.hg"), "nested hg");
             File.WriteAllText(Path.Combine(cacheDir, "texture.dds"), "fake dds");
             File.WriteAllText(Path.Combine(cacheDir, "random.bin"), "should be excluded");
 
-            // Use reflection to call CreateFilteredZip since it's private
             string zipPath = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}.zip");
             try
             {
-                var method = typeof(SaveFileManager).GetMethod("CreateFilteredZip",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
-                if (method == null) return;
+                using var zip = CreateBackupZip(tmpDir, zipPath);
 
-                method.Invoke(null, new object[] { tmpDir, zipPath });
-
-                // Verify zip contents
-                using var archive = System.IO.Compression.ZipFile.OpenRead(zipPath);
-                var entryNames = archive.Entries.Select(e => e.FullName).ToList();
-
-                Assert.Contains(entryNames, e => e.Contains("save.hg"));
-                Assert.Contains(entryNames, e => e.Contains("other.hg"));
+                var entryNames = zip.Entries.Select(e => e.FullName).ToList();
+                Assert.Contains(entryNames, e => e.Contains("save.hg", StringComparison.Ordinal));
+                Assert.Contains(entryNames, e => e.Contains("other.hg", StringComparison.Ordinal));
+                Assert.Contains(entryNames, e => e.Contains("meta.json", StringComparison.Ordinal));
                 Assert.DoesNotContain(entryNames, e => e.EndsWith(".dds", StringComparison.OrdinalIgnoreCase));
                 Assert.DoesNotContain(entryNames, e => e.EndsWith(".bin", StringComparison.OrdinalIgnoreCase));
             }
@@ -494,5 +490,241 @@ public class IOLayerTests
         {
             try { Directory.Delete(tmpDir, true); } catch { }
         }
+    }
+
+    [Fact]
+    public void SaveFileManager_BackupSaveDirectory_PS4IncludesMemoryDat()
+    {
+        string tmpDir = CreateTempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(tmpDir, "memory.dat"), "PS4 MONOLITHIC SAVE");
+            File.WriteAllText(Path.Combine(tmpDir, "note.txt"), "not part of the save");
+
+            string zipPath = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}.zip");
+            try
+            {
+                using var zip = CreateBackupZip(tmpDir, zipPath);
+
+                var entryNames = zip.Entries.Select(e => e.FullName).ToList();
+                Assert.Contains(entryNames, e => e.Equals("memory.dat", StringComparison.OrdinalIgnoreCase));
+                Assert.DoesNotContain(entryNames, e => e.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                try { File.Delete(zipPath); } catch { }
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SaveFileManager_BackupSaveDirectory_XboxIncludesBlobsAndIndex()
+    {
+        string tmpDir = CreateTempDir();
+        try
+        {
+            string blobDir = Path.Combine(tmpDir, "containers", "index", "3", "c0ffee");
+            Directory.CreateDirectory(blobDir);
+            File.WriteAllText(Path.Combine(tmpDir, "containers.index"), "index");
+            File.WriteAllText(Path.Combine(blobDir, "1234ABCDEF"), "blob data");
+
+            string zipPath = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}.zip");
+            try
+            {
+                using var zip = CreateBackupZip(tmpDir, zipPath);
+
+                var entryNames = zip.Entries.Select(e => e.FullName).ToList();
+                Assert.Contains(entryNames, e => e.Equals("containers.index", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(entryNames, e => e.EndsWith("1234ABCDEF", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                try { File.Delete(zipPath); } catch { }
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SaveFileManager_RestoreFileFromBackup_FindsNestedEntry()
+    {
+        string tmpDir = CreateTempDir();
+        try
+        {
+            string blobDir = Path.Combine(tmpDir, "containers", "index", "3", "c0ffee");
+            Directory.CreateDirectory(blobDir);
+            File.WriteAllText(Path.Combine(blobDir, "save.hg"), "restored content");
+            string zipPath = Path.Combine(tmpDir, "backup.zip");
+            using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+                zip.CreateEntryFromFile(Path.Combine(blobDir, "save.hg"), "containers\\index\\3\\c0ffee\\save.hg");
+
+            string dest = Path.Combine(tmpDir, "save.hg");
+            Assert.True(SaveFileManager.RestoreFileFromBackup(zipPath, "save.hg", dest));
+            Assert.Equal("restored content", File.ReadAllText(dest));
+            Assert.False(SaveFileManager.RestoreFileFromBackup(zipPath, "missing.hg", dest));
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SaveFileManager_RestoreBackupToDirectory_RestoresStructureAndSkipsTraversal()
+    {
+        string tmpDir = CreateTempDir();
+        try
+        {
+            string srcSave = WriteTempFile(tmpDir, "src_save.hg", "save data");
+            string srcOther = WriteTempFile(tmpDir, "src_other.hg", "other data");
+            string zipPath = Path.Combine(tmpDir, "backup.zip");
+            using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+            {
+                zip.CreateEntryFromFile(srcSave, "save.hg");
+                zip.CreateEntryFromFile(srcOther, "sub\\other.hg");
+                zip.CreateEntry("..\\evil.hg"); // malicious entry - must be skipped
+            }
+
+            string destDir = Path.Combine(tmpDir, "restore");
+            Directory.CreateDirectory(destDir);
+            var written = SaveFileManager.RestoreBackupToDirectory(zipPath, destDir);
+
+            Assert.Contains(written, w => w.EndsWith("save.hg", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(written, w => w.EndsWith("other.hg", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(written, w => w.Contains("evil", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal("save data", File.ReadAllText(Path.Combine(destDir, "save.hg")));
+            Assert.Equal("other data", File.ReadAllText(Path.Combine(destDir, "sub", "other.hg")));
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SaveFileManager_BackupContainsFile_MatchesByFileName()
+    {
+        string tmpDir = CreateTempDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(tmpDir, "save.hg"), "data");
+            string zipPath = Path.Combine(tmpDir, "backup.zip");
+            using (var zip = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+                zip.CreateEntryFromFile(Path.Combine(tmpDir, "save.hg"), "containers\\index\\3\\save.hg");
+
+            Assert.True(SaveFileManager.BackupContainsFile(zipPath, "save.hg"));
+            Assert.True(SaveFileManager.BackupContainsFile(zipPath, "SAVE.HG")); // case-insensitive
+            Assert.False(SaveFileManager.BackupContainsFile(zipPath, "save2.hg"));
+        }
+        finally
+        {
+            try { Directory.Delete(tmpDir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SaveFileManager_FindBackupZips_ReturnsNewestFirst()
+    {
+        string saveDir = CreateTempDir();
+        string backupRoot = Path.Combine(Path.GetTempPath(), $"nmse_backup_root_{Guid.NewGuid():N}");
+        string? previous = AppConfig.Instance.BackupDirectory;
+        try
+        {
+            Directory.CreateDirectory(backupRoot);
+            AppConfig.Instance.BackupDirectory = backupRoot;
+
+            string dirName = new DirectoryInfo(saveDir).Name;
+            string oldZip = Path.Combine(backupRoot, $"{dirName}_20260101_120000.zip");
+            string newZip = Path.Combine(backupRoot, $"{dirName}_20260701_120000.zip");
+            File.WriteAllText(oldZip, "old");
+            File.WriteAllText(newZip, "new");
+            File.SetCreationTimeUtc(oldZip, new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc));
+            File.SetCreationTimeUtc(newZip, new DateTime(2026, 7, 1, 12, 0, 0, DateTimeKind.Utc));
+
+            var zips = SaveFileManager.FindBackupZips(saveDir);
+
+            Assert.Equal(2, zips.Count);
+            Assert.Equal(newZip, zips[0]);
+            Assert.Equal(oldZip, zips[1]);
+        }
+        finally
+        {
+            AppConfig.Instance.BackupDirectory = previous;
+            try { Directory.Delete(saveDir, true); } catch { }
+            try { Directory.Delete(backupRoot, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void SaveFileManager_FindBackupZips_DoesNotDuplicateOverlappingRoots()
+    {
+        string saveDir = CreateTempDir();
+        string tempRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
+        string? previous = AppConfig.Instance.BackupDirectory;
+        string zipPath = "";
+        try
+        {
+            Directory.CreateDirectory(tempRoot);
+            // Configure the same directory as the TEMP fallback root: the roots
+            // list would previously contain it twice and list each backup twice.
+            AppConfig.Instance.BackupDirectory = tempRoot;
+
+            string dirName = new DirectoryInfo(saveDir).Name;
+            zipPath = Path.Combine(tempRoot, $"{dirName}_20260701_120000.zip");
+            File.WriteAllText(zipPath, "data");
+
+            var roots = SaveFileManager.FindExistingBackupRoots();
+            Assert.Equal(roots.Count, roots.Distinct().Count());
+
+            var zips = SaveFileManager.FindBackupZips(saveDir);
+            Assert.Single(zips);
+            Assert.Equal(zipPath, zips[0]);
+        }
+        finally
+        {
+            AppConfig.Instance.BackupDirectory = previous;
+            try { File.Delete(zipPath); } catch { }
+            try { Directory.Delete(saveDir, true); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// Creates a uniquely named temp directory and returns its path.
+    /// </summary>
+    private static string CreateTempDir()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), $"nmse_backup_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    /// <summary>
+    /// Writes a file into the given directory, returning its path.
+    /// </summary>
+    private static string WriteTempFile(string dir, string name, string content)
+    {
+        string path = Path.Combine(dir, name);
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    /// <summary>
+    /// Creates a backup ZIP of the given directory via the private
+    /// <see cref="SaveFileManager"/> filter, returning the opened archive.
+    /// </summary>
+    private static ZipArchive CreateBackupZip(string sourceDir, string zipPath)
+    {
+        var method = typeof(SaveFileManager).GetMethod("CreateFilteredZip",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Assert.NotNull(method);
+        method.Invoke(null, new object[] { sourceDir, zipPath });
+        return ZipFile.OpenRead(zipPath);
     }
 }

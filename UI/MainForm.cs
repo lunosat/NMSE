@@ -797,8 +797,17 @@ public partial class MainFormResources : Form
         string? lastDir = config.LastDirectory;
         RebuildDirectoryDropdown(recent, lastDir);
 
-        // Populate backup path combo with saved recent paths
-        RebuildBackupDropdown(config);
+        // Populate backup path combo with saved recent paths.
+        // Guarded so a stale or unreadable backup path in the config cannot
+        // prevent the application from starting.
+        try
+        {
+            RebuildBackupDropdown(config);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Backup dropdown rebuild failed: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -1672,6 +1681,7 @@ public partial class MainFormResources : Form
         {
             recent.Add(resolved);
             config.RecentBackupDirectories = recent;
+            config.Save();
         }
 
         foreach (var dir in recent)
@@ -2158,30 +2168,17 @@ public partial class MainFormResources : Form
         string? saveDir = Path.GetDirectoryName(_currentFilePath);
         if (saveDir == null) return;
 
-        string dirName = new DirectoryInfo(saveDir).Name;
         string fileName = Path.GetFileName(_currentFilePath);
-        string backupPattern = $"{dirName}_*.zip";
 
         // Search across all existing backup locations (configured, EXE-relative, TEMP)
-        var roots = SaveFileManager.FindExistingBackupRoots();
-        if (roots.Count == 0)
+        if (SaveFileManager.FindExistingBackupRoots().Count == 0)
         {
             MessageBox.Show(this, UiStrings.Get("dialog.no_backup_dir"), UiStrings.Get("dialog.restore_backup"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        var allBackups = new List<string>();
-        foreach (string root in roots)
-        {
-            allBackups.AddRange(Directory.GetFiles(root, backupPattern));
-        }
-
-        // Find the most recent backup ZIP for this save directory
-        var backups = allBackups
-            .OrderByDescending(f => File.GetCreationTimeUtc(f))
-            .ToList();
-
+        var backups = SaveFileManager.FindBackupZips(saveDir);
         if (backups.Count == 0)
         {
             MessageBox.Show(this, UiStrings.Get("dialog.no_backup_zips"), UiStrings.Get("dialog.restore_backup"),
@@ -2189,28 +2186,40 @@ public partial class MainFormResources : Form
             return;
         }
 
-        string latestBackup = backups[0];
-        string backupName = Path.GetFileName(latestBackup);
+        using var picker = new BackupPickerDialog(backups);
+        if (picker.ShowDialog(this) != DialogResult.OK || picker.SelectedZipPath == null)
+            return;
 
+        string backupPath = picker.SelectedZipPath;
+        string backupName = Path.GetFileName(backupPath);
+
+        if (!SaveFileManager.BackupContainsFile(backupPath, fileName))
+        {
+            MessageBox.Show(this, UiStrings.Format("dialog.restore_file_not_found", fileName, backupName), UiStrings.Get("dialog.restore_backup"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // "Restore (All)": restore every file the backup contains (save files,
+        // meta files, account data) back into the save directory.
+        string fileList = BuildBackupFileList(SaveFileManager.GetBackupEntryNames(backupPath), 15);
         var result = MessageBox.Show(this,
-            UiStrings.Format("dialog.restore_confirm", fileName, backupName, File.GetCreationTime(latestBackup).ToString("g", CultureInfo.CurrentCulture)),
+            UiStrings.Format("dialog.restore_all_confirm", fileList, backupName, File.GetCreationTime(backupPath).ToString("g", CultureInfo.CurrentCulture)),
             UiStrings.Get("dialog.restore_backup"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (result != DialogResult.Yes) return;
 
         try
         {
-            using var zip = System.IO.Compression.ZipFile.OpenRead(latestBackup);
-            var entry = zip.GetEntry(fileName);
-            if (entry == null)
+            var restored = SaveFileManager.RestoreBackupToDirectory(backupPath, saveDir);
+            if (restored.Count == 0)
             {
                 MessageBox.Show(this, UiStrings.Format("dialog.restore_file_not_found", fileName, backupName), UiStrings.Get("dialog.restore_backup"),
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            entry.ExtractToFile(_currentFilePath, overwrite: true);
-            LoadSaveData(_currentFilePath);
-            _statusLabel.Text = UiStrings.Format("status.restored_file", fileName, backupName);
+            ReloadCurrentSave();
+            _statusLabel.Text = UiStrings.Format("status.restored_folder", restored.Count, backupName);
         }
         catch (Exception ex)
         {
@@ -2226,29 +2235,17 @@ public partial class MainFormResources : Form
         string? saveDir = Path.GetDirectoryName(_currentFilePath);
         if (saveDir == null) return;
 
-        string dirName = new DirectoryInfo(saveDir).Name;
         string fileName = Path.GetFileName(_currentFilePath);
-        string backupPattern = $"{dirName}_*.zip";
 
         // Search across all existing backup locations (configured, EXE-relative, TEMP)
-        var roots = SaveFileManager.FindExistingBackupRoots();
-        if (roots.Count == 0)
+        if (SaveFileManager.FindExistingBackupRoots().Count == 0)
         {
             MessageBox.Show(this, UiStrings.Get("dialog.no_backup_dir"), UiStrings.Get("dialog.restore_backup_single"),
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
-        var allBackups = new List<string>();
-        foreach (string root in roots)
-        {
-            allBackups.AddRange(Directory.GetFiles(root, backupPattern));
-        }
-
-        var backups = allBackups
-            .OrderByDescending(f => File.GetCreationTimeUtc(f))
-            .ToList();
-
+        var backups = SaveFileManager.FindBackupZips(saveDir);
         if (backups.Count == 0)
         {
             MessageBox.Show(this, UiStrings.Get("dialog.no_backup_zips"), UiStrings.Get("dialog.restore_backup_single"),
@@ -2256,55 +2253,103 @@ public partial class MainFormResources : Form
             return;
         }
 
-        string latestBackup = backups[0];
-        string backupName = Path.GetFileName(latestBackup);
+        using var picker = new BackupPickerDialog(backups);
+        if (picker.ShowDialog(this) != DialogResult.OK || picker.SelectedZipPath == null)
+            return;
 
-        // Determine account file name (e.g. "accountdata.hg")
-        string? accountFileName = null;
-        if (_accountPanel.AccountFilePath != null)
-            accountFileName = Path.GetFileName(_accountPanel.AccountFilePath);
+        string backupPath = picker.SelectedZipPath;
+        string backupName = Path.GetFileName(backupPath);
 
+        if (!SaveFileManager.BackupContainsFile(backupPath, fileName))
+        {
+            MessageBox.Show(this, UiStrings.Format("dialog.restore_file_not_found", fileName, backupName), UiStrings.Get("dialog.restore_backup_single"),
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
+        // "Restore (Single)": restore only the currently loaded save file.
         string fileList = $"  • {fileName}";
-        if (accountFileName != null)
-            fileList += $"\n  • {accountFileName}";
-
         var result = MessageBox.Show(this,
-            UiStrings.Format("dialog.restore_single_confirm", fileList, backupName, File.GetCreationTime(latestBackup).ToString("g", CultureInfo.CurrentCulture)),
+            UiStrings.Format("dialog.restore_single_confirm", fileList, backupName, File.GetCreationTime(backupPath).ToString("g", CultureInfo.CurrentCulture)),
             UiStrings.Get("dialog.restore_backup_single"), MessageBoxButtons.YesNo, MessageBoxIcon.Question);
         if (result != DialogResult.Yes) return;
 
         try
         {
-            using var zip = ZipFile.OpenRead(latestBackup);
-
-            // Restore save file
-            var saveEntry = zip.GetEntry(fileName);
-            if (saveEntry == null)
+            if (!SaveFileManager.RestoreFileFromBackup(backupPath, fileName, _currentFilePath))
             {
                 MessageBox.Show(this, UiStrings.Format("dialog.restore_file_not_found", fileName, backupName), UiStrings.Get("dialog.restore_backup_single"),
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            saveEntry.ExtractToFile(_currentFilePath, overwrite: true);
 
-            // Restore account file
-            if (accountFileName != null && _accountPanel.AccountFilePath != null)
-            {
-                var accountEntry = zip.GetEntry(accountFileName);
-                if (accountEntry != null)
-                    accountEntry.ExtractToFile(_accountPanel.AccountFilePath, overwrite: true);
-            }
-
-            LoadSaveData(_currentFilePath);
-            _statusLabel.Text = accountFileName != null
-                ? UiStrings.Format("status.restored_files", fileName, accountFileName, backupName)
-                : UiStrings.Format("status.restored_file", fileName, backupName);
+            ReloadCurrentSave();
+            _statusLabel.Text = UiStrings.Format("status.restored_file", fileName, backupName);
         }
         catch (Exception ex)
         {
             MessageBox.Show(this, UiStrings.Format("dialog.restore_failed", ex.Message), UiStrings.Get("dialog.restore_backup_single"),
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    /// <summary>
+    /// Builds a bullet-pointed list of backup entry names for confirmation dialogs,
+    /// capping the list at <paramref name="maxItems"/> entries.
+    /// </summary>
+    private static string BuildBackupFileList(List<string> entryNames, int maxItems)
+    {
+        var sb = new System.Text.StringBuilder();
+        int count = Math.Min(maxItems, entryNames.Count);
+        for (int i = 0; i < count; i++)
+            sb.Append("  • ").Append(entryNames[i]).Append('\n');
+        if (entryNames.Count > maxItems)
+            sb.Append(UiStrings.Format("dialog.restore_more_files", entryNames.Count - maxItems));
+        return sb.ToString().TrimEnd('\n');
+    }
+
+    /// <summary>
+    /// Reloads the currently loaded save using the platform-appropriate loader,
+    /// so a restored save is reflected in the editor. Restoring a save file and
+    /// then loading it with the wrong pipeline (e.g. a container index or a
+    /// memory.dat) would otherwise report a bogus load failure.
+    /// </summary>
+    private void ReloadCurrentSave()
+    {
+        if (_detectedPlatform == SaveFileManager.Platform.XboxGamePass
+            && _xboxContainersIndexPath != null
+            && _xboxFileIdentifiers != null)
+        {
+            int slotIdx = _saveSlotCombo.SelectedIndex;
+            if (slotIdx >= 0 && slotIdx < _xboxFileIdentifiers.Count)
+            {
+                var identifiers = _xboxFileIdentifiers[slotIdx];
+                int fileIdx = _saveFileCombo.SelectedIndex;
+                if (fileIdx < 0 || fileIdx >= identifiers.Count)
+                    fileIdx = 0;
+                LoadXboxSaveData(_xboxContainersIndexPath, identifiers[fileIdx]);
+                return;
+            }
+        }
+
+        if (_detectedPlatform == SaveFileManager.Platform.PS4
+            && _ps4MemoryDatPath != null
+            && _ps4SubSlotIndices != null)
+        {
+            int slotIdx = _saveSlotCombo.SelectedIndex;
+            if (slotIdx >= 0 && slotIdx < _ps4SubSlotIndices.Count)
+            {
+                var subSlots = _ps4SubSlotIndices[slotIdx];
+                int fileIdx = _saveFileCombo.SelectedIndex;
+                if (fileIdx < 0 || fileIdx >= subSlots.Count)
+                    fileIdx = 0;
+                LoadPS4MemoryDatSaveData(_ps4MemoryDatPath, subSlots[fileIdx]);
+                return;
+            }
+        }
+
+        if (_currentFilePath != null)
+            LoadSaveData(_currentFilePath);
     }
 
     private void OnExportJson(object? sender, EventArgs e)
