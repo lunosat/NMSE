@@ -1036,6 +1036,8 @@
   "location_type.settlement": "定居点",
   "location_type.spacestation": "空间站",
   "location_type.spacestation_fix_position": "太空站（固定）",
+  "lock.hint": "请在上方工具栏中选择存档槽位，然后点击加载开始编辑。",
+  "lock.title": "未加载存档",
   "menu.edit": "编辑(&E)",
   "menu.edit.reload": "重新加载(&R)",
   "menu.edit.restore_backup_all": "恢复备份（全部）(&A)",

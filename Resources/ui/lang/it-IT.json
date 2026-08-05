@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Insediamento",
   "location_type.spacestation": "Stazione spaziale",
   "location_type.spacestation_fix_position": "Stazione spaziale (fissa)",
+  "lock.hint": "Seleziona uno slot di salvataggio nella barra degli strumenti qui sopra e fai clic su Carica per iniziare a modificare.",
+  "lock.title": "Nessun salvataggio caricato",
   "menu.edit": "&Modifica",
   "menu.edit.reload": "&Ricarica",
   "menu.edit.restore_backup_all": "Ripristina backup (&Tutto)",

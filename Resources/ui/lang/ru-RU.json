@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Поселение",
   "location_type.spacestation": "Космическая станция",
   "location_type.spacestation_fix_position": "Космическая станция (фиксированная)",
+  "lock.hint": "Выберите слот сохранения на панели инструментов выше и нажмите «Загрузить», чтобы начать редактирование.",
+  "lock.title": "Сохранение не загружено",
   "menu.edit": "&Редактирование",
   "menu.edit.reload": "&Перезагрузить",
   "menu.edit.restore_backup_all": "Восстановить резервную копию (&Все)",

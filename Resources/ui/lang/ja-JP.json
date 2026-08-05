@@ -1036,6 +1036,8 @@
   "location_type.settlement": "集落",
   "location_type.spacestation": "宇宙ステーション",
   "location_type.spacestation_fix_position": "固定宇宙ステーション",
+  "lock.hint": "上のツールバーでセーブスロットを選択し、「読み込み」をクリックして編集を開始してください。",
+  "lock.title": "セーブデータ未読み込み",
   "menu.edit": "編集(&E)",
   "menu.edit.reload": "再読み込み(&R)",
   "menu.edit.restore_backup_all": "バックアップの復元 (全体)(&A)",

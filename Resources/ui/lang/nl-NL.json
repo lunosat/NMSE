@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Nederzetting",
   "location_type.spacestation": "Ruimtestation",
   "location_type.spacestation_fix_position": "Ruimtestation (vast)",
+  "lock.hint": "Selecteer een opslagslot in de werkbalk hierboven en klik op Laden om te beginnen met bewerken.",
+  "lock.title": "Geen spelopslag geladen",
   "menu.edit": "B&ewerken",
   "menu.edit.reload": "&Herladen",
   "menu.edit.restore_backup_all": "Back-up herstellen (&Alles)",

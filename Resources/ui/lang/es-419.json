@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Asentamiento",
   "location_type.spacestation": "Estación espacial",
   "location_type.spacestation_fix_position": "Estación espacial (Fija)",
+  "lock.hint": "Selecciona una ranura de guardado en la barra de herramientas superior y haz clic en Cargar para comenzar a editar.",
+  "lock.title": "Sin partida cargada",
   "menu.edit": "&Editar",
   "menu.edit.reload": "&Recargar",
   "menu.edit.restore_backup_all": "Restaurar copia (&Todo)",

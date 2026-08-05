@@ -1036,6 +1036,8 @@
   "location_type.settlement": "정착지",
   "location_type.spacestation": "우주 정거장",
   "location_type.spacestation_fix_position": "우주 정거장 (고정)",
+  "lock.hint": "위 도구 모음에서 저장 슬롯을 선택하고 로드를 클릭하여 편집을 시작하세요.",
+  "lock.title": "저장 파일이 로드되지 않음",
   "menu.edit": "편집(&E)",
   "menu.edit.reload": "새로고침(&R)",
   "menu.edit.restore_backup_all": "백업 복원 (전체)(&A)",

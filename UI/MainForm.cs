@@ -7,6 +7,7 @@ using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.IO;
 using NMSE.Models;
+using NMSE.UI.Controls;
 using NMSE.UI.Panels;
 using NMSE.UI.Util;
 
@@ -107,6 +108,13 @@ public partial class MainFormResources : Form
 
     /// <summary>Tracks the previously selected tab index for purge on leave logic.</summary>
     private int _prevTabIndex = -1;
+
+    /// <summary>
+    /// Editor tabs gated until a save file is loaded: the content panel, the
+    /// overlay shown over it, and the original enabled state of every control
+    /// (restored when the lock is lifted).
+    /// </summary>
+    private readonly List<(Control Panel, NoSaveOverlay Overlay, Dictionary<Control, bool> EnabledStates)> _lockedTabs = new();
 
     /// <summary>Background icon preload task started during construction.</summary>
     private Task? _iconPreloadTask;
@@ -215,6 +223,7 @@ public partial class MainFormResources : Form
         InitializeToolbar();
         InitializeStatusBar();
         InitializeTabs();
+        InstallEditorLock();
 
         // Subscribe to theme changes so the form re-themes when the user picks a new theme.
         ThemeManager.ThemeChanged += ReapplyTheme;
@@ -498,6 +507,81 @@ public partial class MainFormResources : Form
         // When the user switches to the Raw JSON tab, sync all panel data to
         // the in-memory JsonObject first so the editor reflects current edits.
         _tabControl.SelectedIndexChanged += OnTabChanged;
+    }
+
+    /// <summary>
+    /// Installs the no-save overlay and lock on every editor tab. The Export
+    /// Settings tab (index 13) is exempt because it edits app settings and
+    /// never requires a loaded save.
+    /// </summary>
+    private void InstallEditorLock()
+    {
+        const int exportSettingsTabIdx = 13;
+
+        for (int i = 0; i < _tabControl.TabPages.Count; i++)
+        {
+            if (i == exportSettingsTabIdx) continue;
+
+            var page = _tabControl.TabPages[i];
+            var content = GetTabContent(page);
+            if (content == null) continue;
+
+            var overlay = new NoSaveOverlay();
+            page.Controls.Add(overlay);
+            overlay.BringToFront();
+
+            _lockedTabs.Add((content, overlay, CaptureEnabledStates(content)));
+        }
+
+        UpdateEditorLockState();
+    }
+
+    /// <summary>
+    /// Locks or unlocks the editor tabs depending on whether a save file is
+    /// currently loaded. While locked, every tab (except Export Settings)
+    /// shows the no-save overlay and its content controls are disabled.
+    /// </summary>
+    private void UpdateEditorLockState()
+    {
+        bool locked = _currentSaveData == null;
+        foreach (var (panel, overlay, states) in _lockedTabs)
+        {
+            overlay.Visible = locked;
+            ApplyEnabledStates(panel, states, locked);
+        }
+    }
+
+    /// <summary>
+    /// Captures the current enabled state of every control in the given tree,
+    /// so the original states can be restored when the editor lock is lifted.
+    /// </summary>
+    private static Dictionary<Control, bool> CaptureEnabledStates(Control root)
+    {
+        var map = new Dictionary<Control, bool>();
+        void Walk(Control control)
+        {
+            map[control] = control.Enabled;
+            foreach (Control child in control.Controls)
+                Walk(child);
+        }
+        Walk(root);
+        return map;
+    }
+
+    /// <summary>
+    /// Applies the lock state to a control tree. When locking, every control is
+    /// disabled. When unlocking, each control is restored to its captured state;
+    /// controls created after capture (e.g. dynamically built rows) are enabled.
+    /// </summary>
+    private static void ApplyEnabledStates(Control root, Dictionary<Control, bool> states, bool locked)
+    {
+        void Walk(Control control)
+        {
+            control.Enabled = locked ? false : (states.TryGetValue(control, out bool original) ? original : true);
+            foreach (Control child in control.Controls)
+                Walk(child);
+        }
+        Walk(root);
     }
 
     /// <summary>
@@ -1579,6 +1663,7 @@ public partial class MainFormResources : Form
 
             // Enable save controls
             _saveButton.Enabled = true;
+            UpdateEditorLockState();
             EnableMenuItems();
 
             _statusLabel.Text = UiStrings.Format("status.loaded_save", Path.GetFileName(filePath), loadTimer.ElapsedMilliseconds.ToString("N0", CultureInfo.CurrentCulture));
@@ -1590,6 +1675,7 @@ public partial class MainFormResources : Form
             MessageBox.Show(this, UiStrings.Format("dialog.failed_load_save", ex.Message), UiStrings.Get("dialog.error"),
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             _statusLabel.Text = UiStrings.Get("status.failed_load_save");
+            UpdateEditorLockState();
         }
     }
 
@@ -1843,6 +1929,7 @@ public partial class MainFormResources : Form
                 _progressBar.Visible = false;
                 MessageBox.Show(this, UiStrings.Format("dialog.xbox_slot_failed", slotId), UiStrings.Get("dialog.error"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdateEditorLockState();
                 return;
             }
 
@@ -1880,6 +1967,7 @@ public partial class MainFormResources : Form
             await Task.Delay(200);
             _progressBar.Visible = false;
             _saveButton.Enabled = true;
+            UpdateEditorLockState();
             EnableMenuItems();
             _statusLabel.Text = UiStrings.Format("status.loaded_xbox", slotId, loadTimer.ElapsedMilliseconds.ToString("N0", CultureInfo.CurrentCulture));
             _hasUnsavedChanges = false;
@@ -1890,6 +1978,7 @@ public partial class MainFormResources : Form
             MessageBox.Show(this, UiStrings.Format("dialog.failed_load_xbox", ex.Message), UiStrings.Get("dialog.error"),
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             _statusLabel.Text = UiStrings.Get("status.failed_load_xbox");
+            UpdateEditorLockState();
         }
     }
 
@@ -1912,6 +2001,7 @@ public partial class MainFormResources : Form
                 _progressBar.Visible = false;
                 MessageBox.Show(this, UiStrings.Format("dialog.ps4_slot_failed", slotIndex), UiStrings.Get("dialog.error"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
+                UpdateEditorLockState();
                 return;
             }
 
@@ -1950,6 +2040,7 @@ public partial class MainFormResources : Form
             await Task.Delay(200);
             _progressBar.Visible = false;
             _saveButton.Enabled = true;
+            UpdateEditorLockState();
             EnableMenuItems();
             _statusLabel.Text = UiStrings.Format("status.loaded_ps4", slotIndex, loadTimer.ElapsedMilliseconds.ToString("N0", CultureInfo.CurrentCulture));
             _hasUnsavedChanges = false;
@@ -1960,6 +2051,7 @@ public partial class MainFormResources : Form
             MessageBox.Show(this, UiStrings.Format("dialog.failed_load_ps4", ex.Message), UiStrings.Get("dialog.error"),
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             _statusLabel.Text = UiStrings.Get("status.failed_load_ps4");
+            UpdateEditorLockState();
         }
     }
 
@@ -2887,6 +2979,10 @@ public partial class MainFormResources : Form
         _vehiclePanel.ApplyUiLocalisation();
         _multitoolPanel.ApplyUiLocalisation();
         _shipPanel.ApplyUiLocalisation();
+
+        // ---- No-save overlay messages ----
+        foreach (var (_, overlay, _) in _lockedTabs)
+            overlay.RefreshLocalisation();
     }
 
     /// <summary>

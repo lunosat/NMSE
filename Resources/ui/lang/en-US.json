@@ -1063,6 +1063,8 @@
   "location_type.settlement": "Settlement",
   "location_type.spacestation": "Space Station",
   "location_type.spacestation_fix_position": "Space Station (Fixed)",
+  "lock.hint": "Select a save slot in the toolbar above and click Load to begin editing.",
+  "lock.title": "No Save Loaded",
   "menu.edit": "&Edit",
   "menu.edit.reload": "&Reload",
   "menu.edit.restore_backup_all": "Restore Backup (&All)",

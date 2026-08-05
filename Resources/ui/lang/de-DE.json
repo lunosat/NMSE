@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Siedlung",
   "location_type.spacestation": "Raumstation",
   "location_type.spacestation_fix_position": "Raumstation (Fixiert)",
+  "lock.hint": "Wähle oben in der Symbolleiste einen Spielstand aus und klicke auf Laden, um mit der Bearbeitung zu beginnen.",
+  "lock.title": "Kein Spielstand geladen",
   "menu.edit": "&Bearbeiten",
   "menu.edit.reload": "&Neu laden",
   "menu.edit.restore_backup_all": "Backup wiederherstellen (&Alle)",

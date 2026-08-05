@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Colonie",
   "location_type.spacestation": "Station spatiale",
   "location_type.spacestation_fix_position": "Station spatiale (Fixe)",
+  "lock.hint": "Sélectionnez une sauvegarde dans la barre d'outils ci-dessus, puis cliquez sur Charger pour commencer à éditer.",
+  "lock.title": "Aucune sauvegarde chargée",
   "menu.edit": "É&dition",
   "menu.edit.reload": "&Recharger",
   "menu.edit.restore_backup_all": "Restaurer la sauvegarde (&Tout)",

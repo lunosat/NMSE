@@ -1036,6 +1036,8 @@
   "location_type.settlement": "Osada",
   "location_type.spacestation": "Stacja kosmiczna",
   "location_type.spacestation_fix_position": "Stacja kosmiczna (naprawiona)",
+  "lock.hint": "Wybierz slot zapisu na pasku narzędzi powyżej i kliknij Wczytaj, aby rozpocząć edycję.",
+  "lock.title": "Nie wczytano zapisu gry",
   "menu.edit": "&Edycja",
   "menu.edit.reload": "&Odśwież",
   "menu.edit.restore_backup_all": "Przywróć kopię zapasową (&Wszystko)",
