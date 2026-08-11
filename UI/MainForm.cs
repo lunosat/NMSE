@@ -720,9 +720,21 @@ public partial class MainFormResources : Form
 
     /// <summary>
     /// Returns the content panel inside a tab page, or null if the page is null/empty.
+    /// Skips the no-save overlay so callers always operate on the actual panel
+    /// (the overlay sits at the front of the tab page's z-order after being
+    /// brought to the front by <see cref="InstallEditorLock"/>).
     /// </summary>
     private static Control? GetTabContent(TabPage? page)
-        => page?.Controls.Count > 0 ? page.Controls[0] : null;
+    {
+        if (page == null || page.Controls.Count == 0)
+            return null;
+        foreach (Control control in page.Controls)
+        {
+            if (control is not NoSaveOverlay)
+                return control;
+        }
+        return null;
+    }
 
     /// <summary>
     /// Loads data for the panel at the given tab index.
