@@ -129,7 +129,7 @@ public class CategorizerTests
     [InlineData("Reward Item", "Others.json")]
     [InlineData("Technological Currency", "Others.json")]
     [InlineData("Anomalous Material", "Curiosities.json")]
-    [InlineData("Compressed Atmospheric Gas", "Products.json")]
+    [InlineData("Compressed Atmospheric Gas", "Raw Materials.json")]
     public void CategorizeItem_RawMaterialReRoutingGroups(string group, string expectedFile)
     {
         var item = MakeItem("TEST", "Test Material", group);

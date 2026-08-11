@@ -144,6 +144,41 @@ public class ResolveSaveInventoryTypeTests
         Assert.True(InventoryStackDatabase.CanAddItemToInventory(item, isTechOnly: false, isCargo: true));
     }
 
+    [Theory]
+    [InlineData("GAS1")]
+    [InlineData("GAS2")]
+    [InlineData("GAS3")]
+    [InlineData("GAS4")]
+    [InlineData("^GAS1")]
+    public void ResolveInventoryTypeForItem_AtmosphericGases_AlwaysResolveAsSubstance(string itemId)
+    {
+        // The four atmospheric gases are entries in the game's substance table and
+        // must be written to saves with InventoryType "Substance".  This guard must
+        // hold even if the item database classifies them otherwise (e.g. as Products,
+        // as they historically were due to extractor categorisation).
+        var item = new GameItem
+        {
+            Id = itemId,
+            ItemType = "Products",
+            SourceTable = ""
+        };
+        Assert.Equal("Substance", InventoryStackDatabase.ResolveInventoryTypeForItem(item));
+        Assert.Equal("Substance", InventoryStackDatabase.ResolveInventoryTypeForItem(item, isTechInventory: true));
+    }
+
+    [Fact]
+    public void CanAddItem_AtmosphericGas_AcceptedByCargoInventory()
+    {
+        var item = new GameItem
+        {
+            Id = "GAS1",
+            ItemType = "Products",
+            Category = "Earth",
+            SourceTable = "Substance"
+        };
+        Assert.True(InventoryStackDatabase.CanAddItemToInventory(item, isTechOnly: false, isCargo: true));
+    }
+
     [Fact]
     public void CanAddItem_TechnologyInOthersJson_RejectedByCargoInventory()
     {

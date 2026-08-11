@@ -204,6 +204,26 @@ public static class InventoryStackDatabase
     }
 
     /// <summary>
+    /// Item IDs of the four atmospheric gases (Sulphurine, Radon, Nitrogen, Methane).
+    /// These are entries in the game's substance table and are stored in saves with
+    /// InventoryType "Substance".
+    /// </summary>
+    private static readonly HashSet<string> GasItemIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "GAS1", "GAS2", "GAS3", "GAS4",
+    };
+
+    /// <summary>
+    /// Returns whether the given item ID is one of the four atmospheric gases.
+    /// </summary>
+    private static bool IsGasItem(string itemId)
+    {
+        if (string.IsNullOrEmpty(itemId)) return false;
+        return GasItemIds.Contains(itemId)
+            || GasItemIds.Contains(itemId.TrimStart('^'));
+    }
+
+    /// <summary>
     /// Resolves the save-file <c>InventoryType</c> for a specific <see cref="GameItem"/>
     /// within the context of the target inventory.
     /// <para>
@@ -223,6 +243,13 @@ public static class InventoryStackDatabase
     /// </summary>
     public static string ResolveInventoryTypeForItem(GameItem item, bool isTechInventory)
     {
+        // Atmospheric gases are substances in the game regardless of how they
+        // are classified in the item database (they historically lived in
+        // Products.json due to extractor categorisation, which would otherwise
+        // resolve them as Product and produce slots the game silently drops).
+        if (IsGasItem(item.Id))
+            return "Substance";
+
         // Procedural items are always technology in the save file, regardless
         // of the JSON file they came from.
         if (item.IsProcedural)

@@ -554,6 +554,30 @@ public class StaticDataDatabaseTests
         Assert.Equal("Weapon", laser!.TechnologyCategory);
     }
 
+    [Fact]
+    public void Database_AtmosphericGases_ClassifiedAsSubstancesInRawMaterials()
+    {
+        // The four atmospheric gases are entries in the game's substance table.
+        // They must live in Raw Materials.json with SourceTable "Substance" so
+        // the item picker, catalogue and type resolution treat them as substances
+        // (they were historically misclassified as Products, which produced
+        // Product-typed slots the game silently drops).
+        var db = new GameItemDatabase();
+        var jsonDir = FindResourceJsonDir();
+        if (jsonDir == null) return; // Skip if resources not found
+        db.LoadItemsFromJsonDirectory(jsonDir);
+
+        foreach (var id in new[] { "GAS1", "GAS2", "GAS3", "GAS4" })
+        {
+            var gas = db.GetItem(id);
+            Assert.NotNull(gas);
+            Assert.Equal("Raw Materials", gas!.ItemType);
+            Assert.Equal("Substance", gas.SourceTable);
+            Assert.Equal("Earth", gas.Category);
+            Assert.Equal("Substance", InventoryStackDatabase.ResolveInventoryTypeForItem(gas));
+        }
+    }
+
     private static string? FindResourceJsonDir()
     {
         // Walk up from test assembly directory to find Resources/json

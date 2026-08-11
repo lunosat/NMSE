@@ -259,7 +259,7 @@ public static class Categorizer
         {
             "Advanced Agricultural Product", "Advanced Mineral Product",
             "Bio-luminescent Material", "Chemical Curiosity",
-            "Compressed Atmospheric Gas", "Concentrated Metal Deposit",
+            "Concentrated Metal Deposit",
             "Crafted Technology Component", "Earth", "Enhanced Gas Product",
             "Enriched Enriched Sub", "Farmer's Product", "Fusion Accelerant",
             "Highly Refined Technology", "Ignition Fuel", "Manufactured Alloy",
@@ -400,7 +400,8 @@ public static class Categorizer
         ["Raw Materials.json"] = new()
         {
             "Abundant Mineral", "Aquatic Mineral Extract", "Ashes of Despair",
-            "Charged Metallic Element", "Concentrated Liquid Fuel",
+            "Charged Metallic Element", "Compressed Atmospheric Gas",
+            "Concentrated Liquid Fuel",
             "Decayed Spacetime Remnant", "Disharmonic Metal", "Essence of Atlantid",
             "Harvested Agricultural Substance", "Harvested Substance",
             "High Energy Substance", "Highly Refined Stellar Metal",

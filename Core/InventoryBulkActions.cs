@@ -518,7 +518,7 @@ internal static class InventoryBulkActions
         }
 
         if (gameItem != null)
-            return InventoryStackDatabase.ResolveInventoryType(gameItem.ItemType);
+            return InventoryStackDatabase.ResolveInventoryTypeForItem(gameItem);
 
         return "Product";
     }
