@@ -142,10 +142,10 @@ You can view the NMSE development roadmap **[here][roadmap]** for upcoming, plan
 Wine based AppImage and DMG are available from the release page.<br>
 See the cross-platform guides for running NMSE via Wine:
 
-- 🍷 [Wine on Linux][guide-wine]
-- 🧴 [Bottles on Linux][guide-bottles]
+- 🐧 Linux AppImage with WINE included **(RECOMMENDED)**
 - 🥃 [Gcenx Wine Builds on macOS][guide-gcenx-wine]
 - ✖️[CrossOver on macOS][guide-crossover]
+- Advanced usage under Linux: 🍷 [Wine on Linux][guide-wine] or🧴 [Bottles on Linux][guide-bottles]
 
 A native cross-platform version [is planned][cross-platfom-plan].
 

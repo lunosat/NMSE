@@ -114,6 +114,15 @@ If they aren't, there are two ways to open your save files:
 4. Select the save slot and save file you want to edit
 5. Click <kbd>Load</kbd>
 
+> ℹ️ Save folders under Linux (using the AppImage, you can browse with either / or Z:).
+> 
+> - SteamOS: ```/home/deck/.local/share/Steam/steamapps/compatdata/275850/pfx/drive_c/users/steamuser/AppData/Roaming/HelloGames/NMS/st_<steamid>/```
+> - Flatpak: ```/var/home/<username>/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/compatdata/275850/pfx/drive_c/users/steamuser/AppData/Roaming/HelloGames/NMS/st_<steamid>/```
+> - Package: ```/home/<username>/.steam/steam/steamapps/compatdata/275850/pfx/drive_c/users/steamuser/AppData/Roaming/HelloGames/NMS/st_<steamid>/```
+> - GOG (Heroic Launcher): ```/home/<username>/Games/Heroic/Prefixes/default/No Mans Sky/pfx/pfx/drive_c/users/steamuser/AppData/Roaming/HelloGames/NMS/DefaultUser/```
+>
+> 💡 Make a link in your /home/<username> so it is easier next time!
+
 ### Method 2: Load Individual Save File (Manual)
 
 1. Click <kbd>File > Load Save File</kbd>
