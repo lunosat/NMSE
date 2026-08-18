@@ -1791,4 +1791,143 @@ public class PlatformIOTests
             Directory.Delete(tmpDir, true);
         }
     }
+
+    // --- TransferCrossPlatform: Xbox Game Pass destination ---
+
+    /// <summary>
+    /// Builds a minimal source save file (Steam-style .hg) containing the given platform token.
+    /// </summary>
+    private static string CreateSourceSaveFile(string dir, string platformToken)
+    {
+        string savePath = Path.Combine(dir, "save.hg");
+        var root = new JsonObject();
+        root.Add("Version", 4720);
+        root.Add("Platform", platformToken);
+        var playerState = new JsonObject();
+        playerState.Add("Health", 8);
+        playerState.Add("SaveSummary", "Transfer test");
+        root.Add("PlayerStateData", playerState);
+        SaveFileManager.SaveToFile(savePath, root, compress: true);
+        return savePath;
+    }
+
+    /// <summary>
+    /// Builds a synthetic Xbox Game Pass save directory (containers.index + GUID blob
+    /// directories) with the standard slot identifiers.
+    /// </summary>
+    private static void CreateXboxSaveDirectory(string destDir)
+    {
+        var slots = new List<XboxSlotInfo>();
+        string[] identifiers = { "AccountData", "Settings", "Slot1Auto", "Slot1Manual", "Slot2Auto", "Slot2Manual" };
+        foreach (string id in identifiers)
+        {
+            Guid dirGuid = Guid.NewGuid();
+            var slot = new XboxSlotInfo
+            {
+                Identifier = id,
+                DirectoryGuid = dirGuid,
+                BlobDirectoryPath = Path.Combine(destDir, dirGuid.ToString("N").ToUpperInvariant()),
+                LastModified = DateTimeOffset.UtcNow,
+                BlobContainerExtension = 0,
+            };
+            // Create the blob container and dummy data/meta blobs.
+            ContainersIndexManager.WriteXboxSave(slot, new byte[] { 0x01 }, new byte[] { 0x02 });
+            slots.Add(slot);
+        }
+
+        ContainersIndexManager.WriteContainersIndex(
+            Path.Combine(destDir, "containers.index"),
+            slots,
+            "HelloGames.NoMansSky_Test",
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public void TransferCrossPlatform_XboxDestination_WritesManualSlotBlob()
+    {
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_xfer_xbox_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string srcDir = Path.Combine(tmpDir, "src");
+            string destDir = Path.Combine(tmpDir, "dest");
+            Directory.CreateDirectory(srcDir);
+            Directory.CreateDirectory(destDir);
+
+            string srcSave = CreateSourceSaveFile(srcDir, "PC");
+            CreateXboxSaveDirectory(destDir);
+
+            // Transfer the Steam save into Xbox Game Pass slot 2 (0-based index 1).
+            SaveSlotManager.TransferCrossPlatform(srcSave, destDir, destSlotIndex: 1,
+                SaveFileManager.Platform.XboxGamePass);
+
+            // The manual save entry of the target slot must now contain the transferred
+            // data with the Xbox platform token.
+            var slots = ContainersIndexManager.ParseContainersIndex(Path.Combine(destDir, "containers.index"));
+            Assert.True(slots.ContainsKey("Slot2Manual"), "Slot2Manual should exist in containers.index");
+            string? json = ContainersIndexManager.LoadXboxSave(slots["Slot2Manual"]);
+            Assert.NotNull(json);
+            Assert.Contains("\"Platform\":\"XBX\"", json);
+            Assert.Contains("\"SaveSummary\":\"Transfer test\"", json);
+
+            // The auto-save entry must be left untouched.
+            string? autoJson = ContainersIndexManager.LoadXboxSave(slots["Slot2Auto"]);
+            Assert.NotEqual(json, autoJson);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [Fact]
+    public void TransferCrossPlatform_XboxDestination_MissingContainersIndex_Throws()
+    {
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_xfer_xbox_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string srcSave = CreateSourceSaveFile(tmpDir, "PC");
+            string emptyDest = Path.Combine(tmpDir, "empty_dest");
+            Directory.CreateDirectory(emptyDest);
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                SaveSlotManager.TransferCrossPlatform(srcSave, emptyDest, destSlotIndex: 0,
+                    SaveFileManager.Platform.XboxGamePass));
+            Assert.Contains("containers.index", ex.Message);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [Fact]
+    public void TransferCrossPlatform_SteamDestination_StillWritesSaveFiles()
+    {
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_xfer_steam_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string srcSave = CreateSourceSaveFile(tmpDir, "XBX");
+            string destDir = Path.Combine(tmpDir, "st_12345");
+            Directory.CreateDirectory(destDir);
+
+            // Regression guard: non-Xbox transfers must keep writing plain .hg files.
+            SaveSlotManager.TransferCrossPlatform(srcSave, destDir, destSlotIndex: 1,
+                SaveFileManager.Platform.Steam);
+
+            // Slot 1 (0-based) manual save = save4.hg
+            string destPath = Path.Combine(destDir, "save4.hg");
+            Assert.True(File.Exists(destPath), "Manual save save4.hg should exist after transfer");
+
+            var reloaded = SaveFileManager.LoadSaveFile(destPath);
+            Assert.Equal("PC", reloaded.GetString("Platform"));
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
 }

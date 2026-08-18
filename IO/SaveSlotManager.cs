@@ -501,7 +501,14 @@ public static class SaveSlotManager
         if (options.TransferByteBeat)
             TransferByteBeatOwnership(saveData, options);
 
-        // Save to destination
+        // Save to destination.  Xbox Game Pass saves are GUID-named blobs tracked by
+        // containers.index rather than plain *.hg files, so they need dedicated handling.
+        if (destPlatform == SaveFileManager.Platform.XboxGamePass)
+        {
+            SaveToXboxGamePass(destDirectory, destSlotIndex, saveData);
+            return;
+        }
+
         var destFiles = GetSlotFiles(destDirectory, destSlotIndex, destPlatform);
         if (destFiles.DataFile == null)
             throw new InvalidOperationException("Cannot determine destination file path.");
@@ -510,6 +517,41 @@ public static class SaveSlotManager
 
         // Write platform-appropriate meta file
         WriteMetaForPlatform(destFiles, saveData, destPlatform, destSlotIndex);
+    }
+
+    /// <summary>
+    /// Saves the given data to an Xbox Game Pass destination directory.
+    /// Xbox/Microsoft saves live as GUID-named blobs referenced by containers.index,
+    /// so the destination slot is located by its identifier rather than a file name.
+    /// Writes to the manual save entry when present, falling back to the auto save.
+    /// </summary>
+    /// <param name="destDirectory">Path to the Xbox Game Pass save directory (containing containers.index).</param>
+    /// <param name="destSlotIndex">Destination slot index (0-based; 0 = game "Slot 1").</param>
+    /// <param name="saveData">The save data to write.</param>
+    private static void SaveToXboxGamePass(string destDirectory, int destSlotIndex, JsonObject saveData)
+    {
+        string containersPath = Path.Combine(destDirectory, "containers.index");
+        if (!File.Exists(containersPath))
+            throw new InvalidOperationException("Cannot determine destination file path: Xbox Game Pass directory does not contain containers.index.");
+
+        int targetSlotNumber = destSlotIndex + 1;
+        string? identifier = null;
+        foreach (var (slotId, _) in ContainersIndexManager.ParseContainersIndex(containersPath))
+        {
+            if (ContainersIndexManager.ExtractSlotNumber(slotId) != targetSlotNumber)
+                continue;
+
+            identifier = slotId;
+            // Prefer the manual save entry, matching the Steam/GOG behaviour of
+            // writing to the manual save file (all[1]).
+            if (slotId.Contains("Manual", StringComparison.OrdinalIgnoreCase))
+                break;
+        }
+
+        if (identifier == null)
+            throw new InvalidOperationException($"Cannot determine destination file path: slot {targetSlotNumber} not found in containers.index.");
+
+        SaveFileManager.SaveXboxSave(containersPath, identifier, saveData);
     }
 
     /// <summary>
