@@ -1,10 +1,28 @@
-## NMSE — No Man's Save Editor v1.2.7
-
-> This is the first true release build "out of preview"! 🥳 </br>
-> The bedrock seems to be sound at this point and bug reporting and fixing has a stable lifecycle.</br>
-> Thanks to ALL users who have been continuing to provide feedback, report issues and request new features! You are the best❤️</br>
+## NMSE — No Man's Save Editor v1.2.23
 
 ### Changelog
+
+#### Features:
+
+- Added support for freighter bases in the Bases panel.
+- Added support for base objects editing in the Bases panel via a new sub-panel tab.
+- Added a backup picker system to the Restore save functionality + some minor improvements to the backup manager. (per Discord feedback)
+- Added a preload 'Lock Overlay' for when the user hasn't yet loaded a save file to help guide users. (per Discord feedback)
+- Username detection improved. (per Discord feedback)
+
+#### Bug Fixes:
+
+- Item categorisation fixes for the Extractor and database JSON for GAS items and somme Swarm crafting items. (per Issue #112)
+- Fix for "The Wraith" ship to allow the correct tech install. (per Issue #110)
+- Fix for some further UI scaling / DPI issues at higher scaling sizes (such as 150%). (per Issue #88)
+- Fix for "Save Transfer" from another platform to XBOX/XGP containers/blobs format so they are rebuilt properly.
+
+<br />
+
+<details>
+<summary>Previous Changelogs</summary>
+
+### Changelog 1.2.7
 
 #### Features:
 
@@ -36,9 +54,6 @@
 - Fix for expedition order sorting in the Account Rewards UI. (per Discord report)
 
 <br />
-
-<details>
-<summary>Previous Changelogs</summary>
 
 ### Changelog 1.1.93 (preview)
 
