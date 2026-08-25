@@ -1291,10 +1291,16 @@ public partial class MainFormResources : Form
                 }
             }
 
-            // PS4 HTOS format: savedata00.hg is account data; game slots start at savedata02.hg.
+            // PS4 HTOS / Switch format: savedata00.hg is not a game slot (settings on
+            // Switch, account data on PS4); game slots start at savedata02.hg.
             // Pair savedata{N*2+2}.hg (auto) + savedata{N*2+3}.hg (manual) for slot N (0-based).
-            if (_saveSlotCombo.Items.Count == 0 && _detectedPlatform == SaveFileManager.Platform.PS4)
+            if (_saveSlotCombo.Items.Count == 0 &&
+                (_detectedPlatform == SaveFileManager.Platform.PS4
+                 || _detectedPlatform == SaveFileManager.Platform.Switch))
             {
+                string platformPrefix = _detectedPlatform == SaveFileManager.Platform.Switch
+                    ? "Switch: "
+                    : "PS4: ";
                 for (int i = 0; i < 15; i++)
                 {
                     string autoFile   = Path.Combine(dir, $"savedata{i * 2 + 2:D2}.hg");
@@ -1315,7 +1321,7 @@ public partial class MainFormResources : Form
                         string saveName    = DetectSaveName(labelFile);
                         SaveFileManager.DetectActiveContextFast(labelFile, out bool ps4MdIsExpedition);
                         string? ps4MdExpeditionTag = ps4MdIsExpedition ? UiStrings.Get("slot.expedition") : null;
-                        string label       = BuildSlotLabel($"PS4: Slot {i + 1}", saveName, difficulty, ps4MdExpeditionTag);
+                        string label       = BuildSlotLabel($"{platformPrefix}Slot {i + 1}", saveName, difficulty, ps4MdExpeditionTag);
                         _saveSlotCombo.Items.Add(label);
                     }
                 }

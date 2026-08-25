@@ -669,8 +669,9 @@ public partial class AccountPanel : UserControl
         {
             using var dialog = new ConsistencyDialog(issues, _currentSaveData, _database, _iconManager);
             dialog.ShowDialog(this);
-            // Mark save as modified since the user may have resolved issues.
-            DataModified?.Invoke(this, EventArgs.Empty);
+            // Mark save as modified only if the user actually resolved any issues.
+            if (dialog.HasChanges)
+                DataModified?.Invoke(this, EventArgs.Empty);
         }
     }
 }

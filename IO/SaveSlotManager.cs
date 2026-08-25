@@ -56,9 +56,10 @@ public class TransferOptions
 ///   Slot N: save(2N+1).hg     + save(2N+2).hg   (with special case: slot 0 auto = save.hg)
 ///
 /// Switch / PS4 streaming file layout (15 slots × 2 files each = 30 files):
-///   Slot 0: savedata00.hg (auto) + savedata01.hg (manual)
-///   Slot 1: savedata02.hg (auto) + savedata03.hg (manual)
-///   Slot N: savedata(2N).hg      + savedata(2N+1).hg
+///   Slot 0: savedata02.hg (auto) + savedata03.hg (manual)
+///   Slot 1: savedata04.hg (auto) + savedata05.hg (manual)
+///   Slot N: savedata(2N+2).hg    + savedata(2N+3).hg
+///   (savedata00.hg is the settings file and account data lives in accountdata.hg)
 /// </summary>
 public static class SaveSlotManager
 {
@@ -131,10 +132,15 @@ public static class SaveSlotManager
 
     private static SlotFiles[] GetSwitchAllSlotFiles(string dir, int slotIndex)
     {
-        // Slot N:  auto   = savedata{2N:D2}.hg  + manifest{2N:D2}.hg
-        //          manual = savedata{2N+1:D2}.hg + manifest{2N+1:D2}.hg
-        int autoIdx   = slotIndex * 2;
-        int manualIdx = slotIndex * 2 + 1;
+        // Switch saves use the same layout as PS4 HTOS: savedata00.hg is the settings
+        // file (with manifest00.hg) and account data lives in accountdata.hg, so game
+        // slots start at savedata02.hg:
+        //   Slot 0:  auto   = savedata02.hg  + manifest02.hg
+        //            manual = savedata03.hg  + manifest03.hg
+        //   Slot N:  auto   = savedata{2N+2:D2}.hg + manifest{2N+2:D2}.hg
+        //            manual = savedata{2N+3:D2}.hg + manifest{2N+3:D2}.hg
+        int autoIdx   = slotIndex * 2 + 2;
+        int manualIdx = slotIndex * 2 + 3;
 
         return
         [

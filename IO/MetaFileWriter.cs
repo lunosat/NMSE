@@ -194,6 +194,30 @@ public static class MetaFileWriter
     }
 
     /// <summary>
+    /// Reads the meta format and base version from an adjacent game-save manifest in
+    /// the same directory (manifest02.hg, manifest04.hg, ... manifest12.hg).
+    /// Game-save manifests carry the platform's software version as their base version,
+    /// which is not stored anywhere in the save JSON (the JSON "Version"/"F2P" field is
+    /// the save format version and is always higher).  Returns zeros when no sibling
+    /// manifest is found.
+    /// </summary>
+    /// <param name="dir">Directory containing the manifest files.</param>
+    private static (uint Format, uint BaseVersion) ReadSiblingManifestInfo(string dir)
+    {
+        for (int i = 2; i <= 12; i += 2)
+        {
+            string path = Path.Combine(dir, $"manifest{i:D2}.hg");
+            if (File.Exists(path))
+            {
+                byte[] bytes = File.ReadAllBytes(path);
+                if (bytes.Length >= 24)
+                    return (BitConverter.ToUInt32(bytes, 4), BitConverter.ToUInt32(bytes, 20));
+            }
+        }
+        return (0, 0);
+    }
+
+    /// <summary>
     /// Reads the meta format from an adjacent game-save manifest in the same directory.
     /// Game-save manifests are named manifest02.hg, manifest04.hg, manifest06.hg ... manifest12.hg.
     /// The account manifest (manifest00.hg) must carry the same format value, but the
@@ -204,17 +228,8 @@ public static class MetaFileWriter
     /// <param name="fallback">Value to return when no sibling manifest is found.</param>
     private static uint ReadSiblingManifestFormat(string dir, uint fallback)
     {
-        for (int i = 2; i <= 12; i += 2)
-        {
-            string path = Path.Combine(dir, $"manifest{i:D2}.hg");
-            if (File.Exists(path))
-            {
-                byte[] bytes = File.ReadAllBytes(path);
-                if (bytes.Length >= 8)
-                    return BitConverter.ToUInt32(bytes, 4);
-            }
-        }
-        return fallback;
+        var info = ReadSiblingManifestInfo(dir);
+        return info.Format != 0 ? info.Format : fallback;
     }
 
     private static int GameModeStringToInt(string mode) => mode switch
@@ -370,6 +385,21 @@ public static class MetaFileWriter
     /// </summary>
     public static void WriteSwitchMeta(string saveFilePath, uint decompressedSize, SaveMetaInfo info, int metaIndex)
     {
+        // Derive the manifest index from the save data file name (savedata03.hg gives
+        // index 3).  This ensures the correct companion manifest (manifest03.hg) is
+        // always written regardless of which slot index the caller passes, matching
+        // the PS4 streaming writer.  Non-savedata names (e.g. accountdata.hg) fall
+        // back to the caller's index.
+        string fname = Path.GetFileNameWithoutExtension(saveFilePath);
+        const string sdPrefix = "savedata";
+        if (fname.StartsWith(sdPrefix, StringComparison.OrdinalIgnoreCase) &&
+            int.TryParse(fname.AsSpan(sdPrefix.Length),
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out int derivedIdx))
+        {
+            metaIndex = derivedIdx;
+        }
+
         string metaPath = GetSwitchMetaPath(saveFilePath, metaIndex);
 
         // Account meta (metaIndex 0): only write decompressed size at offsets 8 and 36.
@@ -401,7 +431,35 @@ public static class MetaFileWriter
 
         // Save meta: write all fields.
         {
-            uint metaFormat = GetMetaFormat(info.BaseVersion);
+            // Preserve the base version and format from the existing manifest when
+            // present.  The manifest base version is the game's software version at
+            // save time (e.g. 4215) and is lower than the save-format "Version" field
+            // in the JSON (e.g. 4727).  Overwriting it with the JSON Version makes the
+            // save appear newer than the platform's deployed build, which triggers the
+            // "Cross-Save Version Incompatible" error on load (same fix as Steam meta).
+            // When the slot has no manifest of its own (e.g. writing into a new slot),
+            // fall back to the base version of a sibling game-save manifest, which
+            // carries the same platform software version.
+            uint existingFormat = 0;
+            uint existingBaseVersion = 0;
+            if (File.Exists(metaPath))
+            {
+                byte[] existing = File.ReadAllBytes(metaPath);
+                if (existing.Length >= 24 && BitConverter.ToUInt32(existing, 0) == META_HEADER_SWITCH)
+                {
+                    existingFormat = BitConverter.ToUInt32(existing, 4);
+                    existingBaseVersion = BitConverter.ToUInt32(existing, 20);
+                }
+            }
+            if (existingFormat == 0 || existingBaseVersion == 0)
+            {
+                var sibling = ReadSiblingManifestInfo(Path.GetDirectoryName(metaPath)!);
+                if (existingFormat == 0) existingFormat = sibling.Format;
+                if (existingBaseVersion == 0) existingBaseVersion = sibling.BaseVersion;
+            }
+
+            uint derivedFormat = GetMetaFormat(info.BaseVersion);
+            uint metaFormat = existingFormat > derivedFormat ? existingFormat : derivedFormat;
             int bufferLen = GetSwitchMetaLength(metaFormat);
             byte[] buffer = new byte[bufferLen];
 
@@ -413,7 +471,7 @@ public static class MetaFileWriter
             writer.Write(decompressedSize);                                // offset 8, 4 bytes: decompressed size
             writer.Write(metaIndex);                                       // offset 12, 4 bytes: manifest index
             writer.Write((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()); // offset 16, 4 bytes: unix timestamp
-            writer.Write(info.BaseVersion);                                // offset 20, 4 bytes: base version
+            writer.Write(existingBaseVersion != 0 ? existingBaseVersion : (uint)info.BaseVersion); // offset 20, 4 bytes: base version
             writer.Write((ushort)info.GameMode);                           // offset 24, 2 bytes: game mode
             writer.Write((ushort)info.Season);                             // offset 26, 2 bytes: season
             writer.Write(info.TotalPlayTime);                              // offset 28, 8 bytes: total play time
@@ -496,30 +554,61 @@ public static class MetaFileWriter
 
         // Save-slot manifest: write all fields from scratch.
         {
-            byte[] buffer = new byte[bufferLen];
+            // Preserve the base version and format from the existing manifest when
+            // present.  The manifest base version is the game's software version at
+            // save time and is lower than the save-format "Version" field in the
+            // JSON.  Overwriting it with the JSON Version makes the save appear newer
+            // than the platform's deployed build, which triggers the
+            // "Cross-Save Version Incompatible" error on load (same fix as Steam meta).
+            // When the slot has no manifest of its own (e.g. writing into a new slot),
+            // fall back to the base version of a sibling game-save manifest, which
+            // carries the same platform software version.
+            uint existingFormat = 0;
+            uint existingBaseVersion = 0;
+            if (File.Exists(metaPath))
+            {
+                byte[] existing = File.ReadAllBytes(metaPath);
+                if (existing.Length >= 24 && BitConverter.ToUInt32(existing, 0) == META_HEADER_PS4)
+                {
+                    existingFormat = BitConverter.ToUInt32(existing, 4);
+                    existingBaseVersion = BitConverter.ToUInt32(existing, 20);
+                }
+            }
+            if (existingFormat == 0 || existingBaseVersion == 0)
+            {
+                var sibling = ReadSiblingManifestInfo(Path.GetDirectoryName(metaPath)!);
+                if (existingFormat == 0) existingFormat = sibling.Format;
+                if (existingBaseVersion == 0) existingBaseVersion = sibling.BaseVersion;
+            }
+
+            uint derivedFormat = GetMetaFormat(info.BaseVersion);
+            uint saveFormat = existingFormat > derivedFormat ? existingFormat : derivedFormat;
+            int saveLen = GetPs4MetaLength(saveFormat);
+            byte[] buffer = new byte[saveLen];
+
             using var ms = new MemoryStream(buffer);
             using var writer = new BinaryWriter(ms);
 
             writer.Write(META_HEADER_PS4);                                 // offset 0, 4 bytes: magic header
-            writer.Write(metaFormat);                                      // offset 4, 4 bytes: meta format version
+            writer.Write(saveFormat);                                      // offset 4, 4 bytes: meta format version
             writer.Write(decompressedSize);                                // offset 8, 4 bytes: decompressed size
             writer.Write(metaIndex);                                       // offset 12, 4 bytes: manifest index
             writer.Write((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()); // offset 16, 4 bytes: unix timestamp
-            writer.Write(info.BaseVersion);                                // offset 20, 4 bytes: base version
+            writer.Write(existingBaseVersion != 0 ? existingBaseVersion : (uint)info.BaseVersion); // offset 20, 4 bytes: base version
             writer.Write((ushort)info.GameMode);                           // offset 24, 2 bytes: game mode
             writer.Write((ushort)info.Season);                             // offset 26, 2 bytes: season
             writer.Write(info.TotalPlayTime);                              // offset 28, 8 bytes: total play time
             writer.Write(decompressedSize);                                // offset 36, 4 bytes: decompressed size (duplicate)
             // Total so far: 40 bytes (= PS4_META_BEFORE_NAME)
 
-            if (bufferLen > PS4_META_BEFORE_NAME)
+            if (saveLen > PS4_META_BEFORE_NAME)
             {
                 ms.Position = PS4_META_BEFORE_NAME; // 40
-                WriteSaveNameAndSummary(writer, info, ms, PS4_META_BEFORE_DIFFICULTY, bufferLen);
+                WriteSaveNameAndSummary(writer, info, ms, PS4_META_BEFORE_DIFFICULTY, saveLen);
             }
 
             // Worlds Part I/II extensions (format >= 2003): slot ID, timestamp, format copy, difficulty tag.
-            if (metaFormat >= META_FORMAT_3)
+            if (saveFormat >= META_FORMAT_3)
             {
                 // Slot ID at offset 300 (8 bytes). This is a platform-assigned opaque identifier,
                 // not the save-slot index. The PS4 game generates it internally (presumably);
@@ -531,11 +620,11 @@ public static class MetaFileWriter
                 writer.Write((uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds()); // offset 308, 4 bytes: unix timestamp
 
                 ms.Position = PS4_META_BEFORE_DIFFICULTY + 16; // 312
-                writer.Write(metaFormat); // offset 312, 4 bytes: meta format version (copy)
+                writer.Write(saveFormat); // offset 312, 4 bytes: meta format version (copy)
             }
 
             // Worlds Part II extension (format >= 2004): difficulty tag string (64 bytes at offset 316).
-            if (metaFormat >= META_FORMAT_4)
+            if (saveFormat >= META_FORMAT_4)
             {
                 ms.Position = PS4_META_BEFORE_DIFFICULTY + 20; // 316
                 byte[] tagBytes = GetNullTerminatedBytes(info.DifficultyPresetTag ?? "", 64);

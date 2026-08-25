@@ -57,7 +57,11 @@ public class SaveFileManager
     {
         if (File.Exists(Path.Combine(directory, "containers.index")))
             return Platform.XboxGamePass;
-        if (Directory.GetFiles(directory, "manifest*.dat").Length > 0)
+        // Switch saves carry manifestaccountdata.hg alongside the manifest*.hg companion
+        // files (manifest00.hg for savedata00.hg settings, manifest02.hg for the first
+        // game slot, etc.).  Some exports use manifest*.dat names, so keep that check too.
+        if (File.Exists(Path.Combine(directory, "manifestaccountdata.hg")) ||
+            Directory.GetFiles(directory, "manifest*.dat").Length > 0)
             return Platform.Switch;
         if (File.Exists(Path.Combine(directory, "memory.dat")) ||
             Directory.GetFiles(directory, "savedata*.hg").Length > 0)

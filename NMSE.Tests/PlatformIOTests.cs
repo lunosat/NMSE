@@ -309,8 +309,8 @@ public class PlatformIOTests
     }
 
     [Theory]
-    [InlineData(0, "savedata01.hg")]
-    [InlineData(1, "savedata03.hg")]
+    [InlineData(0, "savedata03.hg")]
+    [InlineData(1, "savedata05.hg")]
     public void SaveSlotManager_GetSlotFiles_Switch_ReturnsManualSave(int slotIndex, string expectedDataName)
     {
         var files = SaveSlotManager.GetSlotFiles("/saves/switch", slotIndex, SaveFileManager.Platform.Switch);
@@ -321,8 +321,8 @@ public class PlatformIOTests
     }
 
     [Theory]
-    [InlineData(0, "savedata00.hg", "savedata01.hg")]
-    [InlineData(1, "savedata02.hg", "savedata03.hg")]
+    [InlineData(0, "savedata02.hg", "savedata03.hg")]
+    [InlineData(1, "savedata04.hg", "savedata05.hg")]
     public void SaveSlotManager_GetAllSlotFiles_Switch_ReturnsBothFiles(
         int slotIndex, string expectedAuto, string expectedManual)
     {
@@ -778,6 +778,27 @@ public class PlatformIOTests
         try
         {
             File.WriteAllBytes(Path.Combine(tmpDir, "manifest00.dat"), new byte[] { 0 });
+
+            var platform = SaveFileManager.DetectPlatform(tmpDir);
+            Assert.Equal(SaveFileManager.Platform.Switch, platform);
+        }
+        finally { Directory.Delete(tmpDir, true); }
+    }
+
+    [Fact]
+    public void DetectPlatform_Switch_FromManifestaccountdata()
+    {
+        // Real Switch saves (e.g. JKSV exports) carry manifestaccountdata.hg alongside
+        // the manifest*.hg companion files.  Without this, a Switch directory is
+        // misdetected as PS4 because it also contains savedata*.hg files.
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_switch_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            File.WriteAllBytes(Path.Combine(tmpDir, "manifestaccountdata.hg"), new byte[] { 0 });
+            File.WriteAllBytes(Path.Combine(tmpDir, "manifest00.hg"), new byte[] { 0 });
+            File.WriteAllBytes(Path.Combine(tmpDir, "savedata00.hg"), new byte[] { 0 });
+            File.WriteAllBytes(Path.Combine(tmpDir, "savedata02.hg"), new byte[] { 0 });
 
             var platform = SaveFileManager.DetectPlatform(tmpDir);
             Assert.Equal(SaveFileManager.Platform.Switch, platform);
@@ -1576,6 +1597,145 @@ public class PlatformIOTests
 
             ushort season = BitConverter.ToUInt16(metaBytes, 26);
             Assert.Equal(3, (int)season);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [Fact]
+    public void SwitchMeta_SaveMeta_PreservesExistingBaseVersion()
+    {
+        // Regression guard: the manifest base version (offset 20) is the game's
+        // software version at save time (e.g. 4215) and must NOT be overwritten with
+        // the save-format "Version" field from the JSON (e.g. 4727).  Writing the
+        // higher JSON Version makes the game report "Cross-Save Version Incompatible".
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string savePath = Path.Combine(tmpDir, "savedata01.hg");
+            File.WriteAllText(savePath, "dummy");
+
+            // Create a pre-existing game-written manifest carrying a lower base version.
+            string metaPath = Path.Combine(tmpDir, "manifest01.hg");
+            byte[] existing = new byte[MetaFileWriter.SWITCH_META_LENGTH_WORLDS_II];
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_HEADER_SWITCH), 0, existing, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_FORMAT_4), 0, existing, 4, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(4215u), 0, existing, 20, 4);
+            File.WriteAllBytes(metaPath, existing);
+
+            var metaInfo = new SaveMetaInfo
+            {
+                BaseVersion = 4727, // JSON "Version" field - higher than the game build
+                GameMode = 2,
+            };
+
+            MetaFileWriter.WriteSwitchMeta(savePath, 4096, metaInfo, 1);
+
+            byte[] result = File.ReadAllBytes(metaPath);
+            int baseVersion = BitConverter.ToInt32(result, 20);
+            Assert.Equal(4215, baseVersion);
+
+            // Format must remain at the game-written value.
+            uint format = BitConverter.ToUInt32(result, 4);
+            Assert.Equal(MetaFileWriter.META_FORMAT_4, format);
+
+            // Decompressed size must still be updated.
+            uint decompressedSize = BitConverter.ToUInt32(result, 8);
+            Assert.Equal(4096u, decompressedSize);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [Fact]
+    public void PlaystationStreamingMeta_SaveManifest_PreservesExistingBaseVersion()
+    {
+        // Regression guard for the PS4 HTOS manifest (same format as Switch).
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string savePath = Path.Combine(tmpDir, "savedata02.hg");
+            File.WriteAllText(savePath, "dummy");
+
+            string metaPath = Path.Combine(tmpDir, "manifest02.hg");
+            byte[] existing = new byte[MetaFileWriter.PS4_META_LENGTH_WORLDS_II];
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_HEADER_PS4), 0, existing, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_FORMAT_4), 0, existing, 4, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(4215u), 0, existing, 20, 4);
+            File.WriteAllBytes(metaPath, existing);
+
+            var metaInfo = new SaveMetaInfo
+            {
+                BaseVersion = 4727,
+                GameMode = 1,
+            };
+
+            MetaFileWriter.WritePlaystationStreamingMeta(savePath, 8192, metaInfo, 2);
+
+            byte[] result = File.ReadAllBytes(metaPath);
+            int baseVersion = BitConverter.ToInt32(result, 20);
+            Assert.Equal(4215, baseVersion);
+
+            uint format = BitConverter.ToUInt32(result, 4);
+            Assert.Equal(MetaFileWriter.META_FORMAT_4, format);
+
+            uint decompressedSize = BitConverter.ToUInt32(result, 8);
+            Assert.Equal(8192u, decompressedSize);
+        }
+        finally
+        {
+            Directory.Delete(tmpDir, true);
+        }
+    }
+
+    [Fact]
+    public void SwitchMeta_SaveMeta_NewSlot_UsesSiblingManifestBaseVersion()
+    {
+        // Writing into a new slot (no manifest of its own yet) must take the base
+        // version from a sibling game-save manifest written by the game, otherwise
+        // the JSON Version (4727) is written and the game reports
+        // "Cross-Save Version Incompatible".
+        string tmpDir = Path.Combine(Path.GetTempPath(), $"nmse_test_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            string savePath = Path.Combine(tmpDir, "savedata03.hg");
+            File.WriteAllText(savePath, "dummy");
+
+            // Sibling manifest02.hg written by the game (platform build 4221).
+            string siblingPath = Path.Combine(tmpDir, "manifest02.hg");
+            byte[] sibling = new byte[MetaFileWriter.SWITCH_META_LENGTH_WORLDS_II];
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_HEADER_SWITCH), 0, sibling, 0, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(MetaFileWriter.META_FORMAT_4), 0, sibling, 4, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(4221u), 0, sibling, 20, 4);
+            File.WriteAllBytes(siblingPath, sibling);
+
+            var metaInfo = new SaveMetaInfo
+            {
+                BaseVersion = 4727, // JSON "Version" field - higher than the game build
+                GameMode = 1,
+            };
+
+            MetaFileWriter.WriteSwitchMeta(savePath, 4096, metaInfo, 3);
+
+            string metaPath = Path.Combine(tmpDir, "manifest03.hg");
+            Assert.True(File.Exists(metaPath));
+            byte[] result = File.ReadAllBytes(metaPath);
+
+            int baseVersion = BitConverter.ToInt32(result, 20);
+            Assert.Equal(4221, baseVersion);
+
+            uint format = BitConverter.ToUInt32(result, 4);
+            Assert.Equal(MetaFileWriter.META_FORMAT_4, format);
+
+            uint decompressedSize = BitConverter.ToUInt32(result, 8);
+            Assert.Equal(4096u, decompressedSize);
         }
         finally
         {
