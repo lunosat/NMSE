@@ -54,6 +54,15 @@
 		<IlcArg Include="--nowarn:IL3053" />
 	</ItemGroup>
 
+	<!-- Roots DataGridView header cell types (and their parameterless constructors)
+	     so Native AOT trimming does not strip them.  System.Windows.Forms creates
+	     these via reflection in DataGridViewBand.HeaderCellCore during grid teardown
+	     (ReleaseUiaProvider on WM_DESTROY), which throws MissingMethodException when
+	     the constructors have been trimmed. -->
+	<ItemGroup>
+		<TrimmerRootDescriptor Include="NMSE.TrimmerRoots.xml" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<Compile Remove="Build\**" />
 		<Content Remove="Build\**" />

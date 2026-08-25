@@ -1,0 +1,13 @@
+<linker>
+	<!-- Native AOT trimming removes the parameterless constructors of the DataGridView
+	     header cell types because System.Windows.Forms creates them reflectively via
+	     Activator.CreateInstance in DataGridViewBand.HeaderCellCore, with no trimming
+	     annotation.  When the grid is destroyed, ReleaseUiaProvider accesses the row
+	     and column header cells and the missing constructor throws
+	     MissingMethodException.  Rooting both types keeps the constructors (and their
+	     members) in the published binary. -->
+	<assembly fullname="System.Windows.Forms">
+		<type fullname="System.Windows.Forms.DataGridViewRowHeaderCell" preserve="all" />
+		<type fullname="System.Windows.Forms.DataGridViewColumnHeaderCell" preserve="all" />
+	</assembly>
+</linker>

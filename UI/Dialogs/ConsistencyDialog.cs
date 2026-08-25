@@ -25,6 +25,10 @@ internal sealed class ConsistencyDialog : Form
     private const int ColAddBtnIndex = 5;
     private const int ColRemoveBtnIndex = 6;
 
+    /// <summary>True when the user resolved at least one consistency issue,
+    /// meaning the save data was mutated and the editor should be marked dirty.</summary>
+    internal bool HasChanges { get; private set; }
+
     internal ConsistencyDialog(
         List<AccountLogic.ConsistencyIssue> issues,
         JsonObject saveData,
@@ -259,11 +263,13 @@ internal sealed class ConsistencyDialog : Form
         if (e.ColumnIndex == ColAddBtnIndex)
         {
             AccountLogic.ResolveConsistencyIssue(_saveData, issue, addToMissing: true);
+            HasChanges = true;
             _grid.Rows.RemoveAt(e.RowIndex);
         }
         else if (e.ColumnIndex == ColRemoveBtnIndex)
         {
             AccountLogic.ResolveConsistencyIssue(_saveData, issue, addToMissing: false);
+            HasChanges = true;
             _grid.Rows.RemoveAt(e.RowIndex);
         }
     }
@@ -273,6 +279,7 @@ internal sealed class ConsistencyDialog : Form
         foreach (var issue in _issues)
             AccountLogic.ResolveConsistencyIssue(_saveData, issue, addToMissing: true);
 
+        HasChanges = true;
         _grid.Rows.Clear();
 
         MessageBox.Show(this, 
@@ -286,6 +293,7 @@ internal sealed class ConsistencyDialog : Form
         foreach (var issue in _issues)
             AccountLogic.ResolveConsistencyIssue(_saveData, issue, addToMissing: false);
 
+        HasChanges = true;
         _grid.Rows.Clear();
 
         MessageBox.Show(this, 
