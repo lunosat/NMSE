@@ -8,12 +8,16 @@
     <Border Classes="card" Padding="16" Margin="4">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="16">
-                <StackPanel Orientation="Horizontal"  Margin="0,0,0,12">
-                <TextBlock Text="{loc:Locale settlement.title}" Classes="sectionHeader" />
-                <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
-                               Command="{Binding GoToSettlementsJsonCommand}"
-                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
-            </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,0,12">
+                    <TextBlock Text="{loc:Locale settlement.title}" Classes="sectionHeader"
+                               VerticalAlignment="Center" />
+                    <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
+                            Command="{Binding GoToSettlementsJsonCommand}"
+                            ToolTip.Tip="{Binding GoToListTooltip}" />
+                    <Button Content="{}" Padding="6,2"
+                            Command="{Binding GoToSelectedSettlementJsonCommand}"
+                            ToolTip.Tip="{Binding GoToSelectedTooltip}" />
+                </StackPanel>
 
                 <!-- Settlement Selection -->
                 <Border Classes="card" Padding="12">
@@ -34,7 +38,7 @@
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale settlement.seed}" VerticalAlignment="Center" Margin="0,4,0,0" />
                             <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
                                 <TextBox Text="{Binding SeedValue}" Width="200" />
-                                <Button Content="{loc:Locale common.gen}" Command="{Binding GenerateSeedCommand}" />
+                                <Button Content="{loc:Locale common.generate}" Command="{Binding GenerateSeedCommand}" />
                             </StackPanel>
                         </Grid>
                     </StackPanel>
@@ -75,7 +79,7 @@
                 <!-- Production & Decision -->
                 <Border Classes="card" Padding="12">
                     <StackPanel Spacing="8">
-                        <TextBlock Text="{loc:Locale settlement.production_header}" Classes="sectionHeader" />
+                        <TextBlock Text="{loc:Locale settlement.tab_production}" Classes="sectionHeader" />
                         <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale settlement.decision_type}" VerticalAlignment="Center" />
                             <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding DecisionTypes}"
@@ -87,6 +91,15 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="{loc:Locale settlement.col_name}" Binding="{Binding ItemName}" Width="*" IsReadOnly="True" />
                                 <DataGridTextColumn Header="{loc:Locale settlement.col_element_id}" Binding="{Binding ElementId}" Width="200" />
+                                <DataGridTemplateColumn Header="{loc:Locale settlement.col_edit}" Width="70">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="vm:ProductionItemViewModel">
+                                            <Button Content="{loc:Locale settlement.col_edit}" Padding="6,2"
+                                                    Command="{Binding $parent[UserControl].((vm:SettlementViewModel)DataContext).EditProductionElementCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="{loc:Locale settlement.col_amount}" Binding="{Binding Amount}" Width="100" />
                             </DataGrid.Columns>
                         </DataGrid>
@@ -149,6 +162,7 @@
                 <Border Classes="card" Padding="12">
                     <StackPanel Spacing="6">
                         <TextBlock Text="{loc:Locale settlement.tab_building_states}" Classes="sectionHeader" />
+                        <TextBlock Text="{loc:Locale settlement.tab_building_editor}" Classes="hint" />
                         <TextBlock Text="{loc:Locale settlement.experimental_warning}" Classes="hint"
                                    TextWrapping="Wrap" />
                         <Grid ColumnDefinitions="240,*" Height="260">
@@ -164,7 +178,23 @@
                             <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6"
                                         DataContext="{Binding SelectedBuildingState}"
                                         IsVisible="{Binding $parent[StackPanel].DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                <Grid ColumnDefinitions="180,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+                                <!-- What the packed value adds up to, so the bit layout
+                                     does not have to be read by eye. -->
+                                <Grid ColumnDefinitions="180,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                                    <TextBlock Grid.Row="0" Text="{loc:Locale settlement.bs_editor_class}" Classes="label" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ClassText}" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Row="1" Text="{loc:Locale settlement.bs_editor_state}" Classes="label" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StateText}" FontWeight="SemiBold" />
+                                    <!-- The milestone values the game itself uses. -->
+                                    <TextBlock Grid.Row="2" Text="{loc:Locale settlement.bs_editor_apply}" Classes="label" />
+                                    <ComboBox Grid.Row="2" Grid.Column="1"
+                                              ItemsSource="{Binding MilestoneOptions}"
+                                              SelectedIndex="{Binding MilestoneIndex}"
+                                              HorizontalAlignment="Stretch" />
+                                </Grid>
+
+                                <Grid ColumnDefinitions="180,120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4"
+                                      Margin="0,8,0,0">
                                     <TextBlock Grid.Row="0" Text="{loc:Locale settlement.bs_editor_init_phases}" Classes="label" />
                                     <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding InitPhases}"
                                                    Minimum="0" Maximum="127" FormatString="0" />
@@ -174,6 +204,12 @@
                                     <TextBlock Grid.Row="2" Text="{loc:Locale settlement.bs_editor_tier_heading}" Classes="label" />
                                     <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding TierProgress}"
                                                    Minimum="0" Maximum="63" FormatString="0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Margin="8,0,0,0"
+                                               VerticalAlignment="Center" Classes="hint">
+                                        <Run Text="{loc:Locale settlement.bs_editor_tier_b}" />
+                                        <Run Text="{loc:Locale settlement.bs_editor_tier_a}" />
+                                        <Run Text="{loc:Locale settlement.bs_editor_tier_s}" />
+                                    </TextBlock>
                                     <TextBlock Grid.Row="3" Text="{loc:Locale settlement.bs_editor_raw_value}" Classes="label" />
                                     <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding RawValue}"
                                                    Minimum="-2147483648" Maximum="2147483647" FormatString="0" />

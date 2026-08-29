@@ -14,6 +14,13 @@ public partial class SettlementViewModel : PanelViewModelBase
     private JsonArray? _settlements;
     private readonly List<int> _filteredIndices = new();
     private GameItemDatabase? _database;
+    private IconManager? _iconManager;
+
+    public GameItemDatabase? Database => _database;
+    public IconManager? IconMgr => _iconManager;
+
+    /// <summary>Opens the item picker. Supplied by the view, which owns the dialog.</summary>
+    public Func<string, Task<string?>>? PickItemFunc { get; set; }
 
     [ObservableProperty] private ObservableCollection<string> _settlementNames = new();
     [ObservableProperty] private int _selectedSettlementIndex = -1;
@@ -107,6 +114,23 @@ public partial class SettlementViewModel : PanelViewModelBase
         LoadProductionState(settlement);
     }
 
+    /// <summary>
+    /// Swaps the element a production slot makes. The save prefixes element ids with a
+    /// caret, which the picker's ids do not carry.
+    /// </summary>
+    [RelayCommand]
+    private async Task EditProductionElementAsync(ProductionItemViewModel? row)
+    {
+        if (row is null || PickItemFunc is null) return;
+
+        string? picked = await PickItemFunc(UiStrings.Get("settlement.production_header"));
+        if (string.IsNullOrEmpty(picked)) return;
+
+        string bare = picked.StartsWith('^') ? picked[1..] : picked;
+        row.ElementId = "^" + bare;
+        row.ItemName = _database?.GetItem(bare)?.Name ?? bare;
+    }
+
     private void LoadProductionState(JsonObject settlement)
     {
         ProductionItems.Clear();
@@ -139,6 +163,7 @@ public partial class SettlementViewModel : PanelViewModelBase
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _database = database;
+        _iconManager ??= iconManager;
         SettlementNames.Clear();
         _filteredIndices.Clear();
         HasSelection = false;
@@ -151,7 +176,7 @@ public partial class SettlementViewModel : PanelViewModelBase
             _settlements = playerState.GetArray("SettlementStatesV2");
             if (_settlements == null || _settlements.Length == 0)
             {
-                InfoLabel = "No settlements found.";
+                InfoLabel = UiStrings.Get("settlement.no_settlements");
                 return;
             }
 
@@ -162,21 +187,21 @@ public partial class SettlementViewModel : PanelViewModelBase
                 {
                     _filteredIndices.Add(i);
                     var settlement = _settlements.GetObject(i);
-                    string name = settlement.GetString("Name") ?? $"Settlement {i + 1}";
+                    string name = settlement.GetString("Name") ?? UiStrings.Format("settlement.fallback_name", i + 1);
                     SettlementNames.Add(name);
                 }
                 catch
                 {
                     _filteredIndices.Add(i);
-                    SettlementNames.Add($"Settlement {i + 1}");
+                    SettlementNames.Add(UiStrings.Format("settlement.fallback_name", i + 1));
                 }
             }
 
-            InfoLabel = $"Found {_filteredIndices.Count} settlement(s).";
+            InfoLabel = UiStrings.Format("settlement.found_count", _filteredIndices.Count);
             if (SettlementNames.Count > 0)
                 SelectedSettlementIndex = 0;
         }
-        catch { InfoLabel = "Failed to load settlements."; }
+        catch { InfoLabel = UiStrings.Get("settlement.load_failed"); }
     }
 
     // ============================== Building states ================================
@@ -288,18 +313,25 @@ public partial class SettlementViewModel : PanelViewModelBase
             ["seed"] = SeedValue
         };
         string defaultName = ExportConfig.BuildFileName(cfg.SettlementTemplate, "", vars);
-        string? path = await SaveFilePickerFunc("Export Settlement", cfg.SettlementExt.TrimStart('.'),
-            ExportConfig.BuildDialogFilter(cfg.SettlementExt, "Settlement files"));
+        string? path = await SaveFilePickerFunc(UiStrings.Get("common.export"),
+            cfg.SettlementExt.TrimStart('.'), defaultName);
         if (string.IsNullOrEmpty(path)) return;
-        try { settlement.ExportToFile(path); } catch { }
+
+        try { settlement.ExportToFile(path); }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("settlement.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
     private async Task ImportSettlement()
     {
         if (_settlements == null || OpenFilePickerFunc == null) return;
-        string? path = await OpenFilePickerFunc("Import Settlement",
-            ExportConfig.BuildImportFilter(ExportConfig.Instance.SettlementExt, "Settlement files", ".stl"));
+        string? path = await OpenFilePickerFunc(UiStrings.Get("common.import"),
+            ExportConfig.Instance.SettlementExt);
         if (string.IsNullOrEmpty(path)) return;
         try
         {
@@ -310,8 +342,24 @@ public partial class SettlementViewModel : PanelViewModelBase
                 ? _filteredIndices[SelectedSettlementIndex] : -1;
             int target = SettlementLogic.FindImportTargetIndex(_settlements, selectedDataIdx);
 
+            // -2 means every slot is taken. Overwriting one is destructive, so which
+            // one is the user's call.
             if (target == -2)
-                target = selectedDataIdx >= 0 ? selectedDataIdx : 0;
+            {
+                if (selectedDataIdx >= 0)
+                {
+                    target = selectedDataIdx;
+                }
+                else
+                {
+                    int? chosen = Dialogs is null ? null : await Dialogs.ChooseAsync(
+                        UiStrings.Get("settlement.slot_picker_title"),
+                        UiStrings.Get("settlement.slot_picker_message"),
+                        BuildSlotLabels());
+                    if (chosen is null) return;
+                    target = chosen.Value;
+                }
+            }
 
             if (target == -1)
             {
@@ -326,7 +374,28 @@ public partial class SettlementViewModel : PanelViewModelBase
 
             ReloadSettlementList();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("settlement.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>One label per settlement slot, naming the settlement it already holds.</summary>
+    private List<string> BuildSlotLabels()
+    {
+        var labels = new List<string>();
+        for (int i = 0; i < (_settlements?.Length ?? 0); i++)
+        {
+            string name = "";
+            try { name = _settlements!.GetObject(i).GetString("Name") ?? ""; } catch { }
+
+            labels.Add(string.IsNullOrEmpty(name)
+                ? UiStrings.Format("settlement.slot_label", i + 1)
+                : UiStrings.Format("settlement.slot_label_named", i + 1, name));
+        }
+        return labels;
     }
 
     private void ReloadSettlementList()
@@ -342,17 +411,17 @@ public partial class SettlementViewModel : PanelViewModelBase
             {
                 _filteredIndices.Add(i);
                 var settlement = _settlements.GetObject(i);
-                string name = settlement.GetString("Name") ?? $"Settlement {i + 1}";
+                string name = settlement.GetString("Name") ?? UiStrings.Format("settlement.fallback_name", i + 1);
                 SettlementNames.Add(name);
             }
             catch
             {
                 _filteredIndices.Add(i);
-                SettlementNames.Add($"Settlement {i + 1}");
+                SettlementNames.Add(UiStrings.Format("settlement.fallback_name", i + 1));
             }
         }
 
-        InfoLabel = $"Found {_filteredIndices.Count} settlement(s).";
+        InfoLabel = UiStrings.Format("settlement.found_count", _filteredIndices.Count);
         if (SettlementNames.Count > 0)
             SelectedSettlementIndex = 0;
     }
@@ -360,6 +429,28 @@ public partial class SettlementViewModel : PanelViewModelBase
     /// <summary>Reveals this data where it lives in the raw editor.</summary>
     [RelayCommand]
     private Task GoToSettlementsJsonAsync() => GoToJsonAsync("PlayerStateData", "SettlementStatesV2");
+
+    [RelayCommand]
+    private Task GoToSelectedSettlementJsonAsync()
+    {
+        int idx = SelectedSettlementIndex >= 0 && SelectedSettlementIndex < _filteredIndices.Count
+            ? _filteredIndices[SelectedSettlementIndex] : -1;
+        return idx < 0 ? Task.CompletedTask
+                       : GoToJsonAsync("PlayerStateData", "SettlementStatesV2", $"[{idx}]");
+    }
+
+    public string GoToListTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("settlement.title"));
+
+    public string GoToSelectedTooltip =>
+        UiStrings.Format("goto_json.tooltip_section",
+            UiStrings.Get("settlement.title") + " " + UiStrings.Get("goto_json.nav_details"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToListTooltip));
+        OnPropertyChanged(nameof(GoToSelectedTooltip));
+    }
 
     public override void SaveData(JsonObject saveData)
     {
@@ -458,6 +549,33 @@ public partial class BuildingStateViewModel : ObservableObject
     public int Index { get; }
     public string Label { get; }
 
+    /// <summary>
+    /// What the packed value amounts to, read out for the user. The bit layout is not
+    /// something anyone should have to decode by eye.
+    /// </summary>
+    [ObservableProperty] private string _classText = "";
+    [ObservableProperty] private string _stateText = "";
+
+    /// <summary>
+    /// The milestone values the game is known to use, offered as a shortcut. Anything
+    /// the fields add up to that is not one of them reads as Custom.
+    /// </summary>
+    public static IReadOnlyList<string> MilestoneOptions { get; } =
+    [
+        .. SettlementDatabase.KnownMilestones.Select(m =>
+            $"{m.Value.ToString(System.Globalization.CultureInfo.CurrentCulture)} - {UiStrings.Get(m.LocKey)}"),
+        UiStrings.Get("settlement.bs_custom"),
+    ];
+
+    /// <summary>Index into <see cref="MilestoneOptions"/>, or the trailing Custom entry.</summary>
+    [ObservableProperty] private int _milestoneIndex = -1;
+
+    partial void OnMilestoneIndexChanged(int value)
+    {
+        if (_updating || value < 0 || value >= SettlementDatabase.KnownMilestones.Length) return;
+        RawValue = SettlementDatabase.KnownMilestones[value].Value;
+    }
+
     public BuildingStateViewModel(int index, int rawValue)
     {
         Index = index;
@@ -479,6 +597,21 @@ public partial class BuildingStateViewModel : ObservableObject
         BArrived = Bit(value, SettlementLogic.SettlementBuildingState.Bit_B_Arrived);
         AArrived = Bit(value, SettlementLogic.SettlementBuildingState.Bit_A_Arrived);
         SArrived = Bit(value, SettlementLogic.SettlementBuildingState.Bit_S_Arrived);
+
+        if (SettlementLogic.SettlementBuildingState.IsEmpty(value))
+        {
+            ClassText = "-";
+            StateText = UiStrings.Get("settlement.bs_empty");
+        }
+        else
+        {
+            var (classKey, stateKey) = SettlementLogic.SettlementBuildingState.DetermineClassAndState(value);
+            ClassText = UiStrings.Get(classKey);
+            StateText = UiStrings.Get(stateKey);
+        }
+
+        int milestone = Array.FindIndex(SettlementDatabase.KnownMilestones, m => m.Value == value);
+        MilestoneIndex = milestone >= 0 ? milestone : MilestoneOptions.Count - 1;
     }
 
     private static bool Bit(int value, int bit) => (value & (1 << bit)) != 0;
