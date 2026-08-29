@@ -15,9 +15,11 @@
                 <ItemsControl ItemsSource="{Binding Fields}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:MilestoneStatField">
-                            <Grid ColumnDefinitions="160,120" Margin="0,2">
+                            <Grid ColumnDefinitions="160,120,*" Margin="0,2">
                                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                                            VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding Label}"
                                            Foreground="{DynamicResource NmseText1Brush}" />
                                 <NumericUpDown Grid.Column="1"
                                                Value="{Binding Value}"
@@ -25,6 +27,10 @@
                                                Maximum="2147483647"
                                                FormatString="0"
                                                Height="28" />
+                                <!-- Guild stats earn a rank, shown beside the value. -->
+                                <TextBlock Grid.Column="2" Text="{Binding RankText}"
+                                           Classes="hint" VerticalAlignment="Center"
+                                           Margin="8,0,0,0" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -57,16 +63,27 @@
 
                 <!-- Tab 2: Other Stats -->
                 <TabItem Header="{loc:Locale milestone.tab_other}">
+                    <!-- Two rows of four, as in the WinForms panel, so a stat stays where
+                         a returning user looks for it. -->
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                        <Grid ColumnDefinitions="*,*,*" Margin="8">
-                            <ItemsControl Grid.Column="0" ItemsSource="{Binding Tab2Column1}"
-                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}"
-                                          Margin="0,0,16,0" />
-                            <ItemsControl Grid.Column="1" ItemsSource="{Binding Tab2Column2}"
-                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}"
-                                          Margin="0,0,16,0" />
-                            <ItemsControl Grid.Column="2" ItemsSource="{Binding Tab2Column3}"
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*,*" Margin="8">
+                            <ItemsControl Grid.Row="0" Grid.Column="0" ItemsSource="{Binding Tab2Row1Column1}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,0,16,0" />
+                            <ItemsControl Grid.Row="0" Grid.Column="1" ItemsSource="{Binding Tab2Row1Column2}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,0,16,0" />
+                            <ItemsControl Grid.Row="0" Grid.Column="2" ItemsSource="{Binding Tab2Row1Column3}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,0,16,0" />
+                            <ItemsControl Grid.Row="0" Grid.Column="3" ItemsSource="{Binding Tab2Row1Column4}"
                                           ItemTemplate="{StaticResource MilestoneSectionTemplate}" />
+
+                            <ItemsControl Grid.Row="1" Grid.Column="0" ItemsSource="{Binding Tab2Row2Column1}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,16,16,0" />
+                            <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Tab2Row2Column2}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,16,16,0" />
+                            <ItemsControl Grid.Row="1" Grid.Column="2" ItemsSource="{Binding Tab2Row2Column3}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,16,16,0" />
+                            <ItemsControl Grid.Row="1" Grid.Column="3" ItemsSource="{Binding Tab2Row2Column4}"
+                                          ItemTemplate="{StaticResource MilestoneSectionTemplate}" Margin="0,16,0,0" />
                         </Grid>
                     </ScrollViewer>
                 </TabItem>

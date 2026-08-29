@@ -673,6 +673,7 @@
   "inventory.label_quick_actions": "Quick Actions",
   "menu.view": "&View",
   "menu.view.toggle_sidebar": "Toggle &Sidebar",
+  "milestone.guild_rank_of_max": "Rank {0}/{1}",
   "multitool.inventory": "Inventory",
   "outfits.copy_confirm_msg": "Apply this outfit to your character? This will overwrite your current customisation.",
   "outfits.copy_confirm_title": "Apply Outfit",

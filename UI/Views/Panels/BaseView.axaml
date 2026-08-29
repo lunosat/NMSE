@@ -36,6 +36,7 @@
                                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
                                             <TextBox Text="{Binding NpcSeed}" Width="250" />
                                             <Button Content="{loc:Locale common.gen}" Command="{Binding GenerateNpcSeedCommand}" />
+                                            <Button Content="{loc:Locale base.summon_npc}" Command="{Binding SummonWorkerCommand}" />
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -66,9 +67,39 @@
                                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding BaseItemCount}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                     </Grid>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
-                                        <Button Content="{loc:Locale common.export}" Command="{Binding ExportBaseCommand}" />
-                                        <Button Content="{loc:Locale common.import}" Command="{Binding ImportBaseCommand}" />
+                                        <Button Content="{loc:Locale base.export}" Command="{Binding ExportBaseCommand}" />
+                                        <Button Content="{loc:Locale base.import}" Command="{Binding ImportBaseCommand}" />
                                         <Button Content="{loc:Locale base.move_basecomp}" Command="{Binding MoveBaseComputerCommand}" />
+                                        <Button Content="{loc:Locale base.delete_base}" Classes="danger"
+                                                Command="{Binding DeleteBaseCommand}" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{loc:Locale base.move_basecomp_warning}" Classes="hint"
+                                               TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                                    <!-- Order within PersistentPlayerBases decides which base the
+                                         game treats as primary, so it is worth controlling. -->
+                                    <TextBlock Text="{loc:Locale base.move_base_in_list}" Classes="label"
+                                               Margin="0,12,0,0" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button Content="{loc:Locale base.move_base_to_top}" Command="{Binding MoveBaseToTopCommand}" />
+                                        <Button Content="{loc:Locale base.move_base_up}" Command="{Binding MoveBaseUpCommand}" />
+                                        <Button Content="{loc:Locale base.move_base_down}" Command="{Binding MoveBaseDownCommand}" />
+                                        <Button Content="{loc:Locale base.move_base_to_bottom}" Command="{Binding MoveBaseToBottomCommand}" />
+                                        <Rectangle Width="1" Height="20" Margin="4,0" Fill="{DynamicResource NmseBorderBrush}" />
+                                        <Button Content="{loc:Locale base.sort_az}" Command="{Binding SortBasesAscendingCommand}" />
+                                        <Button Content="{loc:Locale base.sort_za}" Command="{Binding SortBasesDescendingCommand}" />
+                                    </StackPanel>
+
+                                    <!-- Terrain edits accumulate without bound and are the usual
+                                         reason a save grows large. -->
+                                    <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,14,0,10" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button Content="{loc:Locale base.clear_terrain}" Command="{Binding ClearTerrainCommand}" />
+                                        <Button Content="{loc:Locale base.clear_all_terrain_except_bases}"
+                                                Command="{Binding ClearAllTerrainExceptBasesCommand}" />
+                                        <Button Content="{loc:Locale base.clear_all_terrain}" Classes="danger"
+                                                Command="{Binding ClearAllTerrainCommand}" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -106,6 +137,31 @@
                             </DataTemplate>
                         </TabControl.ContentTemplate>
                     </TabControl>
+                </TabItem>
+                <!-- Objects Tab -->
+                <TabItem Header="{loc:Locale base.objects_tab}">
+                    <Grid ColumnDefinitions="380,12,*" Margin="8">
+                        <DockPanel Grid.Column="0">
+                            <TextBox DockPanel.Dock="Top" Text="{Binding ObjectFilter}"
+                                     Watermark="{loc:Locale base.objects_filter}" Margin="0,0,0,8" />
+                            <ListBox ItemsSource="{Binding BaseObjects}"
+                                     SelectedItem="{Binding SelectedObject}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:BaseObjectViewModel">
+                                        <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+
+                        <DockPanel Grid.Column="2">
+                            <TextBlock DockPanel.Dock="Top" Text="{loc:Locale base.obj_heading}"
+                                       Classes="sectionHeader" />
+                            <TextBox Text="{Binding ObjectDetails}" Classes="mono"
+                                     IsReadOnly="True" AcceptsReturn="True"
+                                     TextWrapping="NoWrap" FontSize="12" />
+                        </DockPanel>
+                    </Grid>
                 </TabItem>
             </TabControl>
         </DockPanel>
