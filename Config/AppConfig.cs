@@ -232,39 +232,92 @@ public class AppConfig
         SetProperty(key, string.IsNullOrEmpty(value) ? null : value);
     }
 
+    /// <summary>
+    /// Resolves the directory the configuration file lives in.
+    /// </summary>
+    /// <remarks>
+    /// On Windows the file sits next to the executable so it survives an update, which
+    /// copies new files in without removing existing ones.
+    /// <para>
+    /// That location does not work on Linux or macOS. Every packaging format the Linux
+    /// build ships in - AppImage, Flatpak and a distro package - mounts or installs the
+    /// application read-only, so a write beside the executable fails and every setting is
+    /// lost on exit. Settings go to <c>$XDG_CONFIG_HOME/NMSE</c> instead (defaulting to
+    /// <c>~/.config</c> per the XDG base directory specification), and to
+    /// <c>~/Library/Application Support/NMSE</c> on macOS.
+    /// </para>
+    /// </remarks>
+    internal static string ResolveConfigDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+            return AppContext.BaseDirectory;
+
+        if (OperatingSystem.IsMacOS())
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library", "Application Support", "NMSE");
+
+        string? xdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        // The spec requires an absolute path; a relative value is to be ignored.
+        if (string.IsNullOrEmpty(xdg) || !Path.IsPathRooted(xdg))
+            xdg = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+
+        return Path.Combine(xdg, "NMSE");
+    }
+
     /// <summary>Creates the config directory and loads settings from disk if available.</summary>
     /// <remarks>
-    /// The configuration file is stored alongside the application executable so it survives
-    /// application updates (which copy new files but never delete existing ones in the app
-    /// directory). A one-time migration from the old <c>%AppData%\NMSE\NMSE.conf</c> location
-    /// is performed the first time this method runs with the new path.
+    /// A one-time migration copies an existing config from the previous locations - the
+    /// application directory, and before that <c>%AppData%\NMSE\</c> - so upgrading users
+    /// keep their settings.
     /// </remarks>
     public void Initialize()
     {
-        string appDir = AppContext.BaseDirectory;
-        _configPath = Path.Combine(appDir, ConfigFileName);
+        string configDir = ResolveConfigDirectory();
+        try { Directory.CreateDirectory(configDir); } catch { /* handled by the write path */ }
+        _configPath = Path.Combine(configDir, ConfigFileName);
 
-        // One-time migration: copy the old config from %AppData%\NMSE\ if the new
-        // path does not yet exist but the old one does.
         if (!File.Exists(_configPath))
-        {
-            try
-            {
-                string oldConfigDir = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "NMSE");
-                string oldConfigPath = Path.Combine(oldConfigDir, ConfigFileName);
-                if (File.Exists(oldConfigPath))
-                    File.Copy(oldConfigPath, _configPath, overwrite: false);
-            }
-            catch
-            {
-                // Migration is best-effort; start fresh if it fails.
-            }
-        }
+            MigrateLegacyConfig(_configPath);
 
         if (File.Exists(_configPath))
             Load();
+    }
+
+    /// <summary>
+    /// Copies the first config found in a previously used location into
+    /// <paramref name="destination"/>. Best effort: a failure just starts fresh.
+    /// </summary>
+    private static void MigrateLegacyConfig(string destination)
+    {
+        foreach (string candidate in EnumerateLegacyConfigPaths())
+        {
+            try
+            {
+                if (!File.Exists(candidate)) continue;
+                if (string.Equals(Path.GetFullPath(candidate), Path.GetFullPath(destination),
+                        StringComparison.Ordinal))
+                    continue;
+                File.Copy(candidate, destination, overwrite: false);
+                return;
+            }
+            catch
+            {
+                // Try the next candidate.
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateLegacyConfigPaths()
+    {
+        // Beside the executable: where every build wrote until the XDG move.
+        yield return Path.Combine(AppContext.BaseDirectory, ConfigFileName);
+
+        // %AppData%\NMSE\ on Windows; harmless elsewhere, where the folder will not exist.
+        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (!string.IsNullOrEmpty(appData))
+            yield return Path.Combine(appData, "NMSE", ConfigFileName);
     }
 
     public string? GetProperty(string key) =>

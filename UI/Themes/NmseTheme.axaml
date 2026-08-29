@@ -81,6 +81,21 @@
         <Setter Property="Foreground" Value="{DynamicResource NmseAccentBrush}" />
     </Style>
 
+    <!-- Keyboard focus needs to stay visible, but the inherited focus ring filled the
+         row and read as a second selection. A thin outline keeps the two states
+         distinguishable: selection is a filled row with a leading spine, focus is an
+         outline only. -->
+    <Style Selector="Border.sidebar ListBoxItem:focus-visible /template/ ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="Border.sidebar ListBoxItem:selected:focus-visible /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentMutedBrush}" />
+        <Setter Property="BorderThickness" Value="2,1,1,1" />
+    </Style>
+
     <Style Selector="Button.navToggle">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />

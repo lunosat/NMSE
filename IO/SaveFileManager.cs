@@ -2,6 +2,7 @@ using NMSE.Core;
 using NMSE.Models;
 using System.Buffers;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
@@ -137,32 +138,178 @@ public class SaveFileManager
             }
         }
 
-        // Linux: Steam/Proton compatibility data
+        // Linux: the game runs under a compatibility layer, so the save lives inside a
+        // Wine prefix. Which prefix depends on the launcher and on which drive the
+        // library sits, so several roots have to be probed.
         if (OperatingSystem.IsLinux())
         {
-            string protonPath = Path.Combine(home, ".local", "share", "Steam", "steamapps",
-                "compatdata", "275850", "pfx", "drive_c", "users", "steamuser",
-                "AppData", "Roaming", "HelloGames", "NMS");
-            if (Directory.Exists(protonPath))
+            foreach (string candidate in EnumerateLinuxSaveDirectories(home))
             {
-                var dirs = Directory.GetDirectories(protonPath);
-                if (dirs.Length > 0)
-                    return dirs[0];
-            }
-
-            // Flatpak Steam location
-            string flatpakPath = Path.Combine(home, ".var", "app", "com.valvesoftware.Steam",
-                "data", "Steam", "steamapps", "compatdata", "275850", "pfx", "drive_c",
-                "users", "steamuser", "AppData", "Roaming", "HelloGames", "NMS");
-            if (Directory.Exists(flatpakPath))
-            {
-                var dirs = Directory.GetDirectories(flatpakPath);
+                if (!Directory.Exists(candidate)) continue;
+                var dirs = Directory.GetDirectories(candidate);
                 if (dirs.Length > 0)
                     return dirs[0];
             }
         }
 
         return null;
+    }
+
+    /// <summary>The Steam application id of No Man's Sky.</summary>
+    private const string NmsSteamAppId = "275850";
+
+    /// <summary>
+    /// Yields every directory that may hold NMS save profiles on Linux, most likely first.
+    /// </summary>
+    /// <remarks>
+    /// Only the two default Steam roots were probed before, which misses the common cases:
+    /// a library on a second drive, the <c>~/.steam</c> symlinks most distributions still
+    /// ship, and the non-Steam launchers.
+    /// </remarks>
+    internal static IEnumerable<string> EnumerateLinuxSaveDirectories(string home)
+    {
+        foreach (string steamRoot in EnumerateSteamLibraryRoots(home))
+        {
+            // Proton prefix: where the game itself writes.
+            yield return Path.Combine(steamRoot, "steamapps", "compatdata", NmsSteamAppId,
+                "pfx", "drive_c", "users", "steamuser",
+                "AppData", "Roaming", "HelloGames", "NMS");
+
+            // Steam Auto-Cloud. NMS maps %AppData%\HelloGames\NMS into Steam Cloud, and
+            // Steam keeps that copy under userdata/<steamID3>/275850/ac/. On installs where
+            // the compatdata prefix has been cleared - a reinstall, a Proton version change,
+            // or moving the library - this is the only surviving copy, so it has to be
+            // probed as well. The account id is not known ahead of time, so every profile
+            // directory under userdata is tried.
+            foreach (string userDir in SafeEnumerateDirectories(Path.Combine(steamRoot, "userdata")))
+            {
+                yield return Path.Combine(userDir, NmsSteamAppId, "ac",
+                    "WinAppDataRoaming", "HelloGames", "NMS");
+            }
+        }
+
+        // Wine prefixes used by the non-Steam launchers. The user name inside a prefix is
+        // the real account name for a plain Wine prefix, and "steamuser" under Proton.
+        foreach (string prefix in EnumerateWinePrefixRoots(home))
+        {
+            foreach (string user in new[] { Environment.UserName, "steamuser" })
+            {
+                yield return Path.Combine(prefix, "drive_c", "users", user,
+                    "AppData", "Roaming", "HelloGames", "NMS");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Yields Steam installation roots, including libraries on other drives as listed in
+    /// <c>steamapps/libraryfolders.vdf</c>.
+    /// </summary>
+    internal static IEnumerable<string> EnumerateSteamLibraryRoots(string home)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var roots = new List<string>
+        {
+            Path.Combine(home, ".local", "share", "Steam"),
+            Path.Combine(home, ".steam", "steam"),
+            Path.Combine(home, ".steam", "root"),
+            Path.Combine(home, ".var", "app", "com.valvesoftware.Steam", "data", "Steam"),
+        };
+
+        foreach (string root in roots)
+        {
+            if (!seen.Add(root)) continue;
+            yield return root;
+
+            // Additional libraries, e.g. a game installed to a second drive.
+            foreach (string extra in ParseLibraryFolders(
+                         Path.Combine(root, "steamapps", "libraryfolders.vdf")))
+            {
+                if (seen.Add(extra))
+                    yield return extra;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts the library paths from a Steam <c>libraryfolders.vdf</c>.
+    /// </summary>
+    /// <remarks>
+    /// The file is Valve's KeyValues format. Only the <c>"path"</c> entries are needed, so
+    /// this reads them with a regular expression rather than pulling in a VDF parser.
+    /// Returns nothing if the file is missing or unreadable.
+    /// </remarks>
+    internal static IEnumerable<string> ParseLibraryFolders(string vdfPath)
+    {
+        string text;
+        try
+        {
+            if (!File.Exists(vdfPath)) yield break;
+            text = File.ReadAllText(vdfPath);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        foreach (Match m in Regex.Matches(text, "\"path\"\\s*\"([^\"]+)\""))
+        {
+            string path = m.Groups[1].Value.Replace("\\\\", "/");
+            if (!string.IsNullOrWhiteSpace(path))
+                yield return path;
+        }
+    }
+
+    /// <summary>
+    /// Yields Wine prefix roots used by the non-Steam Linux launchers.
+    /// </summary>
+    private static IEnumerable<string> EnumerateWinePrefixRoots(string home)
+    {
+        // Heroic (GOG / Epic), default and Flatpak locations
+        foreach (string heroicRoot in new[]
+                 {
+                     Path.Combine(home, "Games", "Heroic", "Prefixes"),
+                     Path.Combine(home, ".var", "app", "com.heroicgameslauncher.hgl",
+                         "config", "heroic", "tools", "wine"),
+                 })
+        {
+            foreach (string prefix in SafeEnumerateDirectories(heroicRoot))
+                yield return prefix;
+        }
+
+        // Bottles
+        foreach (string bottlesRoot in new[]
+                 {
+                     Path.Combine(home, ".local", "share", "bottles", "bottles"),
+                     Path.Combine(home, ".var", "app", "com.usebottles.bottles",
+                         "data", "bottles", "bottles"),
+                 })
+        {
+            foreach (string prefix in SafeEnumerateDirectories(bottlesRoot))
+                yield return prefix;
+        }
+
+        // Lutris keeps one prefix per game
+        foreach (string prefix in SafeEnumerateDirectories(Path.Combine(home, "Games")))
+            yield return prefix;
+
+        // The default prefix a bare `wine` invocation creates
+        yield return Path.Combine(home, ".wine");
+    }
+
+    /// <summary>Lists subdirectories, yielding nothing when the path is absent or unreadable.</summary>
+    private static IEnumerable<string> SafeEnumerateDirectories(string path)
+    {
+        string[] dirs;
+        try
+        {
+            if (!Directory.Exists(path)) return Array.Empty<string>();
+            dirs = Directory.GetDirectories(path);
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+        return dirs;
     }
 
     /// <summary>
@@ -192,21 +339,66 @@ public class SaveFileManager
             }
         }
 
-        // 2. EXE-relative
-        string exeDir = AppDomain.CurrentDomain.BaseDirectory;
-        string exeRoot = Path.Combine(exeDir, "Save Backups");
-        try
+        // 2. Per-user data directory (or beside the executable on Windows)
+        foreach (string candidate in EnumerateBackupRootCandidates())
         {
-            Directory.CreateDirectory(exeRoot);
-            return exeRoot;
+            try
+            {
+                Directory.CreateDirectory(candidate);
+                return candidate;
+            }
+            catch
+            {
+                // Try the next candidate.
+            }
         }
-        catch
+
+        // 3. TEMP, last resort
+        string tempRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
+        Directory.CreateDirectory(tempRoot);
+        return tempRoot;
+    }
+
+    /// <summary>
+    /// Default backup locations, in preference order.
+    /// </summary>
+    /// <remarks>
+    /// Windows keeps backups beside the executable, where they have always lived.
+    /// <para>
+    /// On Linux that directory is read-only in every format the app ships in (AppImage,
+    /// Flatpak, distro package), so the create fails and backups silently end up under
+    /// <c>/tmp</c> - cleared on reboot, which is the one place a save backup must not
+    /// live. <c>$XDG_DATA_HOME/NMSE</c> (default <c>~/.local/share</c>) persists and is
+    /// where a user would look for them.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<string> EnumerateBackupRootCandidates()
+    {
+        if (OperatingSystem.IsWindows())
         {
-            // 3. TEMP fallback
-            string tempRoot = Path.Combine(Path.GetTempPath(), "NMSE", "Save Backups");
-            Directory.CreateDirectory(tempRoot);
-            return tempRoot;
+            yield return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Save Backups");
+            yield break;
         }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            yield return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library", "Application Support", "NMSE", "Save Backups");
+            yield break;
+        }
+
+        string? xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+        // The spec requires an absolute path; a relative value is to be ignored.
+        if (string.IsNullOrEmpty(xdg) || !Path.IsPathRooted(xdg))
+            xdg = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".local", "share");
+
+        yield return Path.Combine(xdg, "NMSE", "Save Backups");
+
+        // A writable app directory (a plain tar.gz extraction) is still a reasonable home.
+        yield return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Save Backups");
     }
 
     /// <summary>
