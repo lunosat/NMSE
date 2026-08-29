@@ -533,11 +533,13 @@ public partial class CompanionViewModel : PanelViewModelBase
         var pac = FindAccessoryEntry(entry.OriginalIndex);
         var slots = new ObservableCollection<AccessorySlotViewModel>();
 
-        foreach (var slot in layout)
+        // Save indices are positional within the creature's own layout, so the row index
+        // is the index - deriving it from the slot enum reads the wrong entry for any
+        // creature whose layout is not the default order.
+        for (int i = 0; i < layout.Length; i++)
         {
-            var vm = new AccessorySlotViewModel(slot);
-            int saveIndex = CompanionAccessoryDatabase.SlotToSaveIndex(slot);
-            vm.LoadFrom(pac, saveIndex);
+            var vm = new AccessorySlotViewModel(layout[i]);
+            vm.LoadFrom(pac, i);
             slots.Add(vm);
         }
 
@@ -560,8 +562,8 @@ public partial class CompanionViewModel : PanelViewModelBase
         var pac = FindAccessoryEntry(entry.OriginalIndex);
         if (pac is null) return;
 
-        foreach (var slot in AccessorySlots)
-            slot.SaveInto(pac, CompanionAccessoryDatabase.SlotToSaveIndex(slot.Slot));
+        for (int i = 0; i < AccessorySlots.Count; i++)
+            AccessorySlots[i].SaveInto(pac, i);
     }
 
     [RelayCommand]

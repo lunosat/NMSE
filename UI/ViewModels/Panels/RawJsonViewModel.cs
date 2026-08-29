@@ -32,7 +32,23 @@ public partial class RawJsonViewModel : PanelViewModelBase
     private readonly List<JsonTreeNodeViewModel> _searchMatches = new();
     private int _searchIndex = -1;
 
+    /// <summary>Which of the three views is showing.</summary>
     [ObservableProperty] private bool _isTreeView = true;
+    [ObservableProperty] private bool _isSplitView;
+    [ObservableProperty] private bool _isDiffView;
+
+    partial void OnIsTreeViewChanged(bool value) => OnPropertyChanged(nameof(ShowEditor));
+    partial void OnIsSplitViewChanged(bool value) => OnPropertyChanged(nameof(ShowEditor));
+    partial void OnIsDiffViewChanged(bool value) => OnPropertyChanged(nameof(ShowEditor));
+
+    /// <summary>Serialised document as it was when the panel loaded, for the diff.</summary>
+    private string _baseline = "";
+
+    /// <summary>The editor shows in text mode, and alongside the tree in split mode.</summary>
+    public bool ShowEditor => (!IsTreeView || IsSplitView) && !IsDiffView;
+
+    [ObservableProperty] private ObservableCollection<JsonDiffLineViewModel> _diffLines = new();
+    [ObservableProperty] private int _diffIndex = -1;
     [ObservableProperty] private string _jsonText = "";
     [ObservableProperty] private string _statusText = "";
     [ObservableProperty] private string _searchQuery = "";
@@ -57,6 +73,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _saveData = saveData;
+        CaptureBaseline();
         RefreshTree();
         StatusText = UiStrings.Format("raw_json.loaded_keys",
             saveData.Size().ToString("N0", CultureInfo.CurrentCulture));
@@ -108,14 +125,18 @@ public partial class RawJsonViewModel : PanelViewModelBase
         if (!TryCommitTextEdits()) return;
 
         IsTreeView = true;
+        IsSplitView = false;
+        IsDiffView = false;
         RefreshTree();
     }
 
     [RelayCommand]
     private void SwitchToTextView()
     {
-        if (!IsTreeView) return;
+        if (!IsTreeView && !IsSplitView) return;
         IsTreeView = false;
+        IsSplitView = false;
+        IsDiffView = false;
         RefreshTree();
     }
 
@@ -169,6 +190,12 @@ public partial class RawJsonViewModel : PanelViewModelBase
         EditValueCommand.NotifyCanExecuteChanged();
         DeleteNodeCommand.NotifyCanExecuteChanged();
         CopyValueCommand.NotifyCanExecuteChanged();
+        CopyKeyCommand.NotifyCanExecuteChanged();
+        CopyPathCommand.NotifyCanExecuteChanged();
+        AddPropertyCommand.NotifyCanExecuteChanged();
+        AddArrayItemCommand.NotifyCanExecuteChanged();
+        ExportNodeCommand.NotifyCanExecuteChanged();
+        ImportNodeCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSelected))]
@@ -205,17 +232,149 @@ public partial class RawJsonViewModel : PanelViewModelBase
     /// <summary>Set by the view after a clipboard write; kept here so the VM stays toolkit-free.</summary>
     [ObservableProperty] private string? _clipboardText;
 
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void CopyKey()
+    {
+        ClipboardText = SelectedNode?.Key ?? "";
+        StatusText = UiStrings.Get("raw_json.value_copied");
+    }
+
+    /// <summary>Copies the slash path of the selected node, which NavigateToPath accepts.</summary>
+    [RelayCommand(CanExecute = nameof(HasSelection))]
+    private void CopyPath()
+    {
+        if (SelectedNode is null) return;
+
+        var parts = new List<string>();
+        for (var node = SelectedNode; node?.Parent is not null; node = node.Parent)
+            parts.Insert(0, node.Key ?? "");
+
+        ClipboardText = string.Join("/", parts);
+        StatusText = UiStrings.Get("raw_json.value_copied");
+    }
+
+    private bool HasSelection => SelectedNode is not null;
+
+    /// <summary>Adds a property to the selected object node.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddProperty))]
+    private async Task AddPropertyAsync()
+    {
+        if (SelectedNode?.Value is not JsonObject target || Dialogs is null) return;
+
+        string? key = await Dialogs.PromptAsync(UiStrings.Get("raw_json.add_property_title"),
+            UiStrings.Get("raw_json.label_key"));
+        if (string.IsNullOrWhiteSpace(key)) return;
+
+        if (target.Contains(key))
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("raw_json.duplicate_key_title"),
+                UiStrings.Get("raw_json.duplicate_key"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        string? raw = await Dialogs.PromptAsync(UiStrings.Get("raw_json.add_property_title"),
+            UiStrings.Get("raw_json.label_value"), "\"\"");
+        if (raw is null) return;
+
+        try
+        {
+            target.Add(key, RawJsonLogic.ParseInputValue(raw));
+            SelectedNode.Populate(1, 0);
+            StatusText = UiStrings.Format("raw_json.added_property", key);
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("raw_json.parse_error", ex.Message);
+        }
+    }
+
+    private bool CanAddProperty => SelectedNode?.Value is JsonObject;
+
+    /// <summary>Appends an item to the selected array node.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddArrayItem))]
+    private async Task AddArrayItemAsync()
+    {
+        if (SelectedNode?.Value is not JsonArray target || Dialogs is null) return;
+
+        string? raw = await Dialogs.PromptAsync(UiStrings.Get("raw_json.add_array_item_title"),
+            UiStrings.Get("raw_json.label_value"), "\"\"");
+        if (raw is null) return;
+
+        try
+        {
+            target.Add(RawJsonLogic.ParseInputValue(raw));
+            SelectedNode.Populate(1, 0);
+            StatusText = UiStrings.Format("raw_json.added_array_item",
+                (target.Length - 1).ToString(CultureInfo.CurrentCulture));
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("raw_json.parse_error", ex.Message);
+        }
+    }
+
+    private bool CanAddArrayItem => SelectedNode?.Value is JsonArray;
+
+    /// <summary>Writes the selected node's subtree to a file.</summary>
+    [RelayCommand(CanExecute = nameof(CanExportNode))]
+    private async Task ExportNodeAsync()
+    {
+        if (SelectedNode?.Value is not JsonObject node || FilePathRequested is null) return;
+
+        string? path = await FilePathRequested(true, (SelectedNode.Key ?? "node") + ".json");
+        if (path is null) return;
+
+        try
+        {
+            node.ExportToFile(path);
+            StatusText = UiStrings.Format("raw_json.exported_node", Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("raw_json.export_failed", ex.Message);
+        }
+    }
+
+    /// <summary>Replaces the selected node's subtree from a file.</summary>
+    [RelayCommand(CanExecute = nameof(CanExportNode))]
+    private async Task ImportNodeAsync()
+    {
+        if (SelectedNode?.Value is not JsonObject node || FilePathRequested is null) return;
+
+        string? path = await FilePathRequested(false, "");
+        if (path is null) return;
+
+        try
+        {
+            ReplaceContents(node, JsonObject.ImportFromFile(path));
+            SelectedNode.Populate(1, 0);
+            StatusText = UiStrings.Format("raw_json.imported_node", Path.GetFileName(path));
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("raw_json.import_failed", ex.Message);
+        }
+    }
+
+    private bool CanExportNode => SelectedNode?.Value is JsonObject;
+
     private bool CanDeleteSelected => SelectedNode is { Parent: not null };
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
-    private void DeleteNode()
+    private async Task DeleteNodeAsync()
     {
         var node = SelectedNode;
         if (node?.Parent is null) return;
 
+        string label = node.Key ?? "";
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("raw_json.confirm_delete_title"),
+                UiStrings.Get("raw_json.confirm_delete"), Services.DialogIcon.Warning))
+            return;
+
         node.RemoveFromParent();
         SelectedNode = null;
-        StatusText = UiStrings.Get("raw_json.node_deleted");
+        StatusText = UiStrings.Format("raw_json.deleted", label);
     }
 
     // --------------------------------------------------------------- search
@@ -308,6 +467,96 @@ public partial class RawJsonViewModel : PanelViewModelBase
         SelectedNode = node;
         NodeRevealRequested?.Invoke(node);
         return true;
+    }
+
+    // =================================== Diff ======================================
+
+    /// <summary>Records the document as it stands, so the diff can show what changed since.</summary>
+    public void CaptureBaseline()
+    {
+        var data = Current;
+        _baseline = data is null ? "" : RawJsonLogic.ToDisplayString(data);
+    }
+
+    [RelayCommand]
+    private void ShowDiff()
+    {
+        var data = Current;
+        if (data is null) return;
+
+        IsTreeView = false;
+        IsSplitView = false;
+        IsDiffView = true;
+        StatusText = UiStrings.Get("raw_json.diff_computing");
+
+        try
+        {
+            var lines = RawJsonLogic.ComputeCompactDiff(_baseline, RawJsonLogic.ToDisplayString(data));
+            DiffLines = new ObservableCollection<JsonDiffLineViewModel>(
+                lines.Select(l => new JsonDiffLineViewModel(l)));
+            DiffIndex = -1;
+
+            int changes = lines.Count(l => l.Type is RawJsonLogic.DiffLineType.Added
+                                              or RawJsonLogic.DiffLineType.Removed);
+            if (changes > 0)
+            {
+                StatusText = UiStrings.Format("raw_json.diff_change_count",
+                    changes.ToString("N0", CultureInfo.CurrentCulture));
+            }
+            else if (lines.Count > 0)
+            {
+                // The diff bailed out past its edit-distance limit and returned only an
+                // explanatory header. Reporting "no changes" there would be a lie.
+                StatusText = lines[0].Text;
+            }
+            else
+            {
+                StatusText = UiStrings.Get("raw_json.diff_no_changes");
+            }
+
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("raw_json.diff_error", ex.Message);
+        }
+    }
+
+    [RelayCommand] private void NextChange() => StepChange(forward: true);
+    [RelayCommand] private void PreviousChange() => StepChange(forward: false);
+
+    /// <summary>Moves the selection to the next or previous changed line, cycling.</summary>
+    private void StepChange(bool forward)
+    {
+        var changed = DiffLines
+            .Select((line, index) => (line, index))
+            .Where(x => x.line.IsChange)
+            .Select(x => x.index)
+            .ToList();
+        if (changed.Count == 0) return;
+
+        int position = changed.FindIndex(i => i == DiffIndex);
+        position = forward
+            ? (position + 1) % changed.Count
+            : (position <= 0 ? changed.Count - 1 : position - 1);
+
+        DiffIndex = changed[position];
+        StatusText = UiStrings.Format("raw_json.diff_change_position",
+            (position + 1).ToString(CultureInfo.CurrentCulture),
+            changed.Count.ToString(CultureInfo.CurrentCulture));
+    }
+
+    /// <summary>Shows the tree and the text side by side.</summary>
+    [RelayCommand]
+    private void ShowSplitView()
+    {
+        var data = Current;
+        if (data is null) return;
+
+        IsDiffView = false;
+        IsSplitView = true;
+        IsTreeView = true;
+        RefreshTree();
+        JsonText = RawJsonLogic.ToDisplayString(data);
     }
 
     // -------------------------------------------------------- text commands
@@ -640,5 +889,43 @@ public partial class JsonTreeNodeViewModel : ObservableObject
         // Array indices shift after a removal, so the siblings' keys and labels
         // no longer match their positions.
         if (Container is JsonArray) Parent?.Populate(1, 0);
+    }
+}
+
+/// <summary>How a diff line relates to the baseline.</summary>
+public enum JsonDiffKind { Context, Added, Removed, Separator, Header }
+
+/// <summary>One line of the change view, marked by whether it was added or removed.</summary>
+/// <remarks>
+/// The kind is mirrored into a UI-level enum rather than exposing RawJsonLogic's, which
+/// is internal to Core and cannot appear on a public property.
+/// </remarks>
+public sealed class JsonDiffLineViewModel
+{
+    public string Text { get; }
+    public JsonDiffKind Kind { get; }
+
+    /// <summary>True for an added or removed line, which the step commands jump between.</summary>
+    public bool IsChange => Kind is JsonDiffKind.Added or JsonDiffKind.Removed;
+
+    /// <summary>Prefix in the familiar diff style, so the direction reads at a glance.</summary>
+    public string Marker => Kind switch
+    {
+        JsonDiffKind.Added => "+",
+        JsonDiffKind.Removed => "-",
+        _ => " ",
+    };
+
+    internal JsonDiffLineViewModel(RawJsonLogic.DiffLine line)
+    {
+        Text = line.Text;
+        Kind = line.Type switch
+        {
+            RawJsonLogic.DiffLineType.Added => JsonDiffKind.Added,
+            RawJsonLogic.DiffLineType.Removed => JsonDiffKind.Removed,
+            RawJsonLogic.DiffLineType.Separator => JsonDiffKind.Separator,
+            RawJsonLogic.DiffLineType.Header => JsonDiffKind.Header,
+            _ => JsonDiffKind.Context,
+        };
     }
 }

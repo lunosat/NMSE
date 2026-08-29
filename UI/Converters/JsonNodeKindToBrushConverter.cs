@@ -40,3 +40,29 @@ public class JsonNodeKindToBrushConverter : IValueConverter
     public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
 }
+
+/// <summary>Colours a change-view line by whether it was added, removed or context.</summary>
+public class JsonDiffKindToBrushConverter : IValueConverter
+{
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        string key = value switch
+        {
+            JsonDiffKind.Added => "NmseSuccessBrush",
+            JsonDiffKind.Removed => "NmseDangerBrush",
+            JsonDiffKind.Header => "NmseAccentBrush",
+            JsonDiffKind.Separator => "NmseText2Brush",
+            _ => "NmseText1Brush",
+        };
+
+        var app = Application.Current;
+        if (app?.Resources.TryGetResource(key, app.ActualThemeVariant, out object? found) == true
+            && found is IBrush brush)
+            return brush;
+
+        return Brushes.Gray;
+    }
+
+    public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        => throw new NotSupportedException();
+}

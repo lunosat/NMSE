@@ -9,6 +9,7 @@
 
     <UserControl.Resources>
         <conv:JsonNodeKindToBrushConverter x:Key="KindToBrush" />
+        <conv:JsonDiffKindToBrushConverter x:Key="DiffKindToBrush" />
     </UserControl.Resources>
 
     <Border Classes="card" Padding="16" Margin="4">
@@ -26,6 +27,11 @@
                 <Button Content="{loc:Locale raw_json.text_view}"
                         Command="{Binding SwitchToTextViewCommand}"
                         IsEnabled="{Binding IsTreeView}" />
+                <Button Content="{loc:Locale raw_json.split_view}"
+                        Command="{Binding ShowSplitViewCommand}"
+                        IsEnabled="{Binding !IsSplitView}" />
+                <Button Content="{loc:Locale raw_json.diff}"
+                        Command="{Binding ShowDiffCommand}" />
 
                 <Rectangle Width="1" Height="20" Margin="4,0"
                            Fill="{DynamicResource NmseBorderBrush}" />
@@ -73,18 +79,29 @@
             <!-- Both views occupy the same area and swap by visibility. In the
                  DockPanel they were siblings, where the tree docked left and only the
                  editor filled, so the editor never got a usable size. -->
-            <Panel>
-            <TreeView x:Name="JsonTree"
+            <!-- Tree and editor share a grid: alone in tree or text mode, side by side in
+                 split mode, where the splitter column appears. -->
+            <Grid ColumnDefinitions="*,Auto,*">
+            <TreeView x:Name="JsonTree" Grid.Column="0"
                       ItemsSource="{Binding TreeNodes}"
                       SelectedItem="{Binding SelectedNode}"
                       IsVisible="{Binding IsTreeView}"
                       DoubleTapped="OnTreeDoubleTapped">
                 <TreeView.ContextMenu>
                     <ContextMenu>
-                        <MenuItem Header="{loc:Locale raw_json.edit_value}" Command="{Binding EditValueCommand}" />
-                        <MenuItem Header="{loc:Locale raw_json.copy_value}" Command="{Binding CopyValueCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_edit_value}" Command="{Binding EditValueCommand}" />
                         <Separator />
-                        <MenuItem Header="{loc:Locale raw_json.delete_node}" Command="{Binding DeleteNodeCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_add_property}" Command="{Binding AddPropertyCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_add_array_item}" Command="{Binding AddArrayItemCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_copy_key}" Command="{Binding CopyKeyCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_copy_value}" Command="{Binding CopyValueCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_copy_path}" Command="{Binding CopyPathCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_export_node}" Command="{Binding ExportNodeCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_import_node}" Command="{Binding ImportNodeCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Locale raw_json.ctx_delete}" Command="{Binding DeleteNodeCommand}" />
                     </ContextMenu>
                 </TreeView.ContextMenu>
                 <TreeView.Styles>
@@ -107,15 +124,41 @@
             <!-- Text view. AvaloniaEdit brings line numbers, virtualised rendering for a
                  multi-megabyte document, and the JSON highlighting the WinForms build
                  hand-rolled in JsonSyntaxTextBox. -->
-            <edit:TextEditor x:Name="JsonEditor"
-                             IsVisible="{Binding !IsTreeView}"
+            <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns"
+                          IsVisible="{Binding IsSplitView}" />
+
+            <edit:TextEditor x:Name="JsonEditor" Grid.Column="2"
+                             IsVisible="{Binding ShowEditor}"
                              ShowLineNumbers="True"
                              WordWrap="False"
                              FontFamily="{DynamicResource NmseMonoFont}"
                              FontSize="13"
                              Background="{DynamicResource NmseBg0Brush}"
                              Foreground="{DynamicResource NmseText0Brush}" />
-            </Panel>
+                <!-- Change view: what differs from the document as it was loaded. -->
+                <DockPanel Grid.Column="0" Grid.ColumnSpan="3" IsVisible="{Binding IsDiffView}">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6"
+                                Margin="0,0,0,8">
+                        <Button Content="{loc:Locale raw_json.diff_prev_change}"
+                                Command="{Binding PreviousChangeCommand}" />
+                        <Button Content="{loc:Locale raw_json.diff_next_change}"
+                                Command="{Binding NextChangeCommand}" />
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding DiffLines}" SelectedIndex="{Binding DiffIndex}"
+                             FontFamily="{DynamicResource NmseMonoFont}" FontSize="12">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:JsonDiffLineViewModel">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Marker}" Width="12"
+                                               Foreground="{Binding Kind, Converter={StaticResource DiffKindToBrush}}" />
+                                    <TextBlock Text="{Binding Text}"
+                                               Foreground="{Binding Kind, Converter={StaticResource DiffKindToBrush}}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
         </DockPanel>
     </Border>
 </UserControl>
