@@ -1,27 +1,29 @@
 # --------------------------------------------------------------
 # NMSE Release Build Workflow
-# Builds, tests, publishes (Native AOT), and creates a GitHub
-# Release whenever version.json is updated on the default branch.
 #
-# The publish step produces a fully self-contained, trimmed,
-# Native AOT executable - users do not need .NET installed.
+# Builds, tests and packages the native Linux application, then
+# creates a GitHub Release when version.json changes on the
+# default branch.
 #
-# Each release is tagged with a semantic version (e.g. v1.2.3)
-# derived from version.json.  The release body is read from
-# release-notes.md in the repo root.
+# The publish is self-contained: users need neither .NET nor Wine.
+# The previous workflow bundled a Wine installation around a
+# Windows executable; the project targets net10.0 now and the UI
+# is Avalonia, so the payload is a Linux binary.
 #
-# Platform builds:
-#   - Windows: Native AOT (required)
-#   - Linux:   AppImage with bundled Wine (required)
-#   - macOS:   DMG with Wine launcher (optional, best-effort)
+# Packages produced:
+#   - AppImage (x64, arm64) — single file, no install
+#   - tar.gz   (x64, arm64) — extract and run, with install.sh
+#   - Arch PKGBUILD is in packaging/ and is built by the AUR, not here
+#   - Flatpak needs the binary published outside the sandbox, so it
+#     is built from packaging/io.github.vectorcmdr.NMSE.yml locally
 #
 # The release step is additive: if a matching release already
-# exists (e.g. from a previous run), only missing artifacts are
-# uploaded - existing files, title, and notes are preserved.
+# exists, only missing artifacts are uploaded — existing files,
+# title and notes are preserved.
 #
 # All actions are pinned to immutable commit SHAs to mitigate
-# supply-chain attacks.  When upgrading, update both the SHA
-# and the version comment.
+# supply-chain attacks. When upgrading, update both the SHA and
+# the version comment.
 # --------------------------------------------------------------
 
 name: Build NMSE
@@ -30,13 +32,13 @@ env:
   PROJECT_NAME: NMSE
   PROJECT_FILE: NMSE.csproj
   TEST_PROJECT_FILE: NMSE.Tests/NMSE.Tests.csproj
+  EXTRACTOR_TEST_FILE: NMSE.Extractor.Tests/NMSE.Extractor.Tests.csproj
   DOTNET_VERSION: "10.0.x"
   BUILD_CONFIGURATION: Release
 
-# Top-level permissions grant contents:write to all jobs.
-# This is required for the release job to create tags and releases
-# via the GITHUB_TOKEN.  Without this, repos whose default workflow
-# permissions are set to "read" will fail with HTTP 403.
+# The release job creates tags and releases through GITHUB_TOKEN, which
+# needs contents:write. Without it, repositories whose default workflow
+# permission is "read" fail with HTTP 403.
 permissions:
   contents: write
 
@@ -50,8 +52,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-win:
-    runs-on: windows-latest
+  # ---------------------------------------------------------------
+  # The logic layer builds and tests without a display, so this runs
+  # on its own and gates the packaging jobs.
+  # ---------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -62,234 +68,140 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore ${{ env.PROJECT_FILE }}
 
       - name: Build
-        run: dotnet build ${{ env.PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
+        run: dotnet build ${{ env.PROJECT_FILE }} -c ${{ env.BUILD_CONFIGURATION }} --no-restore
 
-      - name: Restore test dependencies
-        run: dotnet restore ${{ env.TEST_PROJECT_FILE }}
-
-      - name: Run tests
-        run: dotnet test ${{ env.TEST_PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore --verbosity normal
-
-      # Publish Native AOT: produces a self-contained, trimmed native executable.
-      # This step re-builds with AOT compilation (ILC) and takes longer than the
-      # managed build above, but the output requires no .NET runtime on the target.
-      - name: Publish (Native AOT)
-        if: success()
-        run: dotnet publish ${{ env.PROJECT_FILE }} --configuration ${{ env.BUILD_CONFIGURATION }} --no-restore
-
-      # -- Publish artifacts ----------------------------------
-
-      - name: Locate build zip
-        if: success()
-        id: find-zip
-        shell: pwsh
+      - name: Test
         run: |
-          $zip = Get-ChildItem -Path Build/bin -Filter "NMSE-*-${{ env.BUILD_CONFIGURATION }}.zip" |
-                 Select-Object -First 1
-          if (-not $zip) { Write-Error "No build zip found in Build/bin/"; exit 1 }
-          "ZIP_PATH=$($zip.FullName)"  >> $env:GITHUB_OUTPUT
-          "ZIP_NAME=$($zip.Name)"      >> $env:GITHUB_OUTPUT
+          dotnet test ${{ env.TEST_PROJECT_FILE }} -c ${{ env.BUILD_CONFIGURATION }}
+          dotnet test ${{ env.EXTRACTOR_TEST_FILE }} -c ${{ env.BUILD_CONFIGURATION }}
 
-      - name: Upload build artifact
-        if: success()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.PROJECT_NAME }}-build
-          path: ${{ steps.find-zip.outputs.ZIP_PATH }}
-          if-no-files-found: warn
-
-  build-linux:
+  # ---------------------------------------------------------------
+  # One packaging job per architecture. arm64 is cross-published from
+  # the x64 runner, which .NET supports for self-contained output.
+  # ---------------------------------------------------------------
+  package:
     runs-on: ubuntu-latest
-    needs: build-win
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    needs: test
 
-      - name: Download win build
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ${{ env.PROJECT_NAME }}-build
-
-      - name: Unzip win build
-        run: |
-          winbuild="$(ls NMSE*.zip)"
-          unzip "$winbuild" -d $GITHUB_WORKSPACE/win
-
-      - name: Install Wine
-        run: |
-          sudo mkdir -pm755 /etc/apt/keyrings
-          wget -O - https://dl.winehq.org/wine-builds/winehq.key | sudo gpg --dearmor -o /etc/apt/keyrings/winehq-archive.key -
-          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/questing/winehq-questing.sources
-          sudo apt update
-          sudo apt install winehq-stable --no-install-recommends -y
-
-      - name: Run build-appimage script
-        id: appimage
-        run: |
-          sudo chmod +x ./scripts/linux/build-appimage.sh
-          WIN_DIR="$GITHUB_WORKSPACE/win"
-          OUTPUT_FILE="$GITHUB_WORKSPACE/NMSE-x64.AppImage"
-          scripts/linux/build-appimage.sh "$WIN_DIR" "$OUTPUT_FILE"
-          echo "APPIMAGE_PATH=$OUTPUT_FILE" >> $GITHUB_OUTPUT
-
-      - name: Upload AppImage artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: ${{ env.PROJECT_NAME }}-Wine-AppImage
-          path: ${{ steps.appimage.outputs.APPIMAGE_PATH }}
-          if-no-files-found: error
-
-  # -- macOS DMG (best-effort) ----------------------------------
-  # Packages the Windows build into a macOS .app bundle with a
-  # Wine launcher script. Users need Wine installed separately.
-  # This job is optional (best-effort fallback).
-  build-macos:
-    runs-on: macos-latest
-    needs: build-win
-    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download win build
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Setup .NET
+        uses: actions/setup-dotnet@c2fa09f4bde5ebb9d1777cf28262a3eb3db3ced7 # v5.2.0
         with:
-          name: ${{ env.PROJECT_NAME }}-build
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Unzip win build
+      # ImageMagick shrinks the 4,900 icons from 333 MB to 43 MB. The build
+      # script skips the step and warns when it is missing, so a package
+      # still comes out either way — just a much larger one.
+      - name: Install packaging tools
         run: |
-          winbuild="$(ls NMSE*.zip)"
-          unzip "$winbuild" -d "$GITHUB_WORKSPACE/win"
+          sudo apt-get update
+          sudo apt-get install -y imagemagick libfuse2
 
-      - name: Run build-dmg script
-        id: dmg
-        run: |
-          chmod +x ./scripts/macos/build-dmg.sh
-          WIN_DIR="$GITHUB_WORKSPACE/win"
-          OUTPUT_FILE="$GITHUB_WORKSPACE/NMSE-x64.dmg"
-          scripts/macos/build-dmg.sh "$WIN_DIR" "$OUTPUT_FILE"
-          echo "DMG_PATH=$OUTPUT_FILE" >> $GITHUB_OUTPUT
+      - name: Publish and stage
+        run: ./packaging/build.sh --arch ${{ matrix.arch }}
 
-      - name: Upload DMG artifact
+      - name: Build tarball
+        run: ./packaging/build-tarball.sh --arch ${{ matrix.arch }}
+
+      # appimagetool needs FUSE to run its own AppImage, which the runner
+      # has after libfuse2; the script downloads the tool itself.
+      - name: Build AppImage
+        run: ./packaging/build-appimage.sh --arch ${{ matrix.arch }}
+
+      - name: Upload packages
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ env.PROJECT_NAME }}-macOS-DMG
-          path: ${{ steps.dmg.outputs.DMG_PATH }}
+          name: ${{ env.PROJECT_NAME }}-linux-${{ matrix.arch }}
+          path: |
+            Build/dist/*.AppImage
+            Build/dist/*.tar.gz
           if-no-files-found: error
 
-  # -- Release ----------------------------------
+  # ---------------------------------------------------------------
+  # Collects every architecture's packages into one release.
+  # ---------------------------------------------------------------
   release:
-    runs-on: windows-latest
-    needs: [build-linux, build-macos]
-    # Only require build-linux (which implies build-win) to succeed.
-    if: always() && needs.build-linux.result == 'success' && github.repository == 'vectorcmdr/NMSE'
+    runs-on: ubuntu-latest
+    needs: package
+    if: github.repository == 'vectorcmdr/NMSE'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Download WinBuild
+      - name: Download packages
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ env.PROJECT_NAME }}-build
-
-      - name: Download AppImage
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ${{ env.PROJECT_NAME }}-Wine-AppImage
-
-      # macOS DMG is optional — download only if the build succeeded
-      - name: Download macOS DMG
-        if: needs.build-macos.result == 'success'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ${{ env.PROJECT_NAME }}-macOS-DMG
+          pattern: ${{ env.PROJECT_NAME }}-linux-*
+          path: dist
+          merge-multiple: true
 
       - name: Read version from version.json
         id: version
-        shell: pwsh
         run: |
-          $v = Get-Content version.json | ConvertFrom-Json
-          $ver = "$($v.major).$($v.minor).$($v.patch)"
-          "VERSION=$ver"     >> $env:GITHUB_OUTPUT
-          "TAG=v$ver"        >> $env:GITHUB_OUTPUT
-          Write-Host "Version: $ver  Tag: v$ver"
+          VERSION=$(python3 -c "
+          import json
+          v = json.load(open('version.json'))
+          print(f\"{v['major']}.{v['minor']}.{v['patch']}\")")
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "TAG=v$VERSION"    >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION  Tag: v$VERSION"
 
       - name: Build release notes
-        if: success()
         id: notes
-        shell: pwsh
         run: |
-          $ver  = "${{ steps.version.outputs.VERSION }}"
-          $sha  = "${{ github.sha }}"
-          $run  = "${{ github.run_number }}"
+          {
+            [ -f release-notes.md ] && cat release-notes.md
+            printf '\n\n---\n\n'
+            printf '*Automated release **v%s** (build #%s) from `%s`*\n' \
+              "${{ steps.version.outputs.VERSION }}" \
+              "${{ github.run_number }}" \
+              "${{ github.sha }}"
+          } > release-body.md
+          echo "NOTES_FILE=release-body.md" >> "$GITHUB_OUTPUT"
 
-          # Start with release-notes.md template (if it exists)
-          $body = ""
-          if (Test-Path "release-notes.md") {
-            $body = (Get-Content "release-notes.md" -Raw).Trim()
-          }
-
-          # Append build metadata
-          $meta = "`n`n---`n`n*Automated release **v${ver}** (build #${run}) from ``${sha}``*"
-          $body = ($body + $meta).Trim()
-
-          # Write to a temp file for gh release --notes-file
-          $body | Out-File release-body.md -Encoding utf8
-          "NOTES_FILE=release-body.md" >> $env:GITHUB_OUTPUT
-
-      - name: Create versioned release
-        if: success()
-        shell: pwsh
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "${{ steps.version.outputs.TAG }}"
-          $ver = "${{ steps.version.outputs.VERSION }}"
-          $cfg = "${{ env.BUILD_CONFIGURATION }}"
+          set -euo pipefail
+          tag="${{ steps.version.outputs.TAG }}"
+          ver="${{ steps.version.outputs.VERSION }}"
 
-          # -- Rename artifacts to include version ---------------
-          if (Test-Path "NMSE-x64.AppImage") {
-            Rename-Item "NMSE-x64.AppImage" "NMSE-${ver}-${cfg}-x64.AppImage"
-          }
-          if (Test-Path "NMSE-x64.dmg") {
-            Rename-Item "NMSE-x64.dmg" "NMSE-${ver}-${cfg}-x64.dmg"
-          }
+          mapfile -t files < <(find dist -type f \( -name '*.AppImage' -o -name '*.tar.gz' \) | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no packages to release" >&2
+            exit 1
+          fi
+          printf 'Artifacts to release:\n'; printf '  %s\n' "${files[@]}"
 
-          # -- Gather all available release files ----------------
-          $files = @()
-          Get-ChildItem "*.zip"      | ForEach-Object { $files += $_.Name }
-          Get-ChildItem "*.AppImage" | ForEach-Object { $files += $_.Name }
-          Get-ChildItem "*.dmg"      | ForEach-Object { $files += $_.Name }
-
-          Write-Host "Artifacts to release: $($files -join ', ')"
-
-          # -- Create or update the release ----------------------
-          # If the release already exists (e.g. from a previous run or
-          # a manual re-run), upload only the missing artifacts.
-          # Existing files, title, and notes are preserved.
-          $existing = gh release view $tag --json assets --jq ".assets[].name" 2>&1
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "Release $tag already exists — uploading missing artifacts"
-            $existingNames = $existing -split "`n" | Where-Object { $_ }
-
-            foreach ($f in $files) {
-              if ($existingNames -contains $f) {
-                Write-Host "  Skipping $f (already in release)"
-              } else {
-                Write-Host "  Uploading $f"
-                gh release upload $tag $f
-              }
-            }
-          } else {
-            Write-Host "Creating new release $tag"
-            $allFiles = $files -join '" "'
-            gh release create $tag $files `
-              --title "NMSE v${ver}" `
+          # Uploading only what is missing keeps a re-run from clobbering a
+          # release someone has already edited.
+          if existing=$(gh release view "$tag" --json assets --jq '.assets[].name' 2>/dev/null); then
+            echo "Release $tag already exists — uploading missing artifacts"
+            for f in "${files[@]}"; do
+              if grep -qxF "$(basename "$f")" <<< "$existing"; then
+                echo "  Skipping $(basename "$f") (already in release)"
+              else
+                echo "  Uploading $(basename "$f")"
+                gh release upload "$tag" "$f"
+              fi
+            done
+          else
+            echo "Creating new release $tag"
+            gh release create "$tag" "${files[@]}" \
+              --title "NMSE v${ver}" \
               --notes-file "${{ steps.notes.outputs.NOTES_FILE }}"
-          }
+          fi

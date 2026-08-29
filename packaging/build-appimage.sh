@@ -63,11 +63,16 @@ APPRUN
 chmod +x "$APPDIR/AppRun"
 
 # appimagetool builds the squashfs; zstd keeps the JSON localisation data small.
-TOOL="$REPO_ROOT/Build/appimagetool-$APPIMAGE_ARCH.AppImage"
+#
+# The tool has to match the machine running it, not the AppImage being built:
+# cross-building an aarch64 image from an x86_64 runner needs the x86_64 tool
+# with ARCH pointing at the target, which is how it picks the runtime to embed.
+HOST_ARCH="$(uname -m)"
+TOOL="$REPO_ROOT/Build/appimagetool-$HOST_ARCH.AppImage"
 if [[ ! -x "$TOOL" ]]; then
-    echo "[appimage] fetching appimagetool"
+    echo "[appimage] fetching appimagetool for $HOST_ARCH"
     curl -fsSL -o "$TOOL" \
-      "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$APPIMAGE_ARCH.AppImage"
+      "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-$HOST_ARCH.AppImage"
     chmod +x "$TOOL"
 fi
 
