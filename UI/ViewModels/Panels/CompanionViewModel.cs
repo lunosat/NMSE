@@ -41,6 +41,30 @@ public partial class CompanionViewModel : PanelViewModelBase
     [ObservableProperty] private string _boneScaleSeed = "";
     [ObservableProperty] private string _colourBaseSeed = "";
 
+    // --- Pet battle ------------------------------------------------------------
+    [ObservableProperty] private ObservableCollection<BattleMoveSlotViewModel> _moveSlots = new();
+    [ObservableProperty] private ObservableCollection<BattleTeamSlotViewModel> _teamSlots = new();
+    [ObservableProperty] private ObservableCollection<string> _statClasses = new(CompanionBattleIo.StatClasses);
+    [ObservableProperty] private bool _useStatOverrides;
+    [ObservableProperty] private int _healthClassIndex = 3;
+    [ObservableProperty] private int _agilityClassIndex = 3;
+    [ObservableProperty] private int _combatClassIndex = 3;
+    [ObservableProperty] private string _averageClass = "C";
+    [ObservableProperty] private int _treatsHealth;
+    [ObservableProperty] private int _treatsAgility;
+    [ObservableProperty] private int _treatsCombat;
+    [ObservableProperty] private int _genesAvailable;
+    [ObservableProperty] private string _genesLevel = "";
+    [ObservableProperty] private double _mutationProgress;
+    [ObservableProperty] private int _victories;
+
+    // --- Accessories -----------------------------------------------------------
+    [ObservableProperty] private ObservableCollection<AccessorySlotViewModel> _accessorySlots = new();
+    [ObservableProperty] private bool _hasAccessories;
+
+    // --- Slots -----------------------------------------------------------------
+    [ObservableProperty] private string _totalSlotsLabel = "";
+
     partial void OnSelectedCompanionChanged(CompanionEntryViewModel? value)
     {
         HasSelection = value != null;
@@ -112,6 +136,9 @@ public partial class CompanionViewModel : PanelViewModelBase
 
     private void LoadCompanionDetails(CompanionEntryViewModel entry)
     {
+        LoadAccessories(entry);
+        if (entry.CompanionData is { } battleSource) LoadBattle(battleSource);
+
         try
         {
             var comp = entry.CompanionData;
@@ -207,6 +234,9 @@ public partial class CompanionViewModel : PanelViewModelBase
         if (SelectedCompanion?.CompanionData == null) return;
         var comp = SelectedCompanion.CompanionData;
 
+        SaveBattle(comp);
+        SaveAccessories(SelectedCompanion);
+
         comp.Set("CustomName", CompanionName);
         comp.Set("CreatureID", CreatureId);
         comp.Set("Predator", Predator);
@@ -292,6 +322,246 @@ public partial class CompanionViewModel : PanelViewModelBase
         SelectedCompanion.IsOccupied = false;
         SelectedCompanion.Label = $"{SelectedCompanion.Source} {SelectedCompanion.OriginalIndex} (Empty)";
         HasSelection = false;
+    }
+
+    // ================================= Pet battle ==================================
+
+    /// <summary>Populates the battle tab from the selected companion.</summary>
+    private void LoadBattle(JsonObject companion)
+    {
+        // The move a slot accepts is fixed by the movesets, so the option lists are
+        // built once per selection rather than per companion field.
+        var slots = new ObservableCollection<BattleMoveSlotViewModel>();
+        for (int i = 0; i < 5; i++)
+            slots.Add(new BattleMoveSlotViewModel(i + 1, CompanionBattleIo.AllowedMoves(i + 1)));
+
+        JsonArray? moves = null;
+        try { moves = companion.GetArray("PetBattlerMoves"); } catch { }
+
+        for (int i = 0; i < slots.Count; i++)
+        {
+            string id = "";
+            if (moves is not null && i < moves.Length)
+            {
+                try { id = (moves.GetString(i) ?? "").TrimStart('^'); } catch { }
+            }
+            slots[i].SelectMove(string.IsNullOrEmpty(id) ? null : id);
+        }
+        MoveSlots = slots;
+
+        try { UseStatOverrides = companion.GetBool("PetBattlerUseCoreStatClassOverrides"); }
+        catch { UseStatOverrides = false; }
+
+        JsonArray? overrides = null;
+        try { overrides = companion.GetArray("PetBattlerCoreStatClassOverrides"); } catch { }
+        HealthClassIndex = ClassIndex(CompanionBattleIo.ReadClassOverride(overrides, 0));
+        AgilityClassIndex = ClassIndex(CompanionBattleIo.ReadClassOverride(overrides, 1));
+        CombatClassIndex = ClassIndex(CompanionBattleIo.ReadClassOverride(overrides, 2));
+
+        JsonArray? treats = null;
+        try { treats = companion.GetArray("PetBattlerTreatsEaten"); } catch { }
+        TreatsHealth = ReadTreat(treats, 0);
+        TreatsAgility = ReadTreat(treats, 1);
+        TreatsCombat = ReadTreat(treats, 2);
+
+        try { GenesAvailable = Math.Clamp(companion.GetInt("PetBattlerTreatsAvailable"), 0, 1000); }
+        catch { GenesAvailable = 0; }
+        try { MutationProgress = companion.GetDouble("PetBattleProgressToTreat"); }
+        catch { MutationProgress = 0; }
+        try { Victories = Math.Clamp(companion.GetInt("PetBattlerVictories"), 0, 999999); }
+        catch { Victories = 0; }
+
+        UpdateDerivedBattleValues();
+        LoadBattleTeam();
+    }
+
+    private static int ReadTreat(JsonArray? treats, int index)
+    {
+        try
+        {
+            return treats is not null && index < treats.Length
+                ? Math.Clamp(treats.GetInt(index), 0, 10) : 0;
+        }
+        catch { return 0; }
+    }
+
+    private static int ClassIndex(string value)
+    {
+        int i = Array.IndexOf(CompanionBattleIo.StatClasses, value);
+        return i >= 0 ? i : 3;   // default to C
+    }
+
+    partial void OnHealthClassIndexChanged(int value) => UpdateDerivedBattleValues();
+    partial void OnAgilityClassIndexChanged(int value) => UpdateDerivedBattleValues();
+    partial void OnCombatClassIndexChanged(int value) => UpdateDerivedBattleValues();
+    partial void OnTreatsHealthChanged(int value) => UpdateDerivedBattleValues();
+    partial void OnTreatsAgilityChanged(int value) => UpdateDerivedBattleValues();
+    partial void OnTreatsCombatChanged(int value) => UpdateDerivedBattleValues();
+
+    private void UpdateDerivedBattleValues()
+    {
+        string C(int i) => i >= 0 && i < CompanionBattleIo.StatClasses.Length
+            ? CompanionBattleIo.StatClasses[i] : "C";
+
+        AverageClass = CompanionBattleIo.AverageClass(C(HealthClassIndex), C(AgilityClassIndex), C(CombatClassIndex));
+
+        // The genes level is what the treats already eaten add up to.
+        int eaten = TreatsHealth + TreatsAgility + TreatsCombat;
+        GenesLevel = eaten.ToString(CultureInfo.CurrentCulture);
+    }
+
+    /// <summary>Builds the three team slots from the unlocked, occupied pets.</summary>
+    private void LoadBattleTeam()
+    {
+        var available = new List<(int Index, string Label)>();
+        var pets = _playerState?.GetArray("Pets");
+        var unlocked = _playerState?.GetArray("UnlockedPetSlots");
+
+        if (pets is not null)
+        {
+            for (int i = 0; i < pets.Length; i++)
+            {
+                var pet = pets.GetObject(i);
+                if (pet is null) continue;
+
+                // A locked or empty slot is not a valid team member.
+                bool isUnlocked = unlocked is not null && i < unlocked.Length && unlocked.GetBool(i);
+                if (!isUnlocked) continue;
+
+                string name = pet.GetString("CustomName") ?? "";
+                bool unnamed = string.IsNullOrEmpty(name) || name == "^";
+                available.Add((i, unnamed
+                    ? $"Pet {i.ToString(CultureInfo.CurrentCulture)}"
+                    : $"Pet {i.ToString(CultureInfo.CurrentCulture)} - {name}"));
+            }
+        }
+
+        var slots = new ObservableCollection<BattleTeamSlotViewModel>();
+        var team = _playerState?.GetArray("PetBattleTeam");
+        for (int i = 0; i < 3; i++)
+        {
+            var slot = new BattleTeamSlotViewModel(i + 1, available);
+            if (team is not null && i < team.Length)
+            {
+                try { slot.SelectPet(team.GetInt(i)); } catch { }
+            }
+            slots.Add(slot);
+        }
+        TeamSlots = slots;
+    }
+
+    /// <summary>Writes the battle fields back into the companion and the player state.</summary>
+    private void SaveBattle(JsonObject companion)
+    {
+        var moves = companion.GetArray("PetBattlerMoves");
+        if (moves is not null)
+        {
+            for (int i = 0; i < MoveSlots.Count && i < moves.Length; i++)
+            {
+                string? id = MoveSlots[i].SelectedMoveId;
+                moves.Set(i, string.IsNullOrEmpty(id) ? "" : "^" + id);
+            }
+        }
+
+        companion.Set("PetBattlerUseCoreStatClassOverrides", UseStatOverrides);
+
+        var overrides = companion.GetArray("PetBattlerCoreStatClassOverrides");
+        string Cls(int i) => i >= 0 && i < CompanionBattleIo.StatClasses.Length
+            ? CompanionBattleIo.StatClasses[i] : "C";
+        CompanionBattleIo.WriteClassOverride(overrides, 0, Cls(HealthClassIndex));
+        CompanionBattleIo.WriteClassOverride(overrides, 1, Cls(AgilityClassIndex));
+        CompanionBattleIo.WriteClassOverride(overrides, 2, Cls(CombatClassIndex));
+
+        var treats = companion.GetArray("PetBattlerTreatsEaten");
+        if (treats is not null)
+        {
+            if (treats.Length > 0) treats.Set(0, TreatsHealth);
+            if (treats.Length > 1) treats.Set(1, TreatsAgility);
+            if (treats.Length > 2) treats.Set(2, TreatsCombat);
+        }
+
+        companion.Set("PetBattlerTreatsAvailable", GenesAvailable);
+        companion.Set("PetBattleProgressToTreat", MutationProgress);
+        companion.Set("PetBattlerVictories", Victories);
+
+        var team = _playerState?.GetArray("PetBattleTeam");
+        if (team is not null)
+        {
+            for (int i = 0; i < TeamSlots.Count && i < team.Length; i++)
+                team.Set(i, TeamSlots[i].SelectedPetIndex);
+        }
+    }
+
+    /// <summary>Clears every battle field, returning the pet to an unbattled state.</summary>
+    [RelayCommand]
+    private void ResetBattleData()
+    {
+        if (SelectedCompanion?.CompanionData is not { } companion) return;
+        CompanionLogic.ResetBattleData(companion);
+        LoadBattle(companion);
+    }
+
+    // ================================= Accessories =================================
+
+    /// <summary>
+    /// Builds the accessory slots this creature supports. The layout depends on the
+    /// creature and on its descriptors, since some species resolve their accessories
+    /// through descriptors defined on another species.
+    /// </summary>
+    private void LoadAccessories(CompanionEntryViewModel entry)
+    {
+        AccessorySlots = new ObservableCollection<AccessorySlotViewModel>();
+        HasAccessories = false;
+
+        if (entry.CompanionData is not { } companion || entry.Source != "Pet") return;
+
+        string creatureId = companion.GetString("CreatureID") ?? "";
+        var descriptors = new List<string>();
+        var descriptorArray = companion.GetArray("Descriptors");
+        if (descriptorArray is not null)
+        {
+            for (int i = 0; i < descriptorArray.Length; i++)
+            {
+                string d = (descriptorArray.GetString(i) ?? "").TrimStart('^');
+                if (d.Length > 0) descriptors.Add(d);
+            }
+        }
+
+        var layout = CompanionAccessoryDatabase.GetSlotLayoutForCreature(creatureId, descriptors);
+        if (layout.Length == 0) return;
+
+        var pac = FindAccessoryEntry(entry.OriginalIndex);
+        var slots = new ObservableCollection<AccessorySlotViewModel>();
+
+        foreach (var slot in layout)
+        {
+            var vm = new AccessorySlotViewModel(slot);
+            int saveIndex = CompanionAccessoryDatabase.SlotToSaveIndex(slot);
+            vm.LoadFrom(pac, saveIndex);
+            slots.Add(vm);
+        }
+
+        AccessorySlots = slots;
+        HasAccessories = true;
+    }
+
+    private JsonObject? FindAccessoryEntry(int petIndex)
+    {
+        try
+        {
+            var pac = _playerState?.GetArray("PetAccessoryCustomisation");
+            return pac is not null && petIndex < pac.Length ? pac.GetObject(petIndex) : null;
+        }
+        catch { return null; }
+    }
+
+    private void SaveAccessories(CompanionEntryViewModel entry)
+    {
+        var pac = FindAccessoryEntry(entry.OriginalIndex);
+        if (pac is null) return;
+
+        foreach (var slot in AccessorySlots)
+            slot.SaveInto(pac, CompanionAccessoryDatabase.SlotToSaveIndex(slot.Slot));
     }
 
     [RelayCommand]
