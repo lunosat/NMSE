@@ -24,6 +24,45 @@ public partial class MainStatsViewModel : PanelViewModelBase
     private static readonly string[] DifficultyPresets =
         { "Invalid", "Custom", "Normal", "Creative", "Relaxed", "Survival", "Permadeath" };
 
+    /// <summary>The hyperdrive upgrade that unlocks purple-system warping.</summary>
+    private const string PurpleWarpTechId = "^HDRIVEBOOST4";
+
+    /// <summary>
+    /// The expedition this save belongs to. The number lives in the player state for a
+    /// save started as one, and in the season data for one converted later.
+    /// </summary>
+    private static string ReadExpeditionNumber(JsonObject playerState, JsonObject saveData)
+    {
+        try
+        {
+            int starting = playerState.GetInt("StartingSeasonNumber");
+            if (starting > 0) return UiStrings.Format("player.expedition_format", starting);
+        }
+        catch { }
+
+        var seasonData = saveData.GetObject("CommonStateData")?.GetObject("SeasonData");
+        if (seasonData?.GetString("DisplayNumber") is { Length: > 0 } display) return display;
+
+        try
+        {
+            int fallback = seasonData?.GetInt("SeasonNumber") ?? 0;
+            if (fallback > 0) return UiStrings.Format("player.expedition_format", fallback);
+        }
+        catch { }
+
+        return "";
+    }
+
+    private static bool HasDriveBoost(JsonObject playerState)
+    {
+        try
+        {
+            var knownTech = playerState.GetArray("KnownTech");
+            return knownTech is not null && knownTech.IndexOf(PurpleWarpTechId) >= 0;
+        }
+        catch { return false; }
+    }
+
     private static readonly string[] GuideCategories =
         { "Survival Basics", "Getting Around", "Making Discoveries", "Upgrades & Crafting",
           "Construction", "Making Money", "Alien Lifeforms", "Combat" };
@@ -70,6 +109,19 @@ public partial class MainStatsViewModel : PanelViewModelBase
     [ObservableProperty] private int _playerStateIndex = -1;
     [ObservableProperty] private List<string> _playerStateItems = new(CoordinateHelper.PlayerStates);
     [ObservableProperty] private bool _portalInterference;
+    [ObservableProperty] private bool _purpleWarpEnabled;
+
+
+    /// <summary>
+    /// Set only for an expedition save, where the difficulty presets are fixed by the
+    /// expedition and so are shown but not editable.
+    /// </summary>
+    [ObservableProperty] private string _expeditionNumber = "";
+    [ObservableProperty] private bool _isExpeditionSave;
+
+    /// <summary>The galaxy's core colour, shown as a dot beside its name.</summary>
+    [ObservableProperty] private Avalonia.Media.IBrush _galaxyCoreBrush =
+        Avalonia.Media.Brushes.Transparent;
 
     [ObservableProperty] private int _galaxyIndex;
     [ObservableProperty] private int _voxelX;
@@ -107,7 +159,19 @@ public partial class MainStatsViewModel : PanelViewModelBase
 
     public string PlayerName { get; private set; } = "Explorer";
 
-    public void SetSaveFilePath(string? path) => _saveFilePath = path;
+    public void SetSaveFilePath(string? path)
+    {
+        _saveFilePath = path;
+
+        // The save carries no timestamp of its own, so this comes from the file.
+        try
+        {
+            LastSaveDate = path is not null && File.Exists(path)
+                ? File.GetLastWriteTime(path).ToString("g", CultureInfo.CurrentCulture)
+                : "";
+        }
+        catch { LastSaveDate = ""; }
+    }
 
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
@@ -136,7 +200,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
             {
                 int totalSeconds = saveData.GetObject("CommonStateData")?.GetInt("TotalPlayTime") ?? 0;
                 var ts = TimeSpan.FromSeconds(totalSeconds);
-                PlayTime = $"{(int)ts.TotalHours}h {ts.Minutes}m {ts.Seconds}s";
+                PlayTime = UiStrings.Format("player.time_format", (int)ts.TotalHours, ts.Minutes, ts.Seconds);
             }
             catch { PlayTime = ""; }
 
@@ -149,11 +213,17 @@ public partial class MainStatsViewModel : PanelViewModelBase
                 var owners = commonState?.GetArray("UsedDiscoveryOwnersV2");
                 if (owners != null && owners.Length > 0)
                     usn = owners.GetObject(0)?.GetString("USN") ?? "";
-                string displayName = string.IsNullOrEmpty(usn) ? "Explorer" : usn;
+                string displayName = string.IsNullOrEmpty(usn)
+                    ? UiStrings.Get("player.name_fallback")
+                    : usn;
                 AccountName = displayName;
                 PlayerName = displayName;
             }
-            catch { AccountName = "Explorer"; PlayerName = "Explorer"; }
+            catch
+            {
+                AccountName = UiStrings.Get("player.name_fallback");
+                PlayerName = AccountName;
+            }
 
             try
             {
@@ -166,6 +236,11 @@ public partial class MainStatsViewModel : PanelViewModelBase
                 }
             }
             catch { }
+
+            // An expedition fixes its own difficulty, so the presets are shown but not
+            // editable and the expedition number is named instead.
+            IsExpeditionSave = SaveContext.IsExpeditionSave;
+            ExpeditionNumber = IsExpeditionSave ? ReadExpeditionNumber(playerState, saveData) : "";
 
             LoadCoordinates(playerState, saveData);
             LoadSpaceBattle(playerState, saveData);
@@ -237,9 +312,9 @@ public partial class MainStatsViewModel : PanelViewModelBase
                         freighterHere = fGal.GetInt("VoxelX") == vx && fGal.GetInt("VoxelY") == vy
                             && fGal.GetInt("VoxelZ") == vz && fGal.GetInt("SolarSystemIndex") == si;
                 }
-                FreighterInSystem = freighterHere ? "Yes" : "No";
+                FreighterInSystem = UiStrings.Get(freighterHere ? "common.yes" : "common.no");
             }
-            catch { FreighterInSystem = "Unknown"; }
+            catch { FreighterInSystem = UiStrings.Get("common.unknown"); }
 
             try
             {
@@ -253,9 +328,9 @@ public partial class MainStatsViewModel : PanelViewModelBase
                         nexusHere = nGal.GetInt("VoxelX") == vx && nGal.GetInt("VoxelY") == vy
                             && nGal.GetInt("VoxelZ") == vz && nGal.GetInt("SolarSystemIndex") == si;
                 }
-                NexusInSystem = nexusHere ? "Yes" : "No";
+                NexusInSystem = UiStrings.Get(nexusHere ? "common.yes" : "common.no");
             }
-            catch { NexusInSystem = "Unknown"; }
+            catch { NexusInSystem = UiStrings.Get("common.unknown"); }
 
             try
             {
@@ -279,6 +354,17 @@ public partial class MainStatsViewModel : PanelViewModelBase
             catch { PlanetsInSystem = "0"; }
 
             try { PortalInterference = playerState.GetBool("OnOtherSideOfPortal"); } catch { }
+
+            // The game only lets a player warp to purple systems when it has both
+            // recorded the discovery and learned the drive upgrade, so the box reflects
+            // the two together rather than either alone.
+            try
+            {
+                bool discovered = false;
+                try { discovered = playerState.GetBool("HasDiscoveredPurpleSystems"); } catch { }
+                PurpleWarpEnabled = discovered && HasDriveBoost(playerState);
+            }
+            catch { PurpleWarpEnabled = false; }
         }
         catch { }
     }
@@ -447,6 +533,10 @@ public partial class MainStatsViewModel : PanelViewModelBase
     {
         string galaxyType = GalaxyDatabase.GetGalaxyType(GalaxyIndex);
         GalaxyDisplay = $"{GalaxyDatabase.GetGalaxyDisplayName(GalaxyIndex)} ({galaxyType})";
+
+        // Galaxies cycle through core colours; the dot is how the panel showed which.
+        GalaxyCoreBrush = new Avalonia.Media.SolidColorBrush(
+            GalaxyDatabase.GetGalaxyCoreColorValue(GalaxyIndex));
         PortalCode = CoordinateHelper.VoxelToPortalCode(VoxelX, VoxelY, VoxelZ, SolarSystemIndex, PlanetIndex);
         PortalCodeDec = CoordinateHelper.PortalHexToDec(PortalCode);
         SignalBooster = CoordinateHelper.VoxelToSignalBooster(VoxelX, VoxelY, VoxelZ, SolarSystemIndex);
@@ -518,6 +608,21 @@ public partial class MainStatsViewModel : PanelViewModelBase
         }
 
         try { playerState.Set("OnOtherSideOfPortal", PortalInterference); } catch { }
+
+        // Both halves have to agree, or the game ignores the setting.
+        try
+        {
+            playerState.Set("HasDiscoveredPurpleSystems", PurpleWarpEnabled);
+
+            var knownTech = playerState.GetArray("KnownTech");
+            if (knownTech is not null)
+            {
+                int idx = knownTech.IndexOf(PurpleWarpTechId);
+                if (PurpleWarpEnabled && idx < 0) knownTech.Add(PurpleWarpTechId);
+                else if (!PurpleWarpEnabled && idx >= 0) knownTech.RemoveAt(idx);
+            }
+        }
+        catch { }
 
         try
         {

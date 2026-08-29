@@ -52,7 +52,7 @@
                             <Border Classes="card" Padding="12">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="{loc:Locale player.save_info}" Classes="sectionHeader" />
-                                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
+                                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale player.save_name}" VerticalAlignment="Center" />
                                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding SaveName}" Watermark="{loc:Locale common.procedural_no_name}" />
 
@@ -65,17 +65,29 @@
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Locale player.account_name}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AccountName}" VerticalAlignment="Center" Margin="0,4,0,0" />
 
-                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale player.third_person_cam}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale player.third_person_camera}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding ThirdPersonCamera}" Margin="0,4,0,0" />
 
-                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale player.current_preset}" VerticalAlignment="Center" Margin="0,4,0,0" />
-                                        <ComboBox Grid.Row="5" Grid.Column="1" ItemsSource="{Binding PresetItems}" SelectedIndex="{Binding CurrentPresetIndex}" Margin="0,4,0,0" HorizontalAlignment="Stretch" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale player.last_save_date}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding LastSaveDate}" VerticalAlignment="Center" Margin="0,4,0,0" />
 
-                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Locale player.easiest_used}" VerticalAlignment="Center" Margin="0,4,0,0" />
-                                        <ComboBox Grid.Row="6" Grid.Column="1" ItemsSource="{Binding PresetItems}" SelectedIndex="{Binding EasiestPresetIndex}" Margin="0,4,0,0" HorizontalAlignment="Stretch" />
+                                        <!-- Only an expedition save has one, and its
+                                             difficulty is fixed by the expedition. -->
+                                        <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Locale player.expedition_number}"
+                                                   VerticalAlignment="Center" Margin="0,4,0,0"
+                                                   IsVisible="{Binding IsExpeditionSave}" />
+                                        <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding ExpeditionNumber}"
+                                                   VerticalAlignment="Center" Margin="0,4,0,0"
+                                                   IsVisible="{Binding IsExpeditionSave}" />
 
-                                        <TextBlock Grid.Row="7" Grid.Column="0" Text="{loc:Locale player.hardest_used}" VerticalAlignment="Center" Margin="0,4,0,0" />
-                                        <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding PresetItems}" SelectedIndex="{Binding HardestPresetIndex}" Margin="0,4,0,0" HorizontalAlignment="Stretch" />
+                                        <TextBlock Grid.Row="7" Grid.Column="0" Text="{loc:Locale player.current_preset}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <ComboBox Grid.Row="7" Grid.Column="1" ItemsSource="{Binding PresetItems}" SelectedIndex="{Binding CurrentPresetIndex}" Margin="0,4,0,0" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsExpeditionSave}" />
+
+                                        <TextBlock Grid.Row="8" Grid.Column="0" Text="{loc:Locale player.easiest_used}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <ComboBox Grid.Row="8" Grid.Column="1" ItemsSource="{Binding PresetItems}" SelectedIndex="{Binding EasiestPresetIndex}" Margin="0,4,0,0" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsExpeditionSave}" />
+
+                                        <TextBlock Grid.Row="9" Grid.Column="0" Text="{loc:Locale player.hardest_used}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <ComboBox Grid.Row="9" Grid.Column="1" ItemsSource="{Binding PresetItems}" SelectedIndex="{Binding HardestPresetIndex}" Margin="0,4,0,0" HorizontalAlignment="Stretch" IsEnabled="{Binding !IsExpeditionSave}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -84,15 +96,23 @@
                             <Border Classes="card" Padding="12">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="{loc:Locale player.section_coordinates}" Classes="sectionHeader" />
-                                    <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
+                                    <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale player.galaxy}" VerticalAlignment="Center" />
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding GalaxyDisplay}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding GalaxyDisplay}" VerticalAlignment="Center" />
+                                            <!-- Which core the galaxy belongs to, as the panel captioned it. -->
+                                            <TextBlock Text="{loc:Locale player.core_label}" Classes="label" VerticalAlignment="Center" />
+                                            <Ellipse Width="12" Height="12" VerticalAlignment="Center"
+                                                     Fill="{Binding GalaxyCoreBrush}" />
+                                        </StackPanel>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale player.portal_code_hex}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal"
                                                     Spacing="10" Margin="0,4,0,0">
                                             <SelectableTextBlock Text="{Binding PortalCode}" VerticalAlignment="Center" />
                                             <!-- The address drawn as the game's own glyphs. -->
+                                            <TextBlock Text="{loc:Locale player.glyphs_label}" Classes="label"
+                                                       VerticalAlignment="Center" />
                                             <util:PortalGlyphStrip PortalCode="{Binding PortalCode}"
                                                                    GlyphSize="20" VerticalAlignment="Center"
                                                                    ToolTip.Tip="{loc:Locale player.portal_glyphs}" />
@@ -124,6 +144,12 @@
 
                                         <TextBlock Grid.Row="10" Grid.Column="0" Text="{loc:Locale player.portal_interference}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <CheckBox Grid.Row="10" Grid.Column="1" IsChecked="{Binding PortalInterference}" Margin="0,4,0,0" />
+
+                                        <!-- Warping to a purple system needs the discovery
+                                             flag and the drive upgrade together. -->
+                                        <CheckBox Grid.Row="11" Grid.ColumnSpan="2" Margin="0,4,0,0"
+                                                  Content="{loc:Locale player.purple_warp_enabled}"
+                                                  IsChecked="{Binding PurpleWarpEnabled}" />
                                     </Grid>
                                 </StackPanel>
                             </Border>
@@ -131,7 +157,7 @@
                             <!-- Edit Coordinates Section -->
                             <Border Classes="card" Padding="12">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="{loc:Locale player.section_edit_coords}" Classes="sectionHeader" />
+                                    <TextBlock Text="{loc:Locale player.section_change_coords}" Classes="sectionHeader" />
                                     <Grid ColumnDefinitions="160,200" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
                                         <!-- The game numbers galaxies from one; the save stores them from zero. -->
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale player.galaxy_range}" VerticalAlignment="Center" />
@@ -162,7 +188,7 @@
                                     <TextBlock Text="{loc:Locale player.section_portal_to_coords}" Classes="sectionHeader" />
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                                         <TextBox Text="{Binding PortalHexInput}" Watermark="{loc:Locale player.portal_code_msg_12}" Width="200" />
-                                        <Button Content="{loc:Locale player.convert_to_coords}" Command="{Binding ConvertPortalCodeCommand}" />
+                                        <Button Content="{loc:Locale player.convert_coords}" Command="{Binding ConvertPortalCodeCommand}" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -170,7 +196,7 @@
                             <!-- Space Battle Section -->
                             <Border Classes="card" Padding="12">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="{loc:Locale player.section_space_battle}" Classes="sectionHeader" />
+                                    <TextBlock Text="{loc:Locale player.space_battle_section}" Classes="sectionHeader" />
                                     <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale player.time_to_next}" VerticalAlignment="Center" />
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding TimeToNextBattle}" VerticalAlignment="Center" />
@@ -214,7 +240,7 @@
                 <TabItem Header="{loc:Locale player.tab_titles}">
                     <DockPanel Margin="8">
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-                            <TextBlock Text="{loc:Locale player.section_titles}" Classes="sectionHeader" VerticalAlignment="Center" />
+                            <TextBlock Text="{loc:Locale player.titles_header}" Classes="sectionHeader" VerticalAlignment="Center" />
                             <Button Content="{loc:Locale player.titles_unlock_all}" Command="{Binding UnlockAllTitlesCommand}" Margin="16,0,0,0" />
                             <Button Content="{loc:Locale player.titles_lock_all}" Command="{Binding LockAllTitlesCommand}" />
                         </StackPanel>
