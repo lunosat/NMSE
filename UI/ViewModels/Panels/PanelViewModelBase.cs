@@ -15,6 +15,13 @@ public abstract class PanelViewModelBase : ViewModelBase
     public Func<string, string, string, Task<string?>>? SaveFilePickerFunc { get; set; }
     public Func<string, string, Task<string?>>? OpenFilePickerFunc { get; set; }
 
+    /// <summary>
+    /// Inventory grids this panel owns. The shell walks them after a save loads to hand
+    /// each one the player state its auto-stack destinations need, and the dialog
+    /// service its prompts go through.
+    /// </summary>
+    public virtual IEnumerable<Controls.InventoryGridViewModel> Grids => [];
+
     public virtual void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager) { }
     public virtual void SaveData(JsonObject saveData) { }
 }

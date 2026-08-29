@@ -54,6 +54,8 @@ public partial class MultitoolViewModel : PanelViewModelBase
         StoreGrid.SetInventoryGroup("Weapon");
     }
 
+    public override IEnumerable<Controls.InventoryGridViewModel> Grids => [StoreGrid];
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _database = database;

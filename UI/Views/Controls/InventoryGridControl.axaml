@@ -102,6 +102,24 @@
                                         <MenuItem Header="{loc:Locale inventory.ctx_paste}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).PasteItemAtCommand}"
                                                   CommandParameter="{Binding}" />
+                                        <Separator />
+                                        <!-- A pinned slot is left alone by auto-stack. -->
+                                        <MenuItem x:Name="PinSlotMenuItem"
+                                                  Header="{loc:Locale inventory.ctx_pin_slot}"
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).TogglePinSlotCommand}"
+                                                  CommandParameter="{Binding}" />
+                                        <Separator />
+                                        <MenuItem Header="{loc:Locale inventory.ctx_sort_name}"
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).SortByNameCommand}" />
+                                        <MenuItem Header="{loc:Locale inventory.ctx_sort_category}"
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).SortByCategoryCommand}" />
+                                        <Separator />
+                                        <MenuItem Header="{loc:Locale inventory.ctx_auto_stack_chests}"
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackToChestsCommand}" />
+                                        <MenuItem Header="{loc:Locale inventory.ctx_auto_stack_starship}"
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackToStarshipCommand}" />
+                                        <MenuItem Header="{loc:Locale inventory.ctx_auto_stack_freighter}"
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackToFreighterCommand}" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
                                 <Border CornerRadius="4"
@@ -311,6 +329,23 @@
                                 <Button Content="{loc:Locale inventory.ctx_supercharge_all}" Command="{Binding SuperchargeAllSlotsCommand}" Margin="0,0,4,4" />
                                 <Button Content="{loc:Locale inventory.ctx_recharge_all}" Command="{Binding RechargeAllTechCommand}" Margin="0,0,4,4" />
                                 <Button Content="{loc:Locale inventory.ctx_refill_all}" Command="{Binding RefillAllStacksCommand}" Margin="0,0,4,4" />
+                            </WrapPanel>
+
+                            <TextBlock Text="{loc:Locale inventory.toolbar_sort}" FontWeight="SemiBold"
+                                       FontSize="12" Margin="0,8,0,0" />
+                            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Button Content="{loc:Locale inventory.sort_name}" Command="{Binding SortByNameCommand}" Margin="0,0,4,4" />
+                                <Button Content="{loc:Locale inventory.sort_category}" Command="{Binding SortByCategoryCommand}" Margin="0,0,4,4" />
+                            </WrapPanel>
+
+                            <!-- Auto-stack empties this inventory into another, skipping
+                                 whatever the user pinned. -->
+                            <TextBlock Text="{loc:Locale inventory.toolbar_auto_stack}" FontWeight="SemiBold"
+                                       FontSize="12" Margin="0,8,0,0" />
+                            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Button Content="{loc:Locale inventory.toolbar_auto_stack_chests}" Command="{Binding AutoStackToChestsCommand}" Margin="0,0,4,4" />
+                                <Button Content="{loc:Locale inventory.toolbar_auto_stack_starship}" Command="{Binding AutoStackToStarshipCommand}" Margin="0,0,4,4" />
+                                <Button Content="{loc:Locale inventory.toolbar_auto_stack_freighter}" Command="{Binding AutoStackToFreighterCommand}" Margin="0,0,4,4" />
                             </WrapPanel>
                         </StackPanel>
                     </ScrollViewer>

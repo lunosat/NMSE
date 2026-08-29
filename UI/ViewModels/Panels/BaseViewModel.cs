@@ -57,6 +57,9 @@ public partial class BaseViewModel : PanelViewModelBase
         BaseItemCount = objectCount.ToString();
     }
 
+    public override IEnumerable<Controls.InventoryGridViewModel> Grids =>
+        ChestGrids.Concat(StorageTabs.Select(s => s.Grid));
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _database = database;

@@ -32,6 +32,8 @@ public partial class ExosuitViewModel : PanelViewModelBase
         TechGrid.SetExportFileName($"exosuit_tech_inv{cfg.ExosuitExt}");
     }
 
+    public override IEnumerable<Controls.InventoryGridViewModel> Grids => [CargoGrid, TechGrid];
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         CargoGrid.SetDatabase(database);

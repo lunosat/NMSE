@@ -195,6 +195,13 @@ public partial class InventoryGridControl : UserControl
                     ? Data.UiStrings.Get("inventory.ctx_remove_supercharge")
                     : Data.UiStrings.Get("inventory.ctx_supercharge");
             }
+            else if (menuItem.Name == "PinSlotMenuItem")
+            {
+                // One entry that reads as the action it performs, rather than two.
+                menuItem.Header = slot.IsPinned
+                    ? Data.UiStrings.Get("inventory.ctx_unpin_slot")
+                    : Data.UiStrings.Get("inventory.ctx_pin_slot");
+            }
         }
     }
 }

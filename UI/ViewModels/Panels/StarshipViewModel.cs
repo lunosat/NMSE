@@ -80,6 +80,8 @@ public partial class StarshipViewModel : PanelViewModelBase
         TechGrid.SetInventoryGroup("Ship");
     }
 
+    public override IEnumerable<Controls.InventoryGridViewModel> Grids => [CargoGrid, TechGrid];
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _database = database;

@@ -53,6 +53,8 @@ public partial class ExocraftViewModel : PanelViewModelBase
         TechGrid.SetInventoryGroup("Vehicle");
     }
 
+    public override IEnumerable<Controls.InventoryGridViewModel> Grids => [CargoGrid, TechGrid];
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _saveDataRef = saveData;

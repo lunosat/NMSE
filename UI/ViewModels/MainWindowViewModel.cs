@@ -633,6 +633,18 @@ public partial class MainWindowViewModel : ViewModelBase
         var panel = tabIndex >= 0 && tabIndex < Panels.Count ? Panels[tabIndex] : null;
         panel?.LoadData(_currentSaveData, _database, _iconManager);
 
+        // Auto-stack moves items into chests, the starship or the freighter, all of
+        // which hang off the player state rather than the grid's own inventory.
+        if (panel is not null)
+        {
+            var playerState = _currentSaveData.GetObject("PlayerStateData");
+            foreach (var grid in panel.Grids)
+            {
+                grid.PlayerState = playerState;
+                grid.Dialogs = panel.Dialogs;
+            }
+        }
+
         if (panel == Account && Account.AccountData != null)
             MainStats.LoadAccountData(Account.AccountData);
 

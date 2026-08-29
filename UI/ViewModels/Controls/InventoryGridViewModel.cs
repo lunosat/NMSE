@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using Avalonia.Media.Imaging;
@@ -30,6 +31,9 @@ public partial class InventorySlotViewModel : ObservableObject
     [ObservableProperty] private bool _showCharge;
     [ObservableProperty] private int _gridRow;
     [ObservableProperty] private int _gridCol;
+
+    /// <summary>Pinned slots are left alone by auto-stack.</summary>
+    [ObservableProperty] private bool _isPinned;
     [ObservableProperty] private string _itemType = "";
     [ObservableProperty] private string _itemCategory = "";
     [ObservableProperty] private string _description = "";
@@ -61,6 +65,15 @@ public partial class InventoryGridViewModel : ObservableObject
 
     private JsonArray? _slots;
     private JsonObject? _currentInventory;
+
+    /// <summary>
+    /// Slots the user has pinned. Auto-stack leaves these alone, which is how a player
+    /// keeps a working set of items in their exosuit while emptying the rest.
+    /// </summary>
+    private readonly HashSet<(int X, int Y)> _pinnedSlots = new();
+
+    /// <summary>The player state, needed by the auto-stack destinations.</summary>
+    public JsonObject? PlayerState { get; set; }
     private GameItemDatabase? _database;
     private IconManager? _iconManager;
 
@@ -766,6 +779,119 @@ public partial class InventoryGridViewModel : ObservableObject
         RefreshSlotAtSelected(SelectedSlot.SlotData, SelectedSlot.SlotIndex);
         RaiseDataModified();
     }
+
+    // ================================== Sorting ====================================
+
+    [RelayCommand] private void SortByName() => SortSlots(byCategory: false);
+    [RelayCommand] private void SortByCategory() => SortSlots(byCategory: true);
+
+    /// <summary>
+    /// Reorders the filled slots and repacks them from the top-left. Empty and disabled
+    /// slots keep their positions, so the grid's shape is unchanged.
+    /// </summary>
+    private void SortSlots(bool byCategory)
+    {
+        if (_slots is null || Database is null) return;
+
+        // Positions available to hold an item, in reading order.
+        var positions = SlotCells
+            .Where(s => s.IsEnabled)
+            .OrderBy(s => s.GridRow).ThenBy(s => s.GridCol)
+            .Select(s => (s.GridCol, s.GridRow))
+            .ToList();
+
+        var filled = new List<(JsonObject Slot, string Name, string Category)>();
+        for (int i = 0; i < _slots.Length; i++)
+        {
+            var slot = _slots.GetObject(i);
+            if (slot is null) continue;
+
+            string id = ExtractSlotItemId(slot);
+            if (id.Length == 0) continue;
+
+            var item = Database.GetItem(id) ?? Database.GetItem("^" + id);
+            filled.Add((slot, item?.Name ?? id, item?.Category ?? ""));
+        }
+
+        filled.Sort((a, b) => byCategory
+            ? string.Compare(a.Category, b.Category, StringComparison.CurrentCultureIgnoreCase) is var c && c != 0
+                ? c : string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase)
+            : string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase));
+
+        for (int i = 0; i < filled.Count && i < positions.Count; i++)
+        {
+            var index = filled[i].Slot.GetObject("Index");
+            if (index is null) continue;
+            index.Set("X", positions[i].GridCol);
+            index.Set("Y", positions[i].GridRow);
+        }
+
+        LoadInventory(_currentInventory);
+    }
+
+    private static string ExtractSlotItemId(JsonObject slot)
+    {
+        try
+        {
+            string id = (slot.Get("Id")?.ToString() ?? "").TrimStart('^');
+            return id is "" or "YOURSLOTITEM" ? "" : id;
+        }
+        catch { return ""; }
+    }
+
+    // ================================ Pinned slots =================================
+
+    /// <summary>Pins or unpins the slot, exempting it from auto-stack.</summary>
+    [RelayCommand]
+    private void TogglePinSlot(InventorySlotViewModel? slot)
+    {
+        if (slot is null) return;
+
+        var key = (slot.GridCol, slot.GridRow);
+        if (!_pinnedSlots.Add(key)) _pinnedSlots.Remove(key);
+        slot.IsPinned = _pinnedSlots.Contains(key);
+    }
+
+    // ================================= Auto-stack ==================================
+
+    [RelayCommand] private Task AutoStackToChestsAsync() => AutoStackAsync(AutoStackTarget.Chests);
+    [RelayCommand] private Task AutoStackToStarshipAsync() => AutoStackAsync(AutoStackTarget.Starship);
+    [RelayCommand] private Task AutoStackToFreighterAsync() => AutoStackAsync(AutoStackTarget.Freighter);
+
+    private enum AutoStackTarget { Chests, Starship, Freighter }
+
+    /// <summary>
+    /// Moves what it can out of this inventory into the chosen destination, skipping
+    /// pinned slots.
+    /// </summary>
+    private async Task AutoStackAsync(AutoStackTarget target)
+    {
+        if (_currentInventory is null || PlayerState is null) return;
+
+        int moved = 0, touched = 0;
+        bool changed = target switch
+        {
+            AutoStackTarget.Chests => InventoryBulkActions.AutoStackCargoToChests(
+                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots),
+            AutoStackTarget.Starship => InventoryBulkActions.AutoStackCargoToStarship(
+                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots),
+            _ => InventoryBulkActions.AutoStackCargoToFreighter(
+                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots),
+        };
+
+        if (changed) LoadInventory(_currentInventory);
+
+        if (Dialogs is not null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.toolbar_auto_stack"),
+                UiStrings.Format("inventory.auto_stack_result",
+                    moved.ToString("N0", CultureInfo.CurrentCulture),
+                    touched.ToString("N0", CultureInfo.CurrentCulture)));
+        }
+    }
+
+    /// <summary>Modal dialogs, supplied by the panel that hosts this grid.</summary>
+    public Services.IDialogService? Dialogs { get; set; }
 
     [RelayCommand]
     private void RepairAllSlots()

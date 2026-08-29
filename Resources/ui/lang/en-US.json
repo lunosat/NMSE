@@ -669,6 +669,7 @@
   "freighter.base_stats": "Base Stats",
   "freighter.crew": "Crew",
   "freighter.details": "Freighter Details",
+  "inventory.auto_stack_result": "Moved {0} items from {1} slots.",
   "inventory.label_bulk_actions": "Bulk Actions",
   "inventory.label_quick_actions": "Quick Actions",
   "menu.view": "&View",

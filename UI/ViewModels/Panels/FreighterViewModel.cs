@@ -56,6 +56,8 @@ public partial class FreighterViewModel : PanelViewModelBase
         TechGrid.SetInventoryGroup("Freighter");
     }
 
+    public override IEnumerable<Controls.InventoryGridViewModel> Grids => [CargoGrid, TechGrid];
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _database = database;
