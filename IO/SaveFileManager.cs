@@ -406,8 +406,12 @@ public class SaveFileManager
         using var zip = ZipFile.OpenRead(zipPath);
         foreach (var entry in zip.Entries)
         {
-            string entryPath = entry.FullName;
+            string entryPath = NormaliseEntryPath(entry.FullName);
             if (string.IsNullOrEmpty(entryPath)) continue;
+
+            // Directory entries carry no content and have an empty Name; extracting
+            // one as a file throws.
+            if (string.IsNullOrEmpty(entry.Name)) continue;
 
             string fullPath;
             try
@@ -441,12 +445,24 @@ public class SaveFileManager
     {
         foreach (var entry in zip.Entries)
         {
-            string entryName = Path.GetFileName(entry.FullName.Replace('/', Path.DirectorySeparatorChar));
+            string entryName = Path.GetFileName(NormaliseEntryPath(entry.FullName));
             if (string.Equals(entryName, fileName, StringComparison.OrdinalIgnoreCase))
                 return entry;
         }
         return null;
     }
+
+    /// <summary>
+    /// Rewrites a ZIP entry path to use the current platform's directory separator.
+    /// The ZIP format specifies '/', but backups written by the Windows build store
+    /// entries with '\\' separators. On Unix a backslash is an ordinary file-name
+    /// character, so without this normalisation such an entry is treated as one long
+    /// file name: nested entries are never matched, and a "..\\" prefix slips past the
+    /// directory-traversal guard instead of being rejected.
+    /// </summary>
+    private static string NormaliseEntryPath(string entryPath) =>
+        entryPath.Replace('\\', Path.DirectorySeparatorChar)
+                 .Replace('/', Path.DirectorySeparatorChar);
 
     /// <summary>
     /// Creates a zip containing the backup-relevant files of the given directory
