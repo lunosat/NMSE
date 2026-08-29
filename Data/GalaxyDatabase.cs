@@ -1,4 +1,4 @@
-using System.Drawing;
+using Avalonia.Media;
 
 namespace NMSE.Data;
 
@@ -399,17 +399,17 @@ public static class GalaxyDatabase
         if (string.IsNullOrWhiteSpace(hexColor) || !hexColor.StartsWith("#", StringComparison.Ordinal)
             || (hexColor.Length != 7 && hexColor.Length != 9))
         {
-            return Color.Black;
+            return Colors.Black;
         }
 
         try
         {
-            int argb = Convert.ToInt32(hexColor[1..], 16);
-            return hexColor.Length == 7 ? Color.FromArgb(unchecked((int)0xFF000000 | argb)) : Color.FromArgb(argb);
+            uint argb = Convert.ToUInt32(hexColor[1..], 16);
+            return hexColor.Length == 7 ? Color.FromUInt32(0xFF000000u | argb) : Color.FromUInt32(argb);
         }
         catch
         {
-            return Color.Black;
+            return Colors.Black;
         }
     }
 

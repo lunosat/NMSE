@@ -1,4 +1,4 @@
-using System.Drawing;
+using Avalonia.Media;
 using NMSE.Core.Utilities;
 using Xunit;
 
@@ -36,8 +36,8 @@ public class NmsColourPaletteTests
     [Fact]
     public void PaintPalette_ContainsWhiteAndBlack()
     {
-        Assert.Contains(NmsColourPalette.PaintPalette, e => e.Colour == Color.FromArgb(255, 255, 255));
-        Assert.Contains(NmsColourPalette.PaintPalette, e => e.Colour == Color.FromArgb(0, 0, 0));
+        Assert.Contains(NmsColourPalette.PaintPalette, e => e.Colour == Color.FromRgb(255, 255, 255));
+        Assert.Contains(NmsColourPalette.PaintPalette, e => e.Colour == Color.FromRgb(0, 0, 0));
     }
 
     [Theory]
@@ -46,7 +46,7 @@ public class NmsColourPaletteTests
     [InlineData(255, 133, 0, 1)]     // Orange is second (index 1)
     public void FindClosestPaletteIndex_ExactMatch_ReturnsCorrectIndex(int r, int g, int b, int expectedIndex)
     {
-        var colour = Color.FromArgb(r, g, b);
+        var colour = Color.FromRgb((byte)r, (byte)g, (byte)b);
         Assert.Equal(expectedIndex, NmsColourPalette.FindClosestPaletteIndex(colour));
     }
 
@@ -54,7 +54,7 @@ public class NmsColourPaletteTests
     public void FindClosestPaletteIndex_NearWhite_ReturnsWhite()
     {
         // Almost white should match White (index 8)
-        var nearWhite = Color.FromArgb(250, 252, 253);
+        var nearWhite = Color.FromRgb(250, 252, 253);
         Assert.Equal(8, NmsColourPalette.FindClosestPaletteIndex(nearWhite));
     }
 
@@ -62,7 +62,7 @@ public class NmsColourPaletteTests
     public void FindClosestPaletteIndex_NearBlack_ReturnsBlack()
     {
         // Almost black should match Black (index 19)
-        var nearBlack = Color.FromArgb(5, 3, 2);
+        var nearBlack = Color.FromRgb(5, 3, 2);
         Assert.Equal(19, NmsColourPalette.FindClosestPaletteIndex(nearBlack));
     }
 
@@ -72,7 +72,7 @@ public class NmsColourPaletteTests
     [InlineData(128, 57, 57)]
     public void ToNormalisedRgba_ReturnsCorrectValues(int r, int g, int b)
     {
-        var colour = Color.FromArgb(r, g, b);
+        var colour = Color.FromRgb((byte)r, (byte)g, (byte)b);
         var rgba = NmsColourPalette.ToNormalisedRgba(colour);
 
         Assert.Equal(4, rgba.Length);
@@ -85,7 +85,7 @@ public class NmsColourPaletteTests
     [Fact]
     public void ToNormalisedRgba_White_AllOnes()
     {
-        var rgba = NmsColourPalette.ToNormalisedRgba(Color.White);
+        var rgba = NmsColourPalette.ToNormalisedRgba(Colors.White);
         Assert.Equal(1.0, rgba[0]);
         Assert.Equal(1.0, rgba[1]);
         Assert.Equal(1.0, rgba[2]);
@@ -95,7 +95,7 @@ public class NmsColourPaletteTests
     [Fact]
     public void ToNormalisedRgba_Black_AllZerosExceptAlpha()
     {
-        var rgba = NmsColourPalette.ToNormalisedRgba(Color.Black);
+        var rgba = NmsColourPalette.ToNormalisedRgba(Colors.Black);
         Assert.Equal(0.0, rgba[0]);
         Assert.Equal(0.0, rgba[1]);
         Assert.Equal(0.0, rgba[2]);
@@ -163,7 +163,7 @@ public class NmsColourPaletteTests
             Assert.NotNull(entries);
             Assert.Equal(2, entries!.Length);
             Assert.Equal("Red", entries[0].Name);
-            Assert.Equal(Color.FromArgb(255, 0, 0), entries[0].Colour);
+            Assert.Equal(Color.FromRgb(255, 0, 0), entries[0].Colour);
             Assert.Equal("Blue", entries[1].Name);
         }
         finally

@@ -431,3 +431,8 @@ build.patch
 *.AppImage
 # Wine prefixes (created at runtime)
 .nmse-wineprefix/
+
+# Build output (Directory.Build.props redirects here)
+Build/bin/
+Build/obj/
+BuildInfo.g.cs

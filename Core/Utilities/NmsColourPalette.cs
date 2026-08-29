@@ -1,4 +1,4 @@
-using System.Drawing;
+using Avalonia.Media;
 using System.Text.Json;
 
 namespace NMSE.Core.Utilities;
@@ -25,30 +25,30 @@ public static class NmsColourPalette
     public static readonly PaletteEntry[] PaintPalette =
     [
         // Row 1 (top): light / bright variants, left-to-right matching the in-game grid.
-        new("Light Red",      Color.FromArgb(222, 103, 103)),  //  0
-        new("Orange",         Color.FromArgb(255, 133,   0)),  //  1
-        new("Gold",           Color.FromArgb(244, 169,  14)),  //  2
-        new("Mint",           Color.FromArgb( 81, 188, 126)),  //  3
-        new("Light Teal",     Color.FromArgb(116, 201, 186)),  //  4
-        new("Cornflower Blue",Color.FromArgb( 60, 144, 222)),  //  5
-        new("Lavender",       Color.FromArgb(173, 134, 207)),  //  6
-        new("Pink",           Color.FromArgb(229, 132, 194)),  //  7
+        new("Light Red",      Color.FromRgb(222, 103, 103)),  //  0
+        new("Orange",         Color.FromRgb(255, 133,   0)),  //  1
+        new("Gold",           Color.FromRgb(244, 169,  14)),  //  2
+        new("Mint",           Color.FromRgb( 81, 188, 126)),  //  3
+        new("Light Teal",     Color.FromRgb(116, 201, 186)),  //  4
+        new("Cornflower Blue",Color.FromRgb( 60, 144, 222)),  //  5
+        new("Lavender",       Color.FromRgb(173, 134, 207)),  //  6
+        new("Pink",           Color.FromRgb(229, 132, 194)),  //  7
 		// Yellow goes here for ships, but isn't used for pet accessories so is omitted for now.
-        new("White",          Color.FromArgb(255, 255, 255)),  //  8
-        new("Light Grey",     Color.FromArgb(170, 170, 170)),  //  9
+        new("White",          Color.FromRgb(255, 255, 255)),  //  8
+        new("Light Grey",     Color.FromRgb(170, 170, 170)),  //  9
 
         // Row 2 (bottom): dark / muted variants, same column order.
-        new("Dark Red",       Color.FromArgb(128,  57,  57)),  // 10
-        new("Brown",          Color.FromArgb(138,  94,  71)),  // 11
-        new("Tan",            Color.FromArgb(192, 157, 112)),  // 12
-        new("Dark Green",     Color.FromArgb( 62, 122,  87)),  // 13
-        new("Dark Teal",      Color.FromArgb( 62, 111, 112)),  // 14
-        new("Dark Slate",     Color.FromArgb( 59,  74, 103)),  // 15
-        new("Dark Purple",    Color.FromArgb( 94,  71, 112)),  // 16
-        new("Mauve",          Color.FromArgb(143,  85, 108)),  // 17
+        new("Dark Red",       Color.FromRgb(128,  57,  57)),  // 10
+        new("Brown",          Color.FromRgb(138,  94,  71)),  // 11
+        new("Tan",            Color.FromRgb(192, 157, 112)),  // 12
+        new("Dark Green",     Color.FromRgb( 62, 122,  87)),  // 13
+        new("Dark Teal",      Color.FromRgb( 62, 111, 112)),  // 14
+        new("Dark Slate",     Color.FromRgb( 59,  74, 103)),  // 15
+        new("Dark Purple",    Color.FromRgb( 94,  71, 112)),  // 16
+        new("Mauve",          Color.FromRgb(143,  85, 108)),  // 17
 		// Yellow goes here for ships, but isn't used for pet accessories so is omitted for now.
-        new("Dark Grey",      Color.FromArgb( 76,  76,  76)),  // 18
-        new("Black",          Color.FromArgb(  0,   0,   0)),  // 19
+        new("Dark Grey",      Color.FromRgb( 76,  76,  76)),  // 18
+        new("Black",          Color.FromRgb(  0,   0,   0)),  // 19
     ];
 
     /// <summary>
@@ -99,7 +99,10 @@ public static class NmsColourPalette
                     int r = colElem.TryGetProperty("R", out var rp) ? rp.GetInt32() : 255;
                     int g = colElem.TryGetProperty("G", out var gp) ? gp.GetInt32() : 255;
                     int b = colElem.TryGetProperty("B", out var bp) ? bp.GetInt32() : 255;
-                    entries.Add(new PaletteEntry(name, Color.FromArgb(r, g, b)));
+                    entries.Add(new PaletteEntry(name, Color.FromRgb(
+                        (byte)Math.Clamp(r, 0, 255),
+                        (byte)Math.Clamp(g, 0, 255),
+                        (byte)Math.Clamp(b, 0, 255))));
                 }
 
                 if (entries.Count > 0)

@@ -259,14 +259,14 @@ public class DataLayerTests
     public void GalaxyDatabase_ParseHexColor_ReturnsExpectedColor(string hex, int expectedR, int expectedG, int expectedB)
     {
         var actual = GalaxyDatabase.ParseHexColor(hex);
-        Assert.Equal(System.Drawing.Color.FromArgb(expectedR, expectedG, expectedB), actual);
+        Assert.Equal(Avalonia.Media.Color.FromRgb((byte)expectedR, (byte)expectedG, (byte)expectedB), actual);
     }
 
     [Fact]
     public void GalaxyDatabase_GetGalaxyCoreColorValue_ReturnsBlackForOutOfRangeIndex()
     {
-        Assert.Equal(System.Drawing.Color.Black.ToArgb(), GalaxyDatabase.GetGalaxyCoreColorValue(-1).ToArgb());
-        Assert.Equal(System.Drawing.Color.Black.ToArgb(), GalaxyDatabase.GetGalaxyCoreColorValue(257).ToArgb());
+        Assert.Equal(Avalonia.Media.Colors.Black.ToUInt32(), GalaxyDatabase.GetGalaxyCoreColorValue(-1).ToUInt32());
+        Assert.Equal(Avalonia.Media.Colors.Black.ToUInt32(), GalaxyDatabase.GetGalaxyCoreColorValue(257).ToUInt32());
     }
 
     [Fact]
