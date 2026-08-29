@@ -484,6 +484,131 @@ public partial class StarshipViewModel : PanelViewModelBase
         RefreshArchive();
     }
 
+    // ============================== Corvette snapshots =============================
+
+    /// <summary>
+    /// Writes a corvette's technology and its build together, leaving the cargo out.
+    /// A snapshot is meant for carrying a build between saves, and the cargo is the one
+    /// part that belongs to the save it came from.
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportSnapshotAsync()
+    {
+        if (Dialogs is null || _shipOwnership is null || SelectedShipIndex < 0) return;
+        if (!await ConfirmCorvettePrimarySafeAsync()) return;
+
+        int idx = _shipDataIndices[SelectedShipIndex];
+        if (idx >= _shipOwnership.Length) return;
+
+        var ship = _shipOwnership.GetObject(idx);
+
+        var snapshot = new JsonObject();
+        foreach (string key in ship.Names())
+        {
+            if (key == "Inventory") continue;
+            snapshot.Set(key, ship.Get(key));
+        }
+
+        var export = new JsonObject();
+        export.Set("Ship", snapshot);
+
+        var bases = _playerState?.GetArray("PersistentPlayerBases");
+        int baseIndex = StarshipLogic.FindCorvetteBaseIndex(bases, idx);
+        if (baseIndex >= 0 && bases is not null)
+            export.Set("Base", bases.GetObject(baseIndex));
+
+        if (SaveFilePickerFunc is null) return;
+
+        var config = ExportConfig.Instance;
+        var vars = new Dictionary<string, string>
+        {
+            ["ship_name"] = ShipName,
+            ["type"] = GetSelectedTypeInternalName() ?? "",
+            ["class"] = SelectedClassIndex >= 0 && SelectedClassIndex < StarshipLogic.ShipClasses.Length
+                ? StarshipLogic.ShipClasses[SelectedClassIndex] : "C",
+        };
+
+        string? path = await SaveFilePickerFunc(UiStrings.Get("starship.export_snapshot"),
+            config.CorvetteSnapshotExt.TrimStart('.'),
+            ExportConfig.BuildFileName(config.CorvetteSnapshotTemplate, config.CorvetteSnapshotExt, vars));
+        if (path is null) return;
+
+        try
+        {
+            export.ExportToFile(path);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("starship.snapshot_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>Restores a corvette snapshot over the selected ship and its build.</summary>
+    [RelayCommand]
+    private async Task ImportSnapshotAsync()
+    {
+        if (Dialogs is null || _shipOwnership is null || SelectedShipIndex < 0) return;
+        if (OpenFilePickerFunc is null) return;
+        if (!await ConfirmCorvettePrimarySafeAsync()) return;
+
+        if (!await Dialogs.ConfirmAsync(UiStrings.Get("starship.import_overwrite_title"),
+                UiStrings.Get("starship.import_overwrite_confirm"), Services.DialogIcon.Warning))
+            return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("starship.import_snapshot"),
+            ExportConfig.Instance.CorvetteSnapshotExt);
+        if (path is null) return;
+
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
+            var shipData = imported.GetObject("Ship");
+            if (shipData is null) return;
+
+            int idx = _shipDataIndices[SelectedShipIndex];
+            var ship = _shipOwnership.GetObject(idx);
+
+            // The cargo is deliberately absent from a snapshot, so it is left as it is.
+            foreach (string key in shipData.Names())
+                ship.Set(key, shipData.Get(key));
+
+            if (imported.GetObject("Base") is { } baseData)
+            {
+                var bases = _playerState?.GetArray("PersistentPlayerBases");
+                int baseIndex = StarshipLogic.FindCorvetteBaseIndex(bases, idx);
+                if (baseIndex >= 0 && bases is not null)
+                {
+                    var target = bases.GetObject(baseIndex);
+                    foreach (string key in baseData.Names())
+                        target.Set(key, baseData.Get(key));
+                }
+            }
+
+            OnSelectedShipIndexChanged(SelectedShipIndex);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("common.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// Warns before touching a corvette that is the primary ship. The game rebuilds the
+    /// active corvette from its base on load, and editing it while it is primary can
+    /// leave the two disagreeing.
+    /// </summary>
+    private async Task<bool> ConfirmCorvettePrimarySafeAsync()
+    {
+        if (Dialogs is null || !IsCorvette) return true;
+        if (SelectedShipIndex < 0) return true;
+        if (_shipDataIndices[SelectedShipIndex] != _primaryShipIndex) return true;
+
+        return await Dialogs.ConfirmAsync(UiStrings.Get("starship.corvette_warning_title"),
+            UiStrings.Get("starship.corvette_primary_warning"), Services.DialogIcon.Warning);
+    }
+
     [RelayCommand]
     private void GenerateSeed()
     {
@@ -586,8 +711,21 @@ public partial class StarshipViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteShip()
+    private async Task DeleteShipAsync()
     {
+        if (StarshipLogic.CountValidShips(_shipOwnership ?? new JsonArray()) <= 1)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("starship.delete_title"),
+                    UiStrings.Get("starship.cannot_delete_only"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("starship.delete_title"),
+                UiStrings.Get("starship.delete_confirm"), Services.DialogIcon.Warning))
+            return;
+
         if (_shipOwnership == null || SelectedShipIndex < 0) return;
         int idx = _shipDataIndices[SelectedShipIndex];
         if (idx >= _shipOwnership.Length) return;

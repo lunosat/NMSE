@@ -97,6 +97,12 @@
                     <StackPanel IsVisible="{Binding IsCorvette}" Spacing="4" Margin="0,8,0,0">
                         <Button Content="{loc:Locale starship.optimise}" HorizontalAlignment="Stretch"
                                 Command="{Binding OptimiseCorvetteCommand}" />
+                        <!-- A snapshot carries the build and its technology but not the
+                             cargo, which belongs to the save it came from. -->
+                        <Button Content="{loc:Locale starship.export_snapshot}" HorizontalAlignment="Stretch"
+                                Command="{Binding ExportSnapshotCommand}" />
+                        <Button Content="{loc:Locale starship.import_snapshot}" HorizontalAlignment="Stretch"
+                                Command="{Binding ImportSnapshotCommand}" />
                         <TextBlock Text="{loc:Locale starship.corvette_warning}" Classes="hint"
                                    TextWrapping="Wrap" />
                     </StackPanel>
