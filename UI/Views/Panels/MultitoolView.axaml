@@ -24,7 +24,7 @@
 
                     <TextBlock Text="{loc:Locale multitool.details}" FontWeight="SemiBold" Margin="0,4,0,4" />
 
-                    <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
+                    <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale multitool.name}" VerticalAlignment="Center" />
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ToolName}"
                                  Watermark="Procedural - No Name Set" />
@@ -45,6 +45,11 @@
                                     Command="{Binding GenerateSeedCommand}" />
                             <TextBox Text="{Binding ToolSeed}" />
                         </DockPanel>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale multitool.size}" VerticalAlignment="Center" />
+                        <ComboBox Grid.Row="4" Grid.Column="1" ItemsSource="{Binding ToolSizes}"
+                                  SelectedIndex="{Binding SelectedSizeIndex}"
+                                  HorizontalAlignment="Stretch" />
                     </Grid>
 
                     <TextBlock Text="{loc:Locale multitool.base_stats}" FontWeight="SemiBold" Margin="0,12,0,4" />
@@ -73,17 +78,35 @@
                     <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
 
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="{loc:Locale common.export}" Command="{Binding ExportToolCommand}" />
-                        <Button Content="{loc:Locale common.import}" Command="{Binding ImportToolCommand}" />
-                        <Button Content="{loc:Locale common.delete}" Command="{Binding DeleteToolCommand}" />
+                        <Button Content="{loc:Locale multitool.export}" Command="{Binding ExportToolCommand}" />
+                        <Button Content="{loc:Locale multitool.import}" Command="{Binding ImportToolCommand}" />
+                        <Button Content="{loc:Locale multitool.delete}" Classes="danger"
+                                Command="{Binding DeleteToolCommand}" />
                     </StackPanel>
+
+                    <Button Content="{loc:Locale multitool.archive_move_btn}" Margin="0,6,0,0"
+                            HorizontalAlignment="Stretch" Command="{Binding ArchiveToolCommand}" />
                 </StackPanel>
 
                 <!-- Right: Inventory -->
                 <DockPanel Grid.Column="2">
-                    <TextBlock Text="{loc:Locale multitool.inventory}" FontWeight="SemiBold"
-                               DockPanel.Dock="Top" Margin="0,0,0,8" />
-                    <controls:InventoryGridControl DataContext="{Binding StoreGrid}" />
+                    <TabControl>
+                        <TabItem Header="{loc:Locale multitool.inventory}">
+                            <controls:InventoryGridControl DataContext="{Binding StoreGrid}" />
+                        </TabItem>
+                        <TabItem Header="{loc:Locale multitool.archive_move_btn}">
+                            <DockPanel Margin="8">
+                                <Button DockPanel.Dock="Bottom" Margin="0,8,0,0"
+                                        Content="{loc:Locale multitool.archive_import_btn}"
+                                        Command="{Binding ImportFromArchiveCommand}" />
+                                <TextBlock DockPanel.Dock="Top" Classes="hint" Margin="0,0,0,8"
+                                           Text="{loc:Locale multitool.archive_empty}"
+                                           IsVisible="{Binding !ArchivedTools.Count}" />
+                                <ListBox ItemsSource="{Binding ArchivedTools}"
+                                         SelectedIndex="{Binding SelectedArchiveIndex}" />
+                            </DockPanel>
+                        </TabItem>
+                    </TabControl>
                 </DockPanel>
             </Grid>
         </DockPanel>

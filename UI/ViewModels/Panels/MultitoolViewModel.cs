@@ -35,6 +35,16 @@ public partial class MultitoolViewModel : PanelViewModelBase
 
     [ObservableProperty] private InventoryGridViewModel _storeGrid = new();
 
+    /// <summary>Tool size (small / large), which the game stores as an IsLarge flag.</summary>
+    [ObservableProperty] private ObservableCollection<string> _toolSizes = new(MultitoolLogic.GetToolSizeItems());
+    [ObservableProperty] private int _selectedSizeIndex = -1;
+
+    // --- Archive --------------------------------------------------------------
+    [ObservableProperty] private ObservableCollection<string> _archivedTools = new();
+    [ObservableProperty] private int _selectedArchiveIndex = -1;
+
+    private readonly List<int> _archiveDataIndices = new();
+
     private MultitoolLogic.ToolTypeItem[] _typeItems = [];
 
     public MultitoolViewModel()
@@ -65,6 +75,7 @@ public partial class MultitoolViewModel : PanelViewModelBase
                 _activeToolIndex = 0;
                 try { _activeToolIndex = _playerState.GetInt("ActiveMultioolIndex"); } catch { }
                 PrimaryToolLabel = MultitoolLogic.GetPrimaryToolName(_multitools, _activeToolIndex);
+                RefreshArchive();
 
                 RefreshToolList();
 
@@ -112,7 +123,8 @@ public partial class MultitoolViewModel : PanelViewModelBase
                     Seed = ToolSeed,
                     Damage = Damage,
                     Mining = Mining,
-                    Scan = Scan
+                    Scan = Scan,
+                    IsLargeIndex = SelectedSizeIndex,
                 };
 
                 MultitoolLogic.SaveToolData(tool, playerState, values, isPrimary);
@@ -141,6 +153,10 @@ public partial class MultitoolViewModel : PanelViewModelBase
             Damage = data.Damage;
             Mining = data.Mining;
             Scan = data.Scan;
+            // Index 0 is the large body, 1 the small one. A save with no IsLarge flag
+            // leaves the selector empty rather than guessing, so saving does not write
+            // a value the game never had.
+            SelectedSizeIndex = data.IsLarge switch { true => 0, false => 1, null => -1 };
 
             StoreGrid.LoadInventory(data.Store);
         }
@@ -163,6 +179,83 @@ public partial class MultitoolViewModel : PanelViewModelBase
         _activeToolIndex = idx;
         try { _playerState.Set("ActiveMultioolIndex", _activeToolIndex); } catch { }
         PrimaryToolLabel = MultitoolLogic.GetPrimaryToolName(_multitools, _activeToolIndex);
+    }
+
+    // =================================== Archive ===================================
+
+    private void RefreshArchive()
+    {
+        ArchivedTools = new ObservableCollection<string>();
+        _archiveDataIndices.Clear();
+
+        var archived = _playerState?.GetArray("ArchivedMultiTools");
+        if (archived is null) return;
+
+        foreach (var item in MultitoolLogic.BuildArchivedToolList(archived))
+        {
+            ArchivedTools.Add(item.DisplayName);
+            _archiveDataIndices.Add(item.ArchiveIndex);
+        }
+    }
+
+    /// <summary>Moves the selected tool into an empty archived slot.</summary>
+    [RelayCommand]
+    private async Task ArchiveToolAsync()
+    {
+        if (Dialogs is null || _multitools is null || SelectedToolIndex < 0) return;
+        int idx = _toolDataIndices[SelectedToolIndex];
+
+        if (idx == _activeToolIndex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Get("multitool.archive_primary_blocked"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        var archived = _playerState?.GetArray("ArchivedMultiTools");
+        int slot = archived is null ? -1 : MultitoolLogic.FindEmptyArchivedToolSlot(archived);
+        if (archived is null || slot < 0)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Get("multitool.archive_no_slots"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        if (!await Dialogs.ConfirmAsync(UiStrings.Get("multitool.archive_move_title"),
+                UiStrings.Get("multitool.archive_move_confirm")))
+            return;
+
+        MultitoolLogic.MoveToolToArchive(_multitools.GetObject(idx), archived.GetObject(slot));
+        RefreshToolList();
+        RefreshArchive();
+    }
+
+    /// <summary>Brings an archived tool back into a free owned slot.</summary>
+    [RelayCommand]
+    private async Task ImportFromArchiveAsync()
+    {
+        if (Dialogs is null || _multitools is null || SelectedArchiveIndex < 0) return;
+
+        var archived = _playerState?.GetArray("ArchivedMultiTools");
+        if (archived is null) return;
+
+        int target = MultitoolLogic.FindEmptySlot(_multitools);
+        if (target < 0)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Get("multitool.archive_no_list_slots"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        if (!await Dialogs.ConfirmAsync(UiStrings.Get("multitool.archive_import_title"),
+                UiStrings.Get("multitool.archive_import_confirm")))
+            return;
+
+        MultitoolLogic.ImportToolFromArchive(archived.GetObject(_archiveDataIndices[SelectedArchiveIndex]),
+            _multitools.GetObject(target));
+
+        RefreshToolList();
+        RefreshArchive();
     }
 
     private void RefreshToolList()
@@ -252,14 +345,29 @@ public partial class MultitoolViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteTool()
+    private async Task DeleteToolAsync()
     {
         if (_multitools == null || SelectedToolIndex < 0) return;
         int idx = _toolDataIndices[SelectedToolIndex];
         if (idx >= _multitools.Length) return;
 
-        // Clear the tool by removing it from array
-        _multitools.RemoveAt(idx);
+        if (MultitoolLogic.CountValidTools(_multitools) <= 1)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("multitool.delete_title"),
+                    UiStrings.Get("multitool.cannot_delete_only"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("multitool.delete_title"),
+                UiStrings.Get("multitool.delete_confirm"), Services.DialogIcon.Warning))
+            return;
+
+        // Clear the slot in place. Removing the element renumbers every tool after it,
+        // which silently repoints PrimaryWeapon at the wrong one.
+        MultitoolLogic.DeleteToolData(_multitools.GetObject(idx));
+
         RefreshToolList();
         if (ToolList.Count > 0)
             SelectedToolIndex = 0;
