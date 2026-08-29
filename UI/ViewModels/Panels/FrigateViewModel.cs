@@ -493,7 +493,7 @@ public partial class FrigateViewModel : PanelViewModelBase
             RefreshList();
             DamageText = UiStrings.Get("frigate.no_damage");
         }
-        catch (Exception ex)
+        catch
         {
             CountLabel = UiStrings.Get("frigate.failed_load");
         }
