@@ -76,7 +76,7 @@
                                         <MenuItem Header="{loc:Locale inventory.ctx_enable_all}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).EnableAllSlotsCommand}" />
                                         <Separator />
-                                        <MenuItem Header="{loc:Locale common.repair}"
+                                        <MenuItem Header="{loc:Locale inventory.ctx_repair_slot}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).RepairSlotAtCommand}"
                                                   CommandParameter="{Binding}" />
                                         <MenuItem Header="{loc:Locale inventory.ctx_repair_all}"
@@ -97,7 +97,7 @@
                                         <MenuItem Header="{loc:Locale inventory.ctx_refill_all}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).RefillAllStacksCommand}" />
                                         <Separator />
-                                        <MenuItem Header="{loc:Locale common.copy}"
+                                        <MenuItem Header="{loc:Locale inventory.ctx_copy}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).CopyItemAtCommand}"
                                                   CommandParameter="{Binding}" />
                                         <MenuItem Header="{loc:Locale inventory.ctx_paste}"
@@ -263,14 +263,17 @@
                                                    TextWrapping="Wrap" MaxWidth="200"
                                                    TextDecorations="Underline" />
                                     </Button>
-                                    <TextBlock Text="{Binding DetailPosition}" FontSize="11"
-                                               Foreground="{DynamicResource NmseText1Brush}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{loc:Locale inventory.label_slot}" Classes="label" FontSize="11" />
+                                        <TextBlock Text="{Binding DetailPosition}" FontSize="11"
+                                                   Foreground="{DynamicResource NmseText1Brush}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </StackPanel>
 
                             <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,4" />
 
-                            <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
+                            <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,2,0,0">
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale inventory.label_type}" Classes="label" Margin="0,0,8,4" />
                                 <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DetailType}" Margin="0,0,0,4" />
@@ -281,6 +284,17 @@
                                 <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale inventory.label_item_id}" Classes="label" Margin="0,0,8,4" />
                                 <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DetailItemId}" Margin="0,0,0,4"
                                          IsEnabled="{Binding IsSlotSelected}" />
+
+                                <!-- Only procedural items carry a seed. -->
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Locale common.seed}" Classes="label"
+                                           Margin="0,0,8,4" IsVisible="{Binding IsProceduralItem}" />
+                                <DockPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,4"
+                                           IsVisible="{Binding IsProceduralItem}">
+                                    <Button DockPanel.Dock="Right" Margin="4,0,0,0"
+                                            Content="{loc:Locale inventory.button_gen_seed}"
+                                            Command="{Binding GenerateSeedCommand}" />
+                                    <TextBox Text="{Binding DetailSeed}" IsEnabled="{Binding IsSlotSelected}" />
+                                </DockPanel>
 
                                 <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding DetailAmountLabel}" Classes="label" Margin="0,0,8,4" />
                                 <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding DetailAmount}"
@@ -311,17 +325,17 @@
 
                             <TextBlock Text="{loc:Locale inventory.label_quick_actions}" FontWeight="SemiBold" FontSize="12" />
                             <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <Button Content="{loc:Locale inventory.ctx_replace_item}" Command="{Binding ChangeItemCommand}" Margin="0,0,4,4"
+                                <Button Content="{Binding ApplyItemLabel}" Command="{Binding ChangeItemCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />
                                 <Button Content="{loc:Locale inventory.ctx_remove_item}" Command="{Binding RemoveItemCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />
                                 <Button Content="{loc:Locale inventory.ctx_fill_stack}" Command="{Binding FillStackCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />
-                                <Button Content="{loc:Locale common.repair}" Command="{Binding RepairSlotCommand}" Margin="0,0,4,4"
+                                <Button Content="{loc:Locale inventory.ctx_repair_slot}" Command="{Binding RepairSlotCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />
                                 <Button Content="{loc:Locale inventory.ctx_supercharge}" Command="{Binding SuperchargeSlotCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />
-                                <Button Content="{loc:Locale common.copy}" Command="{Binding CopyItemCommand}" Margin="0,0,4,4"
+                                <Button Content="{loc:Locale inventory.ctx_copy}" Command="{Binding CopyItemCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />
                                 <Button Content="{loc:Locale inventory.ctx_paste}" Command="{Binding PasteItemCommand}" Margin="0,0,4,4"
                                         IsEnabled="{Binding IsSlotSelected}" />

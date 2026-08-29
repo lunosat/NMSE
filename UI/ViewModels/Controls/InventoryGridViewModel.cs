@@ -39,9 +39,15 @@ public partial class InventorySlotViewModel : ObservableObject
     /// </summary>
     public string Tooltip =>
         !IsEnabled ? UiStrings.Format("inventory.tooltip_disabled", GridCol, GridRow)
-        : IsEmpty ? UiStrings.Format("inventory.tooltip_empty_slot", GridCol, GridRow)
+        // A slot the inventory owns but holds nothing in can take an item; one outside
+        // it cannot, so only the first says what a right-click offers.
+        : IsEmpty && HasSlotData ? UiStrings.Format("inventory.tooltip_empty_slot", GridCol, GridRow)
+        : IsEmpty ? UiStrings.Format("inventory.tooltip_empty", GridCol, GridRow)
         : string.IsNullOrEmpty(Description) ? ItemName
         : $"{ItemName}\n{Description}";
+
+    /// <summary>Whether the save carries a slot record for this position.</summary>
+    public bool HasSlotData => SlotData is not null;
     [ObservableProperty] private int _gridRow;
     [ObservableProperty] private int _gridCol;
 
@@ -120,6 +126,13 @@ public partial class InventoryGridViewModel : ObservableObject
     /// Chargeable technology holds a charge level rather than a stack, so the two
     /// numeric fields relabel themselves for it.
     /// </summary>
+    /// <summary>
+    /// A procedural item's id carries its seed after a hash. The two are edited
+    /// separately, so the field only appears for items that have one.
+    /// </summary>
+    [ObservableProperty] private string _detailSeed = "";
+    [ObservableProperty] private bool _isProceduralItem;
+
     [ObservableProperty] private string _detailAmountLabel = UiStrings.Get("inventory.amount");
     [ObservableProperty] private string _detailMaxLabel = UiStrings.Get("inventory.max");
     [ObservableProperty] private string _detailPosition = "";
@@ -683,10 +696,21 @@ public partial class InventoryGridViewModel : ObservableObject
             DetailItemName = string.IsNullOrEmpty(slot.ItemName)
                 ? UiStrings.Get("inventory.empty_slot")
                 : slot.ItemName;
-            DetailItemId = slot.ItemId;
+            // Split the id so the base and its seed can be edited on their own.
+            var (baseId, seed) = ProceduralSeedHelper.Strip(slot.ItemId);
+            DetailItemId = baseId;
+
+            IsProceduralItem = !string.IsNullOrEmpty(baseId)
+                && (Database?.GetItem(baseId)?.IsProcedural ?? false);
+            DetailSeed = IsProceduralItem
+                ? (string.IsNullOrEmpty(seed) ? ProceduralSeedHelper.Generate() : seed)
+                : "";
             DetailPosition = slot.Position;
             DetailType = slot.ItemType;
-            DetailCategory = slot.ItemCategory;
+            DetailCategory = string.IsNullOrEmpty(slot.ItemCategory)
+                ? UiStrings.Get("inventory.category_na")
+                : slot.ItemCategory;
+            OnPropertyChanged(nameof(ApplyItemLabel));
             DetailAmountLabel = UiStrings.Get(slot.IsTechChargeable ? "inventory.charge" : "inventory.amount");
             DetailMaxLabel = UiStrings.Get(slot.IsTechChargeable ? "inventory.max_charge" : "inventory.max");
             DetailAmount = slot.Amount;
@@ -743,12 +767,20 @@ public partial class InventoryGridViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void GenerateSeed() => DetailSeed = ProceduralSeedHelper.Generate();
+
+    [RelayCommand]
     private void ApplyChanges()
     {
         if (SelectedSlot?.SlotData == null) return;
 
         var slotData = SelectedSlot.SlotData;
-        SetSlotItemId(slotData, DetailItemId);
+
+        // A procedural item is stored as its base id and seed joined back together.
+        string itemId = IsProceduralItem && ProceduralSeedHelper.IsValidSeed(DetailSeed)
+            ? $"{DetailItemId}#{DetailSeed}"
+            : DetailItemId;
+        SetSlotItemId(slotData, itemId);
 
         slotData.Set("Amount", DetailAmount);
         slotData.Set("MaxAmount", DetailMaxAmount);
@@ -1360,6 +1392,15 @@ public partial class InventoryGridViewModel : ObservableObject
                 UiStrings.Format("inventory.export_error", ex.Message), Services.DialogIcon.Error);
         }
     }
+
+    /// <summary>
+    /// Adding to an empty slot and replacing what is in a filled one are the same
+    /// action, so the button says which one it is about to do.
+    /// </summary>
+    public string ApplyItemLabel => UiStrings.Get(
+        SelectedSlot is null || SelectedSlot.IsEmpty
+            ? "inventory.picker_add_item"
+            : "inventory.picker_replace_item");
 
     /// <summary>Suggested filename for an export; panels set it per inventory.</summary>
     public string ExportFileName { get; set; } = "inventory.json";

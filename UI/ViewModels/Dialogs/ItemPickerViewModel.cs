@@ -55,7 +55,7 @@ public partial class ItemPickerViewModel : ViewModelBase
             _allItems = _allItems.Where(i => i.ItemType == filterType).ToList();
 
         var types = _allItems.Select(i => i.ItemType ?? "").Distinct().OrderBy(t => t).ToList();
-        types.Insert(0, "(All)");
+        types.Insert(0, UiStrings.Get("common.all_types"));
         TypeFilters = new ObservableCollection<string>(types);
         SelectedTypeIndex = 0;
 
@@ -70,7 +70,7 @@ public partial class ItemPickerViewModel : ViewModelBase
         var categories = _allItems
             .Where(i => selectedType == null || selectedType == "(All)" || i.ItemType == selectedType)
             .Select(i => i.Category ?? "").Distinct().OrderBy(c => c).ToList();
-        categories.Insert(0, "(All)");
+        categories.Insert(0, UiStrings.Get("common.all_categories"));
         CategoryFilters = new ObservableCollection<string>(categories);
         SelectedCategoryIndex = 0;
 
@@ -88,16 +88,15 @@ public partial class ItemPickerViewModel : ViewModelBase
 
         if (SelectedTypeIndex > 0 && SelectedTypeIndex < TypeFilters.Count)
         {
+            // Index 0 is the "all" entry, so anything past it is a real type.
             string type = TypeFilters[SelectedTypeIndex];
-            if (type != "(All)")
-                filtered = filtered.Where(i => i.ItemType == type);
+            filtered = filtered.Where(i => i.ItemType == type);
         }
 
         if (SelectedCategoryIndex > 0 && SelectedCategoryIndex < CategoryFilters.Count)
         {
             string cat = CategoryFilters[SelectedCategoryIndex];
-            if (cat != "(All)")
-                filtered = filtered.Where(i => i.Category == cat);
+            filtered = filtered.Where(i => i.Category == cat);
         }
 
         if (!string.IsNullOrWhiteSpace(SearchText))
