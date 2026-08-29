@@ -10,7 +10,7 @@
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="{loc:Locale tab.bases_storage}" Classes="sectionHeader"
+                <TextBlock Text="{loc:Locale base.base_list_title}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
                 <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
                                Command="{Binding GoToBasesJsonCommand}"
@@ -25,8 +25,14 @@
                             <!-- NPC Workers Section -->
                             <Border Classes="card" Padding="12">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="{loc:Locale base.npc_header}" Classes="sectionHeader" />
-                                    <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto" Margin="0,8,0,0">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{loc:Locale base.npc_header}" Classes="sectionHeader"
+                                                   VerticalAlignment="Center" />
+                                        <Button Content="{}" Padding="6,2"
+                                                Command="{Binding GoToNpcWorkersJsonCommand}"
+                                                ToolTip.Tip="{Binding GoToNpcWorkersTooltip}" />
+                                    </StackPanel>
+                                    <Grid ColumnDefinitions="100,*" RowDefinitions="Auto,Auto,Auto" Margin="0,8,0,0">
                                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale base.npc_label}" VerticalAlignment="Center" />
                                         <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding NpcWorkers}"
                                                   SelectedItem="{Binding SelectedNpc}" HorizontalAlignment="Stretch">
@@ -37,10 +43,17 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
 
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale base.npc_seed_label}" VerticalAlignment="Center" Margin="0,4,0,0" />
-                                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
+                                        <!-- The save records the model the worker uses;
+                                             this picks between the eight the game ships. -->
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale base.npc_race_label}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding NpcRaceItems}"
+                                                  SelectedIndex="{Binding NpcRaceIndex}"
+                                                  HorizontalAlignment="Stretch" Margin="0,4,0,0" />
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale base.npc_seed_label}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="0,4,0,0">
                                             <TextBox Text="{Binding NpcSeed}" Width="250" />
-                                            <Button Content="{loc:Locale common.gen}" Command="{Binding GenerateNpcSeedCommand}" />
+                                            <Button Content="{loc:Locale common.generate}" Command="{Binding GenerateNpcSeedCommand}" />
                                             <Button Content="{loc:Locale base.summon_npc}" Command="{Binding SummonWorkerCommand}" />
                                         </StackPanel>
                                     </Grid>
@@ -81,6 +94,14 @@
 
                                     <TextBlock Text="{loc:Locale base.move_basecomp_warning}" Classes="hint"
                                                TextWrapping="Wrap" Margin="0,4,0,0" />
+
+                                    <!-- A freighter base is laid out as rooms rather than
+                                         free-placed objects, so this only applies to one. -->
+                                    <StackPanel Spacing="4" Margin="0,12,0,0"
+                                                IsVisible="{Binding IsFreighterBase}">
+                                        <TextBlock Text="{loc:Locale base.freighter_rooms_header}" Classes="label" />
+                                        <ListBox ItemsSource="{Binding FreighterRooms}" MaxHeight="160" />
+                                    </StackPanel>
 
                                     <!-- Order within PersistentPlayerBases decides which base the
                                          game treats as primary, so it is worth controlling. -->
@@ -162,6 +183,78 @@
                     </TabControl>
                 </TabItem>
                 <!-- Objects Tab -->
+                <TabItem Header="{loc:Locale base.info_tab}">
+                    <ScrollViewer>
+                        <Grid ColumnDefinitions="200,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6"
+                              Margin="12" DataContext="{Binding Metadata}">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale base.obj_base_version}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding BaseVersion}" FormatString="0" ShowButtonSpinner="False" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale base.obj_original_base_version}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding OriginalBaseVersion}" FormatString="0" ShowButtonSpinner="False" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale base.obj_galactic_address}" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding GalacticAddress}" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Locale base.obj_position}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding PositionX}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding PositionY}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding PositionZ}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale base.obj_forward}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="4" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding ForwardX}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding ForwardY}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding ForwardZ}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale base.obj_user_data}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="5" Grid.Column="1" Value="{Binding UserData}" FormatString="0" ShowButtonSpinner="False" />
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Locale base.obj_last_update_timestamp}" VerticalAlignment="Center" />
+                            <NumericUpDown Grid.Row="6" Grid.Column="1" Value="{Binding LastUpdateTimestamp}" FormatString="0" ShowButtonSpinner="False" />
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="{loc:Locale base.obj_rid}" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Rid}" />
+                            <TextBlock Grid.Row="8" Grid.Column="0" Text="{loc:Locale base.obj_screenshot_at}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding ScreenshotAtX}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding ScreenshotAtY}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding ScreenshotAtZ}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="9" Grid.Column="0" Text="{loc:Locale base.obj_screenshot_pos}" VerticalAlignment="Center" />
+                            <StackPanel Grid.Row="9" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <NumericUpDown Value="{Binding ScreenshotPosX}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding ScreenshotPosY}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                                <NumericUpDown Value="{Binding ScreenshotPosZ}" FormatString="0.000" ShowButtonSpinner="False" Width="120" />
+                            </StackPanel>
+                            <TextBlock Grid.Row="10" Grid.Column="0" Text="{loc:Locale base.obj_auto_power}" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="10" Grid.Column="1" Text="{Binding AutoPower}" />
+                            <CheckBox Grid.Row="11" Grid.ColumnSpan="2" Content="{loc:Locale base.obj_is_reported}" IsChecked="{Binding IsReported}" />
+                            <CheckBox Grid.Row="12" Grid.ColumnSpan="2" Content="{loc:Locale base.obj_is_featured}" IsChecked="{Binding IsFeatured}" />
+                            <!-- Derived by the game from the save, so shown but not
+                                 edited: overwriting them puts the base out of step. -->
+                            <TextBlock Grid.Row="13" Grid.Column="0" Text="{loc:Locale base.obj_base_type}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="13" Grid.Column="1" Text="{Binding BaseType}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="14" Grid.Column="0" Text="{loc:Locale base.obj_game_mode}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="14" Grid.Column="1" Text="{Binding GameMode}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="15" Grid.Column="0" Text="{loc:Locale base.obj_difficulty}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="15" Grid.Column="1" Text="{Binding Difficulty}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="16" Grid.Column="0" Text="{loc:Locale base.obj_platform_token}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="16" Grid.Column="1" Text="{Binding PlatformToken}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="17" Grid.Column="0" Text="{loc:Locale base.obj_owner_lid}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="17" Grid.Column="1" Text="{Binding OwnerLid}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="18" Grid.Column="0" Text="{loc:Locale base.obj_owner_uid}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="18" Grid.Column="1" Text="{Binding OwnerUid}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="19" Grid.Column="0" Text="{loc:Locale base.obj_owner_usn}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="19" Grid.Column="1" Text="{Binding OwnerUsn}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="20" Grid.Column="0" Text="{loc:Locale base.obj_owner_ptk}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="20" Grid.Column="1" Text="{Binding OwnerPtk}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="21" Grid.Column="0" Text="{loc:Locale base.obj_owner_ts}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="21" Grid.Column="1" Text="{Binding OwnerTs}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="22" Grid.Column="0" Text="{loc:Locale base.obj_last_edited_by_id}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="22" Grid.Column="1" Text="{Binding LastEditedById}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="23" Grid.Column="0" Text="{loc:Locale base.obj_last_edited_by_username}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="23" Grid.Column="1" Text="{Binding LastEditedByUsername}" VerticalAlignment="Center" />
+                        </Grid>
+                    </ScrollViewer>
+                </TabItem>
+
                 <TabItem Header="{loc:Locale base.objects_tab}">
                     <Grid ColumnDefinitions="380,12,*" Margin="8">
                         <DockPanel Grid.Column="0">

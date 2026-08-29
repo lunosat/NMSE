@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
+using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.UI.ViewModels.Controls;
@@ -28,6 +29,10 @@ public partial class BaseViewModel : PanelViewModelBase
     [ObservableProperty] private string _npcSeed = "";
     [ObservableProperty] private string _npcRace = "";
 
+    /// <summary>The rooms a freighter base is built from; empty for a planetary base.</summary>
+    [ObservableProperty] private ObservableCollection<string> _freighterRooms = new();
+    [ObservableProperty] private bool _isFreighterBase;
+
     [ObservableProperty] private ObservableCollection<InventoryGridViewModel> _chestGrids = new();
 
     [ObservableProperty] private ObservableCollection<StorageTabViewModel> _storageTabs = new();
@@ -42,10 +47,26 @@ public partial class BaseViewModel : PanelViewModelBase
     [ObservableProperty] private int _selectedChestIndex;
     [ObservableProperty] private string _chestName = "";
 
+    /// <summary>
+    /// The metadata the base carries beyond its name and objects. Shown on its own tab,
+    /// as the panel did.
+    /// </summary>
+    public BaseMetadataViewModel Metadata { get; } = new();
+
     partial void OnSelectedBaseChanged(BaseInfoViewModel? value)
     {
         HasBaseSelection = value != null;
-        if (value == null) return;
+        Metadata.Load(value?.Data);
+        if (value == null) { FreighterRooms = new(); IsFreighterBase = false; return; }
+
+        // A freighter base is laid out as rooms rather than free-placed objects, so the
+        // list only applies to one.
+        string baseType = value.Data?.GetString("BaseType.PersistentBaseTypes")
+            ?? value.Data?.GetString("BaseType") ?? "";
+        IsFreighterBase = baseType.Contains("Freighter", StringComparison.OrdinalIgnoreCase);
+        FreighterRooms = IsFreighterBase
+            ? new ObservableCollection<string>(FreighterLogic.DetectFreighterRooms(value.Data))
+            : new ObservableCollection<string>();
         BaseName = value.Data?.GetString("Name") ?? "";
         int objectCount = 0;
         try
@@ -395,6 +416,97 @@ public partial class BaseViewModel : PanelViewModelBase
         SelectedBase.DisplayName = BaseName;
     }
 
+    /// <summary>
+    /// The eight worker appearances the game ships, keyed by the model each uses. The
+    /// save records the model, so the picker maps between the two.
+    /// </summary>
+    private static readonly (string Filename, string Race, string LocKey)[] NpcRaces =
+    [
+        ("MODELS/COMMON/PLAYER/PLAYERCHARACTER/NPCVYKEEN.SCENE.MBIN", "Vy'keen", "common.race_vykeen"),
+        ("MODELS/COMMON/PLAYER/PLAYERCHARACTER/NPCKORVAX.SCENE.MBIN", "Korvax", "common.race_korvax"),
+        ("MODELS/COMMON/PLAYER/PLAYERCHARACTER/NPCGEK.SCENE.MBIN", "Gek", "common.race_gek"),
+        ("MODELS/COMMON/PLAYER/PLAYERCHARACTER/NPCFOURTH.SCENE.MBIN", "Fourth Race", "common.race_fourth"),
+        ("MODELS/PLANETS/NPCS/WARRIOR/WARRIOR.SCENE.MBIN", "Vy'keen (Old)", "common.race_vykeen_old"),
+        ("MODELS/PLANETS/NPCS/EXPLORER/EXPLORERIPAD.SCENE.MBIN", "Korvax (Old)", "common.race_korvax_old"),
+        ("MODELS/PLANETS/NPCS/LOWERORDER/LOWERORDER.SCENE.MBIN", "Gek (Old)", "common.race_gek_old"),
+        ("MODELS/PLANETS/NPCS/FOURTHRACE/FOURTHRACE.SCENE.MBIN", "Fourth Race (Old)", "common.race_fourth_old"),
+    ];
+
+    [ObservableProperty] private List<string> _npcRaceItems =
+        new(NpcRaces.Select(r => UiStrings.Get(r.LocKey)));
+
+    [ObservableProperty] private int _npcRaceIndex = -1;
+
+    /// <summary>Reads the selected worker's appearance and seed into the fields.</summary>
+    partial void OnSelectedNpcChanged(NpcWorkerViewModel? value)
+    {
+        _loadingNpc = true;
+        try
+        {
+            if (value?.Data is not { } npc) { NpcRaceIndex = -1; NpcSeed = ""; return; }
+
+            string filename = ReadResourceString(npc, "Filename");
+            NpcRaceIndex = Array.FindIndex(NpcRaces, r =>
+                string.Equals(r.Filename, filename, StringComparison.OrdinalIgnoreCase));
+
+            NpcSeed = ReadResourceSeed(npc);
+        }
+        finally { _loadingNpc = false; }
+    }
+
+    private bool _loadingNpc;
+
+    partial void OnNpcRaceIndexChanged(int value)
+    {
+        if (_loadingNpc || SelectedNpc?.Data is not { } npc) return;
+        if (value < 0 || value >= NpcRaces.Length) return;
+
+        try { npc.GetObject("ResourceElement")?.Set("Filename", NpcRaces[value].Filename); }
+        catch { }
+    }
+
+    partial void OnNpcSeedChanged(string value)
+    {
+        if (_loadingNpc || SelectedNpc?.Data is not { } npc) return;
+        if (SeedHelper.NormalizeSeed(value) is not { } normalised) return;
+
+        try
+        {
+            var seed = npc.GetObject("ResourceElement")?.GetArray("Seed");
+            if (seed is not null && seed.Length > 1) seed.Set(1, normalised);
+        }
+        catch { }
+    }
+
+    /// <summary>The resource element holds the model and its seed, one level down.</summary>
+    private static string ReadResourceString(JsonObject npc, string key)
+    {
+        try { return npc.GetObject("ResourceElement")?.GetString(key) ?? ""; }
+        catch { return ""; }
+    }
+
+    private static string ReadResourceSeed(JsonObject npc)
+    {
+        try
+        {
+            var seed = npc.GetObject("ResourceElement")?.GetArray("Seed");
+            return seed is not null && seed.Length > 1 ? seed.Get(1)?.ToString() ?? "" : "";
+        }
+        catch { return ""; }
+    }
+
+    [RelayCommand]
+    private Task GoToNpcWorkersJsonAsync() => GoToJsonAsync("PlayerStateData", "NPCWorkers");
+
+    public string GoToNpcWorkersTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_npc_workers"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToNpcWorkersTooltip));
+        NpcRaceItems = new List<string>(NpcRaces.Select(r => UiStrings.Get(r.LocKey)));
+    }
+
     [RelayCommand]
     private void GenerateNpcSeed()
     {
@@ -697,6 +809,8 @@ public partial class BaseViewModel : PanelViewModelBase
     {
         if (SelectedBase?.Data != null && !string.IsNullOrEmpty(BaseName))
             SelectedBase.Data.Set("Name", BaseName);
+
+        Metadata.Save();
     }
 }
 
@@ -773,7 +887,7 @@ public partial class BaseObjectViewModel : ObservableObject
             Row("base.obj_detail_timestamp", Num("Timestamp"));
             Row("base.obj_detail_position", Arr("Position"));
             Row("base.obj_detail_up", Arr("Up"));
-            Row("base.obj_forward", Arr("At"));
+            Row("base.obj_detail_at", Arr("At"));
             Row("base.obj_detail_user_data", Num("UserData"));
             Row("base.obj_auto_power", Str("AutoPower"));
             Row("base.obj_region_seed", Str("RegionSeed"));
