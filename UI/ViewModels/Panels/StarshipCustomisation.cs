@@ -61,31 +61,33 @@ public partial class ShipTextureGroupViewModel : ObservableObject
     public string Label { get; }
     public ObservableCollection<string> Options { get; } = new();
 
+    /// <summary>The ids behind <see cref="Options"/>, offset by the leading "(None)".</summary>
+    private List<string> RawOptions { get; } = new();
+
     public ShipTextureGroupViewModel(ShipCustomisationTextureGroup group)
     {
         GroupId = group.GroupID;
         Label = UiStrings.Format("starship.customisation_paint_style_label", group.GroupID);
 
         Options.Add(UiStrings.Get("starship.customisation_none"));
-        foreach (string option in group.Options) Options.Add(option);
+        // The combo shows readable names; RawOptions keeps the ids the save stores.
+        foreach (string option in group.Options)
+        {
+            RawOptions.Add(option);
+            Options.Add(ShipCustomisationNames.TextureOption(option));
+        }
     }
 
-    /// <summary>The chosen option, or null when "(None)" is selected.</summary>
+    /// <summary>The chosen option as the save spells it, or null when "(None)" is selected.</summary>
     public string? SelectedOption =>
-        SelectedIndex > 0 && SelectedIndex < Options.Count ? Options[SelectedIndex] : null;
+        SelectedIndex > 0 && SelectedIndex - 1 < RawOptions.Count ? RawOptions[SelectedIndex - 1] : null;
 
     public void SelectOption(string? option)
     {
         if (string.IsNullOrEmpty(option)) { SelectedIndex = 0; return; }
-        for (int i = 1; i < Options.Count; i++)
-        {
-            if (string.Equals(Options[i], option, StringComparison.OrdinalIgnoreCase))
-            {
-                SelectedIndex = i;
-                return;
-            }
-        }
-        SelectedIndex = 0;
+
+        int idx = RawOptions.FindIndex(o => string.Equals(o, option, StringComparison.OrdinalIgnoreCase));
+        SelectedIndex = idx >= 0 ? idx + 1 : 0;
     }
 }
 
@@ -124,6 +126,26 @@ public partial class ShipColourChannelViewModel : ObservableObject
         foreach (var entry in entries)
             Choices.Add(new ShipPaletteSwatch(entry.Name, entry.Colour, new SolidColorBrush(entry.Colour)));
     }
+}
+
+/// <summary>Human-readable names for the raw palette and texture identifiers.</summary>
+public static class ShipCustomisationNames
+{
+    public static string Palette(string rawId) => rawId switch
+    {
+        "SHIP" => UiStrings.Get("starship.palette_default"),
+        "SHIP_METALLIC" => UiStrings.Get("starship.palette_metallic"),
+        _ => rawId,
+    };
+
+    public static string TextureOption(string rawId) => rawId switch
+    {
+        "COATING" => UiStrings.Get("starship.texture_coating"),
+        "PANELS" => UiStrings.Get("starship.texture_panels"),
+        "STEALTH" => UiStrings.Get("starship.texture_stealth"),
+        "METALBOLT" => UiStrings.Get("starship.texture_metalbolt"),
+        _ => rawId,
+    };
 }
 
 /// <summary>A single selectable colour in a palette grid.</summary>

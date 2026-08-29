@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
+using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
 using Avalonia.Media;
@@ -51,6 +52,9 @@ public partial class StarshipViewModel : PanelViewModelBase
     [ObservableProperty] private ObservableCollection<ShipPartSlotViewModel> _partSlots = new();
     [ObservableProperty] private ObservableCollection<ShipTextureGroupViewModel> _textureGroups = new();
     [ObservableProperty] private ObservableCollection<string> _palettes = new();
+
+    /// <summary>Readable palette names, parallel to <see cref="Palettes"/>.</summary>
+    [ObservableProperty] private ObservableCollection<string> _paletteNames = new();
     [ObservableProperty] private int _selectedPaletteIndex = -1;
     [ObservableProperty] private ObservableCollection<ShipColourChannelViewModel> _colourChannels = new();
     [ObservableProperty] private bool _showSailColourWarning;
@@ -106,7 +110,7 @@ public partial class StarshipViewModel : PanelViewModelBase
 
             _primaryShipIndex = 0;
             try { _primaryShipIndex = _playerState.GetInt("PrimaryShip"); } catch { }
-            PrimaryShipLabel = StarshipLogic.GetPrimaryShipName(_shipOwnership, _primaryShipIndex);
+            RefreshPrimaryLabel();
 
             RefreshShipList();
             RefreshArchive();
@@ -168,6 +172,20 @@ public partial class StarshipViewModel : PanelViewModelBase
         catch { }
     }
 
+    /// <summary>
+    /// Each hull supports a different inventory size, so picking a type restates what
+    /// the game will actually allow.
+    /// </summary>
+    partial void OnSelectedTypeIndexChanged(int value)
+    {
+        string filename = GetSelectedTypeInternalName() ?? "";
+        var (_, cargoLabel, techLabel) = StarshipLogic.GetShipInfo(
+            string.IsNullOrEmpty(filename) ? UiStrings.Get("common.unknown") : filename);
+
+        CargoGrid.MaxSupportedText = cargoLabel;
+        TechGrid.MaxSupportedText = techLabel;
+    }
+
     partial void OnSelectedShipIndexChanged(int value)
     {
         if (value < 0 || value >= ShipList.Count) return;
@@ -182,7 +200,7 @@ public partial class StarshipViewModel : PanelViewModelBase
             var data = StarshipLogic.LoadShipData(ship, _playerState, idx);
 
             ShipName = data.Name;
-            SelectTypeByName(data.ShipTypeName);
+            SelectTypeByName(data.ShipTypeName, data.IsResourceModified, data.Filename);
             SelectedClassIndex = data.ClassIndex;
             ShipSeed = data.Seed;
             UseOldColours = data.UseOldColours;
@@ -218,6 +236,7 @@ public partial class StarshipViewModel : PanelViewModelBase
         PartSlots = new ObservableCollection<ShipPartSlotViewModel>();
         TextureGroups = new ObservableCollection<ShipTextureGroupViewModel>();
         ColourChannels = new ObservableCollection<ShipColourChannelViewModel>();
+        PaletteNames = new ObservableCollection<string>();
         Palettes = new ObservableCollection<string>();
         SelectedPaletteIndex = -1;
         _customisationConfig = null;
@@ -264,13 +283,28 @@ public partial class StarshipViewModel : PanelViewModelBase
             TextureGroups.Add(vm);
         }
 
-        foreach (string paletteId in config.PaletteIDs) Palettes.Add(paletteId);
+        // Palettes keeps the ids the save stores; PaletteNames is what the combo shows.
+        foreach (string paletteId in config.PaletteIDs)
+        {
+            Palettes.Add(paletteId);
+            PaletteNames.Add(ShipCustomisationNames.Palette(paletteId));
+        }
         if (Palettes.Count > 0)
         {
             string current = ShipCustomisationIo.ReadPaletteId(ccd);
             int idx = Palettes.ToList().FindIndex(p =>
                 string.Equals(p, current, StringComparison.OrdinalIgnoreCase));
             SelectedPaletteIndex = idx >= 0 ? idx : 0;
+        }
+
+        // The five channels every ship has. ExtraColourChannels is what a hull adds on
+        // top of these — the Solar ship's sails, for instance — so both are shown.
+        foreach (var (channel, altId, locKey) in StandardColourChannels)
+        {
+            var standard = new ShipColourChannelViewModel(UiStrings.Get(locKey), channel, altId, "");
+            standard.SetColour(ShipCustomisationIo.ReadColour(ccd, channel, altId));
+            standard.LoadChoices(SelectedPaletteIndex >= 0 ? Palettes[SelectedPaletteIndex] : null);
+            ColourChannels.Add(standard);
         }
 
         foreach (var extra in config.ExtraColourChannels)
@@ -284,10 +318,24 @@ public partial class StarshipViewModel : PanelViewModelBase
             ColourChannels.Add(vm);
         }
 
-        // Sails take their colour from a channel the game may ignore for some hulls.
-        ShowSailColourWarning = config.ExtraColourChannels
-            .Any(c => c.PaletteName.Contains("Sail", StringComparison.OrdinalIgnoreCase));
+        // Sails take their colour from a channel the game may ignore for some hulls. The
+        // config marks that channel by its label key, which is what the panel keyed on.
+        ShowSailColourWarning = config.ExtraColourChannels.Any(c =>
+            string.Equals(c.LabelKey, "starship.customisation_sail_colour", StringComparison.Ordinal));
     }
+
+    /// <summary>
+    /// The ship paint channels the game always has. Colour 3 targets Undercoat and
+    /// Alternative1; the read and write paths fall back to Primary for sparse saves.
+    /// </summary>
+    private static readonly (string Channel, string AltId, string LocKey)[] StandardColourChannels =
+    [
+        ("Paint",     "Primary",      "starship.customisation_colour1"),
+        ("Paint",     "Alternative3", "starship.customisation_colour2"),
+        ("Undercoat", "Alternative1", "starship.customisation_colour3"),
+        ("Paint",     "Alternative1", "starship.customisation_decal1"),
+        ("Paint",     "Alternative2", "starship.customisation_decal2"),
+    ];
 
     /// <summary>Writes the customisation selections back, if the tab is showing this ship.</summary>
     private void SaveCustomisation(int shipIndex)
@@ -478,7 +526,8 @@ public partial class StarshipViewModel : PanelViewModelBase
         }
 
         if (!await Dialogs.ConfirmAsync(UiStrings.Get("starship.archive_import_title"),
-                UiStrings.Get("starship.archive_import_confirm")))
+                UiStrings.Get("starship.archive_import_confirm"),
+                confirmLabel: UiStrings.Get("common.import")))
             return;
 
         int slot = _archiveDataIndices[SelectedArchiveIndex];
@@ -628,7 +677,7 @@ public partial class StarshipViewModel : PanelViewModelBase
         if (idx >= _shipOwnership.Length) return;
 
         _primaryShipIndex = idx;
-        PrimaryShipLabel = StarshipLogic.GetPrimaryShipName(_shipOwnership, _primaryShipIndex);
+        RefreshPrimaryLabel();
     }
 
     private void RefreshShipList()
@@ -651,15 +700,41 @@ public partial class StarshipViewModel : PanelViewModelBase
             ShipTypes.Add(item.DisplayName);
     }
 
+    /// <summary>The resource behind a "(Modified)" entry, which has no stock type item.</summary>
+    private string? _modifiedTypeFilename;
+
     private string? GetSelectedTypeInternalName()
     {
-        if (SelectedTypeIndex < 0 || SelectedTypeIndex >= _typeItems.Length) return null;
+        if (SelectedTypeIndex < 0) return null;
+        if (SelectedTypeIndex >= _typeItems.Length) return _modifiedTypeFilename;
         return _typeItems[SelectedTypeIndex].InternalName;
     }
 
-    private void SelectTypeByName(string? typeName)
+    /// <summary>
+    /// Selects the ship type. A resource the game did not ship gets a "(Modified)" entry
+    /// appended for it, so the combo can show what the ship actually is rather than
+    /// silently falling back to the nearest stock type.
+    /// </summary>
+    private void SelectTypeByName(string? typeName, bool isModified = false, string? customFilename = null)
     {
+        // Drop any "(Modified)" entry left over from the previously selected ship.
+        if (_typeItems.Length < ShipTypes.Count)
+        {
+            while (ShipTypes.Count > _typeItems.Length) ShipTypes.RemoveAt(ShipTypes.Count - 1);
+        }
+
         if (string.IsNullOrEmpty(typeName)) { SelectedTypeIndex = -1; return; }
+
+        if (isModified && !string.IsNullOrEmpty(customFilename))
+        {
+            _modifiedTypeFilename = customFilename;
+            ShipTypes.Add(UiStrings.Format("starship.type_modified",
+                StarshipLogic.GetLocalisedShipTypeName(typeName)));
+            SelectedTypeIndex = ShipTypes.Count - 1;
+            return;
+        }
+
+        _modifiedTypeFilename = null;
         for (int i = 0; i < _typeItems.Length; i++)
         {
             if (_typeItems[i].InternalName.Equals(typeName, StringComparison.OrdinalIgnoreCase))
@@ -679,6 +754,8 @@ public partial class StarshipViewModel : PanelViewModelBase
     private async Task ExportShip()
     {
         if (_shipOwnership == null || SelectedShipIndex < 0 || SaveFileFunc == null) return;
+        if (!await CorvetteSafeAsync(UiStrings.Get("common.export"))) return;
+
         int idx = _shipDataIndices[SelectedShipIndex];
         if (idx >= _shipOwnership.Length) return;
 
@@ -694,25 +771,53 @@ public partial class StarshipViewModel : PanelViewModelBase
         };
         string fileName = ExportConfig.BuildFileName(cfg.StarshipTemplate, cfg.StarshipExt, vars);
         var path = await SaveFileFunc(fileName, cfg.StarshipExt);
-        if (path != null)
-            ship.ExportToFile(path);
+        if (path is null) return;
+
+        try { ship.ExportToFile(path); }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("common.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
     private async Task ImportShip()
     {
         if (_shipOwnership == null || SelectedShipIndex < 0 || OpenFileFunc == null) return;
+        if (!await CorvetteSafeAsync(UiStrings.Get("common.import"))) return;
+
         int idx = _shipDataIndices[SelectedShipIndex];
         if (idx >= _shipOwnership.Length) return;
 
         var path = await OpenFileFunc(ExportConfig.Instance.StarshipExt);
         if (path == null) return;
 
-        var imported = JsonObject.ImportFromFile(path);
-        if (imported == null) return;
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
 
-        _shipOwnership.Set(idx, imported);
-        OnSelectedShipIndexChanged(SelectedShipIndex);
+            // An exported ship file wraps the ship in a Ship section; writing the whole
+            // envelope into the slot would put a foreign shape into ShipOwnership.
+            var ship = imported?.GetObject("Ship") ?? imported;
+            if (ship is null || imported?.GetObject("Ship") is null && imported?.Contains("Resource") != true)
+            {
+                if (Dialogs is not null)
+                    await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                        UiStrings.Get("starship.no_valid_ship"), Services.DialogIcon.Error);
+                return;
+            }
+
+            _shipOwnership.Set(idx, ship);
+            OnSelectedShipIndexChanged(SelectedShipIndex);
+        }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("common.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
@@ -731,13 +836,109 @@ public partial class StarshipViewModel : PanelViewModelBase
                 UiStrings.Get("starship.delete_confirm"), Services.DialogIcon.Warning))
             return;
 
-        if (_shipOwnership == null || SelectedShipIndex < 0) return;
+        if (_shipOwnership == null || _playerState == null || SelectedShipIndex < 0) return;
         int idx = _shipDataIndices[SelectedShipIndex];
         if (idx >= _shipOwnership.Length) return;
 
-        _shipOwnership.RemoveAt(idx);
+        var ship = _shipOwnership.GetObject(idx);
+
+        // A corvette owns a base entry; leaving it behind orphans its building objects.
+        if (StarshipLogic.IsCorvette(ship.GetObject("Resource")?.GetString("Filename") ?? ""))
+            StarshipLogic.InvalidateCorvetteBase(_playerState.GetArray("PersistentPlayerBases"), idx);
+
+        // Invalidate the slot in place. Removing the element renumbers every ship after
+        // it, which silently repoints PrimaryShip and breaks the parallel
+        // ShipUsesLegacyColours array; BuildShipList filters invalidated slots out.
+        StarshipLogic.DeleteShipData(ship);
+
+        // Clear the matching customisation entry so a future ship reusing the slot does
+        // not inherit this one's parts and colours.
+        StarshipLogic.ResetShipCustomisation(_playerState.GetArray("CharacterCustomisationData"), idx);
+
+        if (idx == _primaryShipIndex)
+        {
+            _primaryShipIndex = StarshipLogic.FindFirstValidShipIndex(_shipOwnership);
+            if (_primaryShipIndex < 0) _primaryShipIndex = 0;
+            RawNumberGuard.SetInt(_playerState, "PrimaryShip", _primaryShipIndex);
+        }
+
+        RefreshPrimaryLabel();
         RefreshShipList();
         if (ShipList.Count > 0)
             SelectedShipIndex = 0;
+    }
+
+    [RelayCommand]
+    private Task GoToSelectedShipJsonAsync()
+    {
+        int idx = SelectedShipDataIndex;
+        return idx < 0 ? Task.CompletedTask
+                       : GoToJsonAsync("PlayerStateData", "ShipOwnership", $"[{idx}]");
+    }
+
+    [RelayCommand]
+    private Task GoToShipCargoJsonAsync()
+    {
+        int idx = SelectedShipDataIndex;
+        return idx < 0 ? Task.CompletedTask
+                       : GoToJsonAsync("PlayerStateData", "ShipOwnership", $"[{idx}]", "Inventory");
+    }
+
+    [RelayCommand]
+    private Task GoToShipResourceJsonAsync()
+    {
+        int idx = SelectedShipDataIndex;
+        return idx < 0 ? Task.CompletedTask
+                       : GoToJsonAsync("PlayerStateData", "ShipOwnership", $"[{idx}]", "Resource");
+    }
+
+    /// <summary>The array index of the selected ship, or -1.</summary>
+    private int SelectedShipDataIndex =>
+        SelectedShipIndex >= 0 && SelectedShipIndex < _shipDataIndices.Count
+            ? _shipDataIndices[SelectedShipIndex] : -1;
+
+    // Each tooltip names the section it opens, so they are formatted rather than bound.
+    public string GoToListTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("starship.title"));
+
+    public string GoToSelectedTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("starship.tab_ship_details"));
+
+    public string GoToCargoTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_cargo"));
+
+    public string GoToResourceTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("starship.tab_customisation"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToListTooltip));
+        OnPropertyChanged(nameof(GoToSelectedTooltip));
+        OnPropertyChanged(nameof(GoToCargoTooltip));
+        OnPropertyChanged(nameof(GoToResourceTooltip));
+        RefreshPrimaryLabel();
+    }
+
+    /// <summary>Restates which ship is primary, which delete and archive can change.</summary>
+    private void RefreshPrimaryLabel() =>
+        PrimaryShipLabel = UiStrings.Format("starship.primary_label",
+            StarshipLogic.GetPrimaryShipName(_shipOwnership, _primaryShipIndex));
+
+    /// <summary>
+    /// A corvette that is the current primary ship must not be exported or imported: the
+    /// game ties its base to the primary slot and the result corrupts the save.
+    /// </summary>
+    private async Task<bool> CorvetteSafeAsync(string action)
+    {
+        if (SelectedShipIndex < 0 || SelectedShipIndex >= _shipDataIndices.Count) return false;
+        if (!IsCorvette || _shipDataIndices[SelectedShipIndex] != _primaryShipIndex) return true;
+
+        if (Dialogs is not null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("starship.important_warning"),
+                UiStrings.Format("starship.corvette_primary_corruption", action),
+                Services.DialogIcon.Warning);
+        }
+        return false;
     }
 }

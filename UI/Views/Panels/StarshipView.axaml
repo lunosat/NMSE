@@ -9,11 +9,20 @@
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="{loc:Locale tab.starships}" Classes="sectionHeader"
+                <TextBlock Text="{loc:Locale starship.title}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
                 <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
-                               Command="{Binding GoToShipJsonCommand}"
-                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+                        Command="{Binding GoToShipJsonCommand}"
+                        ToolTip.Tip="{Binding GoToListTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToSelectedShipJsonCommand}"
+                        ToolTip.Tip="{Binding GoToSelectedTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToShipCargoJsonCommand}"
+                        ToolTip.Tip="{Binding GoToCargoTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToShipResourceJsonCommand}"
+                        ToolTip.Tip="{Binding GoToResourceTooltip}" />
             </StackPanel>
 
             <Grid ColumnDefinitions="320,16,*">
@@ -34,12 +43,12 @@
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ShipName}"
                                  Watermark="{loc:Locale common.procedural_no_name}" />
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale common.type}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale starship.type}" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ShipTypes}"
                                   SelectedIndex="{Binding SelectedTypeIndex}"
                                   HorizontalAlignment="Stretch" />
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale common.class}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale starship.class}" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding ShipClasses}"
                                   SelectedIndex="{Binding SelectedClassIndex}"
                                   HorizontalAlignment="Stretch" />
@@ -87,9 +96,9 @@
                     <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
 
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="{loc:Locale common.export}" Command="{Binding ExportShipCommand}" />
-                        <Button Content="{loc:Locale common.import}" Command="{Binding ImportShipCommand}" />
-                        <Button Content="{loc:Locale common.delete}" Classes="danger"
+                        <Button Content="{loc:Locale starship.export}" Command="{Binding ExportShipCommand}" />
+                        <Button Content="{loc:Locale starship.import}" Command="{Binding ImportShipCommand}" />
+                        <Button Content="{loc:Locale starship.delete}" Classes="danger"
                                 Command="{Binding DeleteShipCommand}" />
                     </StackPanel>
 
@@ -186,7 +195,7 @@
                                               IsVisible="{Binding Palettes.Count}">
                                             <TextBlock Text="{loc:Locale starship.customisation_paint_palette}"
                                                        Classes="label" />
-                                            <ComboBox Grid.Column="1" ItemsSource="{Binding Palettes}"
+                                            <ComboBox Grid.Column="1" ItemsSource="{Binding PaletteNames}"
                                                       SelectedIndex="{Binding SelectedPaletteIndex}"
                                                       HorizontalAlignment="Stretch" />
                                         </Grid>
