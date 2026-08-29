@@ -101,6 +101,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
             var playerState = saveData.GetObject("PlayerStateData");
             if (playerState == null) return;
             _playerState = playerState;
+            LoadOutfits(playerState);
 
             Health = MainStatsLogic.ReadStatValue(playerState, "Health", 0, 999999);
             Shield = MainStatsLogic.ReadStatValue(playerState, "Shield", 0, 999999);
@@ -485,10 +486,16 @@ public partial class MainStatsViewModel : PanelViewModelBase
     };
 
     [RelayCommand]
-    private void CopySlot()
+    private async Task CopySlotAsync()
     {
         string? dir = GetSaveDirectory();
         if (dir == null) { StatusText = UiStrings.Get("player.no_save_loaded"); return; }
+
+        // These rewrite save files on disk, so none of them happens on a single click.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("player.save_utils_title"),
+                UiStrings.Get("player.copy_slot_confirm"), Services.DialogIcon.Warning))
+            return;
         if (SourceSlotIndex == DestSlotIndex) { StatusText = UiStrings.Get("player.slots_must_differ"); return; }
         try
         {
@@ -499,10 +506,16 @@ public partial class MainStatsViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void MoveSlot()
+    private async Task MoveSlotAsync()
     {
         string? dir = GetSaveDirectory();
         if (dir == null) { StatusText = UiStrings.Get("player.no_save_loaded"); return; }
+
+        // These rewrite save files on disk, so none of them happens on a single click.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("player.save_utils_title"),
+                UiStrings.Get("player.move_slot_confirm"), Services.DialogIcon.Warning))
+            return;
         if (SourceSlotIndex == DestSlotIndex) { StatusText = UiStrings.Get("player.slots_must_differ"); return; }
         try
         {
@@ -514,10 +527,16 @@ public partial class MainStatsViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void SwapSlots()
+    private async Task SwapSlotsAsync()
     {
         string? dir = GetSaveDirectory();
         if (dir == null) { StatusText = UiStrings.Get("player.no_save_loaded"); return; }
+
+        // These rewrite save files on disk, so none of them happens on a single click.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("player.save_utils_title"),
+                UiStrings.Get("player.swap_slot_confirm"), Services.DialogIcon.Warning))
+            return;
         if (SourceSlotIndex == DestSlotIndex) { StatusText = UiStrings.Get("player.slots_must_differ"); return; }
         try
         {
@@ -529,10 +548,16 @@ public partial class MainStatsViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteSlot()
+    private async Task DeleteSlotAsync()
     {
         string? dir = GetSaveDirectory();
         if (dir == null) { StatusText = UiStrings.Get("player.no_save_loaded"); return; }
+
+        // These rewrite save files on disk, so none of them happens on a single click.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("player.save_utils_title"),
+                UiStrings.Get("player.delete_slot_confirm"), Services.DialogIcon.Warning))
+            return;
         try
         {
             SaveSlotManager.DeleteSlot(dir, SourceSlotIndex, GetDetectedPlatform());
@@ -624,6 +649,106 @@ public partial class MainStatsViewModel : PanelViewModelBase
             }
         }
         catch { }
+    }
+
+    // =================================== Outfits ===================================
+
+    [ObservableProperty] private ObservableCollection<string> _outfits = new();
+    [ObservableProperty] private int _selectedOutfitIndex = -1;
+
+    private JsonArray? _outfitArray;
+
+    /// <summary>Lists the player's saved appearances.</summary>
+    private void LoadOutfits(JsonObject playerState)
+    {
+        _outfitArray = playerState.GetArray("Outfits");
+        var names = playerState.GetArray("OutfitNames");
+
+        var list = new ObservableCollection<string>();
+        if (_outfitArray is not null)
+        {
+            for (int i = 0; i < _outfitArray.Length; i++)
+            {
+                var outfit = _outfitArray.GetObject(i);
+                if (outfit is null) continue;
+                list.Add(OutfitLogic.GetOutfitDisplayName(names, outfit, i));
+            }
+        }
+
+        Outfits = list;
+        if (list.Count > 0 && SelectedOutfitIndex < 0) SelectedOutfitIndex = 0;
+    }
+
+    private JsonObject? SelectedOutfit =>
+        _outfitArray is not null && SelectedOutfitIndex >= 0 && SelectedOutfitIndex < _outfitArray.Length
+            ? _outfitArray.GetObject(SelectedOutfitIndex) : null;
+
+    [RelayCommand]
+    private async Task ExportOutfitAsync()
+    {
+        if (SelectedOutfit is not { } outfit || SaveFilePickerFunc is null) return;
+
+        var config = ExportConfig.Instance;
+        string? path = await SaveFilePickerFunc(UiStrings.Get("outfits.export"),
+            config.OutfitExt.TrimStart('.'),
+            ExportConfig.BuildFileName(config.OutfitTemplate, config.OutfitExt,
+                new Dictionary<string, string> { ["player_name"] = SaveName }));
+        if (path is null) return;
+
+        try
+        {
+            OutfitLogic.ExportOutfit(outfit, path);
+            StatusText = UiStrings.Get("outfits.export_success");
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("common.export_failed", ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportOutfitAsync()
+    {
+        if (_outfitArray is null || SelectedOutfitIndex < 0 || OpenFilePickerFunc is null) return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("outfits.import"),
+            ExportConfig.Instance.OutfitExt);
+        if (path is null) return;
+
+        try
+        {
+            OutfitLogic.ImportOutfit(_outfitArray, SelectedOutfitIndex, path);
+            StatusText = UiStrings.Get("outfits.import_success");
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("common.import_failed", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Makes the selected outfit the character's current appearance, which is what the
+    /// game reads rather than the saved list.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyOutfitToCurrentAsync()
+    {
+        if (SelectedOutfit is not { } outfit || _playerState is null) return;
+
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("outfits.copy_confirm_title"),
+                UiStrings.Get("outfits.copy_confirm_msg")))
+            return;
+
+        try
+        {
+            OutfitLogic.CopyToCustomData(outfit, _playerState);
+            StatusText = UiStrings.Get("outfits.copy_success");
+        }
+        catch (Exception ex)
+        {
+            StatusText = UiStrings.Format("common.error", ex.Message);
+        }
     }
 
     [RelayCommand]

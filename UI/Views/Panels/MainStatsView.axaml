@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NMSE.UI.ViewModels.Panels"
              xmlns:loc="using:NMSE.UI.Localization"
+             xmlns:util="using:NMSE.UI.Util"
              x:Class="NMSE.UI.Views.Panels.MainStatsView"
              x:DataType="vm:MainStatsViewModel">
 
@@ -82,7 +83,14 @@
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding GalaxyDisplay}" VerticalAlignment="Center" />
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale player.portal_code_hex}" VerticalAlignment="Center" Margin="0,4,0,0" />
-                                        <SelectableTextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PortalCode}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal"
+                                                    Spacing="10" Margin="0,4,0,0">
+                                            <SelectableTextBlock Text="{Binding PortalCode}" VerticalAlignment="Center" />
+                                            <!-- The address drawn as the game's own glyphs. -->
+                                            <util:PortalGlyphStrip PortalCode="{Binding PortalCode}"
+                                                                   GlyphSize="20" VerticalAlignment="Center"
+                                                                   ToolTip.Tip="{loc:Locale player.portal_glyphs}" />
+                                        </StackPanel>
 
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale player.portal_code_dec}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <SelectableTextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PortalCodeDec}" VerticalAlignment="Center" Margin="0,4,0,0" />
@@ -255,7 +263,23 @@
                                                Foreground="{DynamicResource NmseText1Brush}" TextWrapping="Wrap" />
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
+                        
+                                    <!-- Outfits: the appearances the player has saved. -->
+                                    <Border Classes="card" Padding="12" Margin="8,12,8,0">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="{loc:Locale outfits.title}" Classes="sectionHeader" />
+                                    <ComboBox ItemsSource="{Binding Outfits}"
+                                              SelectedIndex="{Binding SelectedOutfitIndex}"
+                                              HorizontalAlignment="Stretch" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Button Content="{loc:Locale outfits.export}" Command="{Binding ExportOutfitCommand}" />
+                                        <Button Content="{loc:Locale outfits.import}" Command="{Binding ImportOutfitCommand}" />
+                                        <Button Content="{loc:Locale outfits.copy_to_custom}"
+                                                Command="{Binding CopyOutfitToCurrentCommand}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                </StackPanel>
                     </ScrollViewer>
                 </TabItem>
             </TabControl>
