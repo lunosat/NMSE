@@ -310,6 +310,17 @@
                                                               HorizontalAlignment="Stretch" />
                                                     <TextBlock Text="{Binding Detail}" Classes="hint"
                                                                TextWrapping="Wrap" />
+                                                    <!-- From the save's legacy move list,
+                                                         which the game no longer reads. -->
+                                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                                IsVisible="{Binding HasLegacyValues}">
+                                                        <TextBlock Text="{loc:Locale companion.battle_cooldown}"
+                                                                   Classes="hint" />
+                                                        <TextBlock Text="{Binding LegacyCooldown}" Classes="hint" />
+                                                        <TextBlock Text="{loc:Locale companion.battle_score_boost}"
+                                                                   Classes="hint" Margin="8,0,0,0" />
+                                                        <TextBlock Text="{Binding LegacyScoreBoost}" Classes="hint" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Grid>
                                         </DataTemplate>

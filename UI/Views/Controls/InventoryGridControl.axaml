@@ -62,7 +62,7 @@
                                 <Button.ContextMenu>
                                     <ContextMenu Tag="{Binding}"
                                                  Opening="OnSlotContextMenuOpening">
-                                        <MenuItem Header="{loc:Locale inventory.ctx_add_item}"
+                                        <MenuItem Header="{Binding AddOrReplaceLabel}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).ContextAddItemCommand}"
                                                   CommandParameter="{Binding}" />
                                         <MenuItem Header="{loc:Locale inventory.ctx_remove_item}"
@@ -264,6 +264,12 @@
                                                    TextDecorations="Underline" />
                                     </Button>
                                     <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <TextBlock Text="{loc:Locale inventory.label_name}" Classes="label" FontSize="11" />
+                                        <TextBlock Text="{Binding DetailItemName}" FontSize="11"
+                                                   Foreground="{DynamicResource NmseText1Brush}"
+                                                   TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
                                         <TextBlock Text="{loc:Locale inventory.label_slot}" Classes="label" FontSize="11" />
                                         <TextBlock Text="{Binding DetailPosition}" FontSize="11"
                                                    Foreground="{DynamicResource NmseText1Brush}" />
@@ -323,6 +329,30 @@
 
                             <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,6" />
 
+                            <!-- The quick path to an item, beside the modal picker's
+                                 browse-by-icon. -->
+                            <TextBlock Text="{loc:Locale inventory.item_picker}" FontWeight="SemiBold" FontSize="12" />
+                            <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="4"
+                                  Margin="0,4,0,8">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale inventory.label_search}"
+                                           Classes="label" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding PickerFilter}"
+                                         Watermark="{loc:Locale inventory.search_placeholder}" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale inventory.label_filter_item}"
+                                           Classes="label" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding PickerItems}"
+                                          SelectedIndex="{Binding PickerIndex}" HorizontalAlignment="Stretch" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding PickerItemName}"
+                                           Classes="hint" TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                            <Button Content="{loc:Locale inventory.add_item_title}"
+                                    Command="{Binding AddPickedItemCommand}"
+                                    IsEnabled="{Binding IsSlotSelected}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Margin="0,0,0,8" />
+
                             <TextBlock Text="{loc:Locale inventory.label_quick_actions}" FontWeight="SemiBold" FontSize="12" />
                             <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
                                 <Button Content="{Binding ApplyItemLabel}" Command="{Binding ChangeItemCommand}" Margin="0,0,4,4"
@@ -353,10 +383,9 @@
 
                             <TextBlock Text="{loc:Locale inventory.toolbar_sort}" FontWeight="SemiBold"
                                        FontSize="12" Margin="0,8,0,0" />
-                            <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <Button Content="{loc:Locale inventory.sort_name}" Command="{Binding SortByNameCommand}" Margin="0,0,4,4" />
-                                <Button Content="{loc:Locale inventory.sort_category}" Command="{Binding SortByCategoryCommand}" Margin="0,0,4,4" />
-                            </WrapPanel>
+                            <!-- None leaves the slots where the save put them. -->
+                            <ComboBox ItemsSource="{Binding SortModes}" SelectedIndex="{Binding SortModeIndex}"
+                                      HorizontalAlignment="Stretch" Margin="0,4,0,0" />
 
                             <!-- Auto-stack empties this inventory into another, skipping
                                  whatever the user pinned. -->

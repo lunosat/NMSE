@@ -13,6 +13,38 @@ public partial class BattleMoveSlotViewModel : ObservableObject
 {
     [ObservableProperty] private int _selectedIndex;
 
+    /// <summary>
+    /// What the save's legacy PetBattlerMoveList holds for this slot. The game stopped
+    /// reading that array, so these are shown to explain what is in the file rather than
+    /// offered for editing — a changed value would have no effect in game.
+    /// </summary>
+    [ObservableProperty] private string _legacyCooldown = "";
+    [ObservableProperty] private string _legacyScoreBoost = "";
+    [ObservableProperty] private bool _hasLegacyValues;
+
+    /// <summary>Reads this slot's entry from the legacy move list, if the save has one.</summary>
+    public void LoadLegacyValues(JsonArray? moveList)
+    {
+        HasLegacyValues = false;
+        LegacyCooldown = LegacyScoreBoost = "";
+
+        if (moveList is null || SlotIndex >= moveList.Length) return;
+
+        try
+        {
+            var entry = moveList.GetObject(SlotIndex);
+            if (entry is null) return;
+
+            LegacyCooldown = entry.GetInt("Cooldown").ToString(CultureInfo.CurrentCulture);
+            LegacyScoreBoost = entry.GetDouble("ScoreBoost").ToString("G", CultureInfo.CurrentCulture);
+            HasLegacyValues = true;
+        }
+        catch { }
+    }
+
+    /// <summary>Zero-based position of this slot in the move arrays.</summary>
+    public int SlotIndex { get; }
+
     public string Label { get; }
 
     /// <summary>Display names, with "(None)" first.</summary>
@@ -31,6 +63,7 @@ public partial class BattleMoveSlotViewModel : ObservableObject
 
     public BattleMoveSlotViewModel(int slotNumber, IEnumerable<PetBattleMoveEntry> allowed)
     {
+        SlotIndex = slotNumber - 1;
         Label = UiStrings.Format("companion.battle_move_slot",
             slotNumber.ToString(CultureInfo.CurrentCulture));
 
@@ -122,6 +155,38 @@ public partial class BattleMoveSlotViewModel : ObservableObject
 public partial class BattleTeamSlotViewModel : ObservableObject
 {
     [ObservableProperty] private int _selectedIndex;
+
+    /// <summary>
+    /// What the save's legacy PetBattlerMoveList holds for this slot. The game stopped
+    /// reading that array, so these are shown to explain what is in the file rather than
+    /// offered for editing — a changed value would have no effect in game.
+    /// </summary>
+    [ObservableProperty] private string _legacyCooldown = "";
+    [ObservableProperty] private string _legacyScoreBoost = "";
+    [ObservableProperty] private bool _hasLegacyValues;
+
+    /// <summary>Reads this slot's entry from the legacy move list, if the save has one.</summary>
+    public void LoadLegacyValues(JsonArray? moveList)
+    {
+        HasLegacyValues = false;
+        LegacyCooldown = LegacyScoreBoost = "";
+
+        if (moveList is null || SlotIndex >= moveList.Length) return;
+
+        try
+        {
+            var entry = moveList.GetObject(SlotIndex);
+            if (entry is null) return;
+
+            LegacyCooldown = entry.GetInt("Cooldown").ToString(CultureInfo.CurrentCulture);
+            LegacyScoreBoost = entry.GetDouble("ScoreBoost").ToString("G", CultureInfo.CurrentCulture);
+            HasLegacyValues = true;
+        }
+        catch { }
+    }
+
+    /// <summary>Zero-based position of this slot in the move arrays.</summary>
+    public int SlotIndex { get; }
 
     public string Label { get; }
     public ObservableCollection<string> Options { get; } = new();

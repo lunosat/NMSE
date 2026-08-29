@@ -558,6 +558,12 @@ public partial class CompanionViewModel : PanelViewModelBase
             }
             slots[i].SelectMove(string.IsNullOrEmpty(id) ? null : id);
         }
+        // The legacy move list is still in the save even though the game stopped reading
+        // it, so its values are shown beside each slot.
+        JsonArray? legacyMoves = null;
+        try { legacyMoves = companion.GetArray("PetBattlerMoveList"); } catch { }
+        foreach (var slot in slots) slot.LoadLegacyValues(legacyMoves);
+
         MoveSlots = slots;
 
         // Affinity comes from the creature and the biome it was found in, and decides

@@ -48,6 +48,13 @@ public partial class InventorySlotViewModel : ObservableObject
 
     /// <summary>Whether the save carries a slot record for this position.</summary>
     public bool HasSlotData => SlotData is not null;
+
+    /// <summary>
+    /// The context menu entry names what the slot's state allows: adding to an empty one
+    /// and replacing what is in a filled one are the same action.
+    /// </summary>
+    public string AddOrReplaceLabel =>
+        UiStrings.Get(IsEmpty ? "inventory.ctx_add_item" : "inventory.ctx_replace_item");
     [ObservableProperty] private int _gridRow;
     [ObservableProperty] private int _gridCol;
 
@@ -168,7 +175,11 @@ public partial class InventoryGridViewModel : ObservableObject
         DetailItemName = UiStrings.Get("inventory.no_slot_selected");
     }
 
-    public void SetDatabase(GameItemDatabase database) => _database = database;
+    public void SetDatabase(GameItemDatabase database)
+    {
+        _database = database;
+        RebuildPicker();
+    }
     public void SetIconManager(IconManager? iconManager) => _iconManager = iconManager;
     public void SetInventoryGroup(string group) => _inventoryGroup = group;
     public void SetIsTechInventory(bool isTech) => _isTechInventory = isTech;
@@ -774,6 +785,14 @@ public partial class InventoryGridViewModel : ObservableObject
     {
         if (SelectedSlot?.SlotData == null) return;
 
+        if (string.IsNullOrWhiteSpace(DetailItemId))
+        {
+            // An empty id would clear the slot, which is what Remove is for.
+            _ = Dialogs?.ShowMessageAsync(UiStrings.Get("inventory.apply_changes_title"),
+                UiStrings.Get("inventory.apply_enter_id"));
+            return;
+        }
+
         var slotData = SelectedSlot.SlotData;
 
         // A procedural item is stored as its base id and seed joined back together.
@@ -897,6 +916,43 @@ public partial class InventoryGridViewModel : ObservableObject
     }
 
     /// <summary>Turns the supercharge on or off for one grid position.</summary>
+    /// <summary>
+    /// Whether another slot may be supercharged, reporting why not when it may not.
+    /// </summary>
+    private bool CanSupercharge(JsonArray special, InventorySlotViewModel slot)
+    {
+        if (MaxSuperchargeRow >= 0 && slot.GridRow > MaxSuperchargeRow)
+        {
+            _ = Dialogs?.ShowMessageAsync(UiStrings.Get("inventory.supercharge_title"),
+                UiStrings.Format("inventory.supercharge_max_msg", MaxSuperchargeRow + 1));
+            return false;
+        }
+
+        if (MaxSuperchargedSlots >= 0 && CountSupercharged(special) >= MaxSuperchargedSlots)
+        {
+            _ = Dialogs?.ShowMessageAsync(UiStrings.Get("inventory.supercharge_title"),
+                UiStrings.Format("inventory.supercharge_added_msg", MaxSuperchargedSlots));
+            return false;
+        }
+
+        return true;
+    }
+
+    private static int CountSupercharged(JsonArray special)
+    {
+        int count = 0;
+        for (int i = 0; i < special.Length; i++)
+        {
+            try
+            {
+                if (special.GetObject(i)?.GetObject("Type")?.GetString("InventorySpecialSlotType")
+                    == TechBonusSlotType) count++;
+            }
+            catch { }
+        }
+        return count;
+    }
+
     private void SetSupercharged(int x, int y, bool on)
     {
         var special = EnsureSpecialSlots();
@@ -913,13 +969,22 @@ public partial class InventoryGridViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// How many slots may be supercharged, and how far down the grid they may sit.
+    /// Negative means the panel imposes no limit, which is the default.
+    /// </summary>
+    public int MaxSuperchargedSlots { get; set; } = -1;
+    public int MaxSuperchargeRow { get; set; } = -1;
+
     private void ToggleSupercharged(InventorySlotViewModel slot)
     {
         var special = EnsureSpecialSlots();
         if (special is null) return;
 
-        SetSupercharged(slot.GridCol, slot.GridRow,
-            FindSpecialSlot(special, slot.GridCol, slot.GridRow) < 0);
+        bool turningOn = FindSpecialSlot(special, slot.GridCol, slot.GridRow) < 0;
+        if (turningOn && !CanSupercharge(special, slot)) return;
+
+        SetSupercharged(slot.GridCol, slot.GridRow, turningOn);
 
         LoadInventory(_currentInventory);
         RaiseDataModified();
@@ -929,6 +994,28 @@ public partial class InventoryGridViewModel : ObservableObject
 
     [RelayCommand] private void SortByName() => SortSlots(byCategory: false);
     [RelayCommand] private void SortByCategory() => SortSlots(byCategory: true);
+
+    /// <summary>
+    /// The order the grid is kept in. None leaves the slots where the save put them,
+    /// which is what a player who has arranged their own inventory wants.
+    /// </summary>
+    [ObservableProperty] private List<string> _sortModes = new(
+    [
+        UiStrings.Get("inventory.sort_none"),
+        UiStrings.Get("inventory.sort_name"),
+        UiStrings.Get("inventory.sort_category"),
+    ]);
+
+    [ObservableProperty] private int _sortModeIndex;
+
+    partial void OnSortModeIndexChanged(int value)
+    {
+        switch (value)
+        {
+            case 1: SortSlots(byCategory: false); break;
+            case 2: SortSlots(byCategory: true); break;
+        }
+    }
 
     /// <summary>
     /// Reorders the filled slots and repacks them from the top-left. Empty and disabled
@@ -1401,6 +1488,89 @@ public partial class InventoryGridViewModel : ObservableObject
         SelectedSlot is null || SelectedSlot.IsEmpty
             ? "inventory.picker_add_item"
             : "inventory.picker_replace_item");
+
+    // ================================= Item picker ==================================
+
+    /// <summary>
+    /// A filterable list of what this inventory will accept, so an item can be chosen
+    /// without opening the modal picker. The modal one is still there for browsing by
+    /// icon; this is the quick path the WinForms panel put beside the grid.
+    /// </summary>
+    [ObservableProperty] private ObservableCollection<string> _pickerItems = new();
+
+    [ObservableProperty] private int _pickerIndex;
+    [ObservableProperty] private string _pickerFilter = "";
+    [ObservableProperty] private string _pickerItemName = UiStrings.Get("inventory.picker_no_item");
+
+    /// <summary>Item ids parallel to <see cref="PickerItems"/>; null at index 0.</summary>
+    private readonly List<string?> _pickerIds = new();
+
+    partial void OnPickerFilterChanged(string value) => RebuildPicker();
+
+    partial void OnPickerIndexChanged(int value)
+    {
+        string? id = value > 0 && value < _pickerIds.Count ? _pickerIds[value] : null;
+        PickerItemName = id is null
+            ? UiStrings.Get("inventory.picker_no_item")
+            : Database?.GetItem(id)?.Name ?? id;
+    }
+
+    /// <summary>The id the picker has selected, or the one typed into the detail field.</summary>
+    private string? PickerSelectedId =>
+        PickerIndex > 0 && PickerIndex < _pickerIds.Count ? _pickerIds[PickerIndex] : null;
+
+    private void RebuildPicker()
+    {
+        PickerItems.Clear();
+        _pickerIds.Clear();
+
+        PickerItems.Add(UiStrings.Get("common.select_item"));
+        _pickerIds.Add(null);
+
+        if (Database is null) return;
+
+        string filter = PickerFilter.Trim();
+        foreach (var item in Database.Items.Values
+            .Where(i => filter.Length == 0
+                || i.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+                || i.Id.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(i => i.Name)
+            .Take(PickerLimit))
+        {
+            PickerItems.Add(item.Name);
+            _pickerIds.Add(item.Id);
+        }
+
+        PickerIndex = 0;
+    }
+
+    /// <summary>
+    /// The list is a dropdown, so it is capped; narrowing the filter is how a player
+    /// reaches anything past this.
+    /// </summary>
+    private const int PickerLimit = 500;
+
+    /// <summary>Puts the picked item, or the typed id, into the selected slot.</summary>
+    [RelayCommand]
+    private async Task AddPickedItemAsync()
+    {
+        if (SelectedSlot?.SlotData is null || Dialogs is null) return;
+
+        string? id = PickerSelectedId;
+        if (string.IsNullOrEmpty(id)) id = DetailItemId.Trim();
+
+        if (string.IsNullOrEmpty(id))
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.add_item_title"),
+                UiStrings.Get(PickerItems.Count > 1
+                    ? "inventory.add_select_first"
+                    : "inventory.picker_enter_id"));
+            return;
+        }
+
+        DetailItemId = id;
+        ApplyChanges();
+    }
 
     /// <summary>Suggested filename for an export; panels set it per inventory.</summary>
     public string ExportFileName { get; set; } = "inventory.json";
