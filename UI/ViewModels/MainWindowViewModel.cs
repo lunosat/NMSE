@@ -718,14 +718,14 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SyncAllPanelData();
 
-            if (HasUnsavedChanges)
+            // Always, not only when a change was noticed: a save that overwrites the
+            // player's file is the one moment a backup has to exist, and the panels do
+            // not all report their edits.
+            string? saveDir = Path.GetDirectoryName(_currentFilePath);
+            if (saveDir != null)
             {
-                string? saveDir = Path.GetDirectoryName(_currentFilePath);
-                if (saveDir != null)
-                {
-                    try { SaveFileManager.BackupSaveDirectory(saveDir); }
-                    catch (Exception ex) { Debug.WriteLine($"Pre-save backup failed: {ex.Message}"); }
-                }
+                try { SaveFileManager.BackupSaveDirectory(saveDir); }
+                catch (Exception ex) { Debug.WriteLine($"Pre-save backup failed: {ex.Message}"); }
             }
 
             int slotIdx = SelectedSlotIndex >= 0 ? SelectedSlotIndex : 0;
