@@ -126,7 +126,7 @@ compatibility layers. A native cross-platform version using Eto.Forms is planned
 - [Gcenx Wine Builds Guide](gcenx-macos-guide.md) - run NMSE via Gcenx Wine Builds (free, Apple Silicon supported)
 - [CrossOver macOS Guide](crossover-macos-guide.md) - run NMSE via CrossOver (paid, best Apple Silicon)
 
-**Packaging scripts:** `scripts/linux/` (launch script, AppImage builder, Bottles config), `scripts/macos/` (Homebrew Cask formula)
+**Packaging scripts:** `packaging/` (native Linux: AppImage, tarball, Arch PKGBUILD, Flatpak manifest), `scripts/linux/` (legacy Wine: launch script, Wine AppImage builder, Bottles config), `scripts/macos/` (Homebrew Cask formula)
 
 **Work plan:** See [Cross-Platform Work Plan](cross-platform-workplan.md) for the full migration roadmap.
 

@@ -1,6 +1,12 @@
-# NMSE Linux Scripts
+# NMSE Linux Scripts (Wine)
 
-Scripts and configuration files for running NMSE on Linux via Wine.
+Scripts and configuration files for running the **Windows** build of NMSE on
+Linux via Wine.
+
+> **Superseded for most users.** NMSE builds natively for Linux now — see
+> [`packaging/`](../../packaging/) for the AppImage, tarball, Arch and Flatpak
+> packaging, which carry a Linux binary and need neither Wine nor .NET. These
+> scripts remain for anyone who still wants the Windows build under Wine.
 
 ## Contents
 

@@ -137,17 +137,58 @@ You can view the NMSE development roadmap **[here][roadmap]** for upcoming, plan
 
 > 💡 **Tip:** _NMSE auto-detects your save file location for Steam, GOG, and Xbox Game Pass_
 
-### Linux & macOS:
+### Linux: Quick Start
 
-Wine based AppImage and DMG are available from the release page.<br>
-See the cross-platform guides for running NMSE via Wine:
+NMSE runs natively on Linux — no Wine, and no .NET to install. Pick whichever
+package suits your distribution; all four carry the same self-contained build
+for **x86-64** and **ARM64**.
 
-- 🐧 Linux AppImage with WINE included **(RECOMMENDED)**
+| | | |
+|---|---|---|
+| **AppImage** | from [Releases][releases] | `chmod +x` and run — nothing to install |
+| **tar.gz** | from [Releases][releases] | extract, run `./nmse`, or `./install.sh` for a desktop entry |
+| **Arch** | build it | `makepkg -si` in [`packaging/`](packaging/) |
+| **Flatpak** | build it | `flatpak-builder --user --install --force-clean build-dir packaging/io.github.vectorcmdr.NMSE.yml` |
+
+> The AppImage and tarball are published with each release. The Arch and Flatpak
+> manifests are in the repository and build from source; neither is on the AUR or
+> Flathub yet.
+
+Then select your save slot and click <kbd>Load</kbd>. Saves are found
+automatically under Proton and Steam Flatpak, including libraries on another
+drive; use <kbd>Browse...</kbd> for a prefix elsewhere.
+
+> 💡 **Flatpak and saves:** the sandbox reaches the usual Steam locations. A
+> library on another drive is outside them, so pick it through <kbd>Browse...</kbd>
+> and the portal will grant access.
+
+### macOS:
+
+A Wine based DMG is available from the release page:
+
 - 🥃 [Gcenx Wine Builds on macOS][guide-gcenx-wine]
-- ✖️[CrossOver on macOS][guide-crossover]
-- Advanced usage under Linux: 🍷 [Wine on Linux][guide-wine] or🧴 [Bottles on Linux][guide-bottles]
+- ✖️ [CrossOver on macOS][guide-crossover]
 
-A native cross-platform version [is planned][cross-platfom-plan].
+### Running the Windows build under Wine
+
+Still supported for anyone who needs it, though the native Linux packages above
+are the better path:
+
+- 🍷 [Wine on Linux][guide-wine]
+- 🧴 [Bottles on Linux][guide-bottles]
+
+### Building the Linux packages yourself
+
+Needs the .NET 10 SDK, and ImageMagick to shrink the icon set from 333 MB to
+43 MB — without it the build still works, just much larger.
+
+```sh
+./packaging/build.sh                    # publish self-contained, stage, optimise icons
+./packaging/build-tarball.sh            # -> Build/dist/NMSE-<ver>-linux-x64.tar.gz
+./packaging/build-appimage.sh           # -> Build/dist/NMSE-<ver>-x86_64.AppImage
+```
+
+Each takes `--arch arm64` to cross-build for ARM64 from an x86-64 machine.
 
 ---
 
@@ -237,7 +278,7 @@ Made with ❤️ by [**vectorcmdr**][github-owner]
 [badge-dotnet]: https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white
 [badge-release]: https://img.shields.io/github/v/release/vectorcmdr/NMSE?include_prereleases&label=⇓%20release&color=green
 [badge-stars]: https://img.shields.io/github/stars/vectorcmdr/NMSE?style=flat&color=yellow&label=★%20stars
-[badge-platform]: https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white
+[badge-platform]: https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0078D4
 [badge-gamever]: https://img.shields.io/badge/game%20version-6.34-7644e3?logo=windows&logoColor=white
 [badge-sponsor]: https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white
 [badge-kofi]: https://img.shields.io/badge/Support-Ko--fi-29abe0?logo=ko-fi&logoColor=white
@@ -259,7 +300,6 @@ Made with ❤️ by [**vectorcmdr**][github-owner]
 [contributing]: .github/CONTRIBUTING.md
 [code-of-conduct]: .github/CODE_OF_CONDUCT.md
 [support]: .github/SUPPORT.md
-[cross-platfom-plan]: docs/dev/cross-platform-workplan.md
 [roadmap]: https://github.com/vectorcmdr/NMSE/projects?query=is%3Aopen
 
 <!-- Cross-Platform Guides -->
