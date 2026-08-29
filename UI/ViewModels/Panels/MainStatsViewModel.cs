@@ -515,7 +515,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void TriggerSpaceBattle()
+    private async Task TriggerSpaceBattleAsync()
     {
         if (_playerState == null) return;
         try
@@ -525,6 +525,10 @@ public partial class MainStatsViewModel : PanelViewModelBase
             WarpsToNextBattle = 0;
             TimeToNextBattle = UiStrings.Format("player.time_format", 0, 0, 0);
             StatusText = UiStrings.Get("player.space_battle_triggered");
+
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("player.space_battle_title"),
+                    UiStrings.Get("player.space_battle_triggered"));
         }
         catch { }
     }

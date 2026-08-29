@@ -1,3 +1,4 @@
+using System.Linq;
 using Avalonia.Controls;
 using NMSE.UI.ViewModels.Panels;
 using NMSE.UI.Views.Dialogs;
@@ -26,5 +27,18 @@ public partial class DiscoveryView : UserControl
             picker.Initialize(vm.Database, vm.IconMgr);
             return await picker.ShowDialog<string?>(owner);
         };
+    }
+
+    /// <summary>
+    /// The grid owns the multi-selection, so the panel is told what is highlighted
+    /// rather than reaching into the control for it.
+    /// </summary>
+    private void OnLocationsSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is not DiscoveryViewModel vm) return;
+
+        vm.SelectedLocations.Clear();
+        foreach (var row in LocationsGrid.SelectedItems.OfType<TeleportLocationViewModel>())
+            vm.SelectedLocations.Add(row);
     }
 }

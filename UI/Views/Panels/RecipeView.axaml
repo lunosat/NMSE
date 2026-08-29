@@ -44,7 +44,31 @@
                            FontSize="12" />
             </Border>
 
-            <!-- Recipe DataGrid -->
+            <!-- Two halves, as the panel had: what the player has learned, and the
+                 full database to look things up in. -->
+            <TabControl>
+                <TabItem Header="{loc:Locale recipe.tab_known_recipes}">
+                    <DockPanel Margin="4">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8"
+                                    Margin="0,0,0,8">
+                            <Button Content="{loc:Locale recipe.add_recipe}"
+                                    Command="{Binding AddKnownRecipeCommand}" />
+                            <Button Content="{loc:Locale recipe.remove_selected}" Classes="danger"
+                                    Command="{Binding RemoveKnownRecipeCommand}" />
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding KnownRecipes}"
+                                  SelectedItem="{Binding SelectedKnownRecipe}"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  SelectionMode="Single" GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="{loc:Locale recipe.col_name}" Binding="{Binding Name}" Width="*" />
+                                <DataGridTextColumn Header="{loc:Locale recipe.col_id}" Binding="{Binding Id}" Width="220" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
+                <TabItem Header="{loc:Locale recipe.tab_recipe_info}">
             <DataGrid ItemsSource="{Binding Recipes}"
                       SelectedItem="{Binding SelectedRecipe}"
                       AutoGenerateColumns="False"
@@ -63,6 +87,8 @@
                     <DataGridTextColumn Header="{loc:Locale recipe.col_type}" Binding="{Binding Type}" Width="100" />
                 </DataGrid.Columns>
             </DataGrid>
+                </TabItem>
+            </TabControl>
         </DockPanel>
     </Border>
 </UserControl>

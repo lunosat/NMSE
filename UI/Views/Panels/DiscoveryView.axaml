@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NMSE.UI.ViewModels.Panels"
              xmlns:loc="using:NMSE.UI.Localization"
+             xmlns:util="using:NMSE.UI.Util"
              xmlns:views="using:NMSE.UI.Views.Panels"
              x:Class="NMSE.UI.Views.Panels.DiscoveryView"
              x:DataType="vm:DiscoveryViewModel">
@@ -10,6 +11,10 @@
         <DockPanel>
             <TextBlock Text="{loc:Locale tab.discoveries}" Classes="sectionHeader"
                        DockPanel.Dock="Top" Margin="0,0,0,12" />
+
+            <TextBlock DockPanel.Dock="Bottom" Text="{Binding StatusText}" Classes="hint"
+                       Margin="0,6,0,0"
+                       IsVisible="{Binding StatusText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
             <TabControl SelectedIndex="{Binding SelectedTabIndex}">
                 <!-- Known Technologies -->
@@ -109,6 +114,7 @@
                             <TextBox Text="{Binding FishFilter}" Width="220"
                                      Watermark="{loc:Locale discovery.filter_fish}" />
                             <Button Content="{loc:Locale discovery.add_fish_title}" Command="{Binding AddFishCommand}" />
+                            <Button Content="{loc:Locale common.import}" Command="{Binding ImportFishCommand}" />
                             <Button Content="{loc:Locale common.remove_selected}" Classes="danger"
                                     Command="{Binding RemoveFishCommand}" />
                             <Button Content="{}" Padding="6,2" Command="{Binding GoToFishJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
@@ -117,9 +123,9 @@
                                   AutoGenerateColumns="False" IsReadOnly="True"
                                   SelectionMode="Single">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="{loc:Locale discovery.col_id}" Binding="{Binding ProductId}" Width="200" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_caught_fish}" Binding="{Binding ProductId}" Width="200" />
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_name}" Binding="{Binding Name}" Width="*" />
-                                <DataGridTextColumn Header="{loc:Locale discovery.col_caught_fish}" Binding="{Binding CatchCount}" Width="120" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_count}" Binding="{Binding CatchCount}" Width="120" />
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_largest_catch}" Binding="{Binding LargestCatch}" Width="100" />
                             </DataGrid.Columns>
                         </DataGrid>
@@ -158,6 +164,7 @@
                                      Watermark="{loc:Locale discovery.filter_words}" Width="250" />
                             <Button Content="{loc:Locale discovery.learn_selected}" Command="{Binding LearnAllWordsCommand}" />
                             <Button Content="{loc:Locale discovery.unlearn_selected}" Command="{Binding UnlearnAllWordsCommand}" />
+                            <Button Content="{loc:Locale common.import}" Command="{Binding ImportWordsCommand}" />
                             <Button Content="{}" Padding="6,2" Command="{Binding GoToWordJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
                         <DataGrid ItemsSource="{Binding Words}" AutoGenerateColumns="False" SelectionMode="Single">
@@ -182,12 +189,35 @@
                                      Watermark="{loc:Locale discovery.filter_locations}" Width="250" />
                             <Button Content="{loc:Locale discovery.travel_to_system}"
                                     Classes="primary" Command="{Binding TravelToSystemCommand}" />
+                            <Button Content="{loc:Locale common.import}" Command="{Binding ImportLocationsCommand}" />
                             <Button Content="{loc:Locale discovery.delete_selected}" Classes="danger"
                                     Command="{Binding DeleteLocationCommand}" />
                             <Button Content="{}" Padding="6,2" Command="{Binding GoToLocationJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
-                        <DataGrid ItemsSource="{Binding Locations}" SelectedItem="{Binding SelectedLocation}"
-                                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+                        <!-- The address of whichever location is highlighted, drawn as
+                             the game's own glyphs. -->
+                        <Border DockPanel.Dock="Bottom" Classes="card" Padding="10" Margin="0,8,0,0"
+                                IsVisible="{Binding SelectedLocation, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="{loc:Locale discovery.portal_glyphs}" Classes="label"
+                                           VerticalAlignment="Center" />
+                                <util:PortalGlyphStrip PortalCode="{Binding SelectedLocation.PortalHex}"
+                                                       GlyphSize="20" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Locale discovery.galaxy}" Classes="label"
+                                           VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <TextBlock Text="{Binding SelectedLocation.Galaxy}" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Locale player.core_label}" Classes="label"
+                                           VerticalAlignment="Center" />
+                                <Ellipse Width="12" Height="12" VerticalAlignment="Center"
+                                         Fill="{Binding SelectedLocation.CoreBrush}" />
+                            </StackPanel>
+                        </Border>
+
+                        <DataGrid x:Name="LocationsGrid" ItemsSource="{Binding Locations}"
+                                  SelectedItem="{Binding SelectedLocation}"
+                                  SelectionChanged="OnLocationsSelectionChanged"
+                                  AutoGenerateColumns="False" IsReadOnly="True"
+                                  SelectionMode="Extended">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_index}" Binding="{Binding Index}" Width="60" />
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_type}" Binding="{Binding TypeName}" Width="180" />
@@ -201,7 +231,7 @@
                 </TabItem>
 
                 <!-- Recipes -->
-                <TabItem Header="{loc:Locale recipe.title}">
+                <TabItem Header="{loc:Locale discovery.tab_recipes}">
                     <views:RecipeView DataContext="{Binding Recipe}" />
                 </TabItem>
             </TabControl>

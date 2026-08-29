@@ -248,7 +248,6 @@ public partial class BaseViewModel : PanelViewModelBase
         }
     }
 
-    public Func<List<string>, Task<int>>? ShowObjectPickerFunc { get; set; }
 
     [RelayCommand]
     private async Task MoveBaseComputer()
@@ -278,10 +277,17 @@ public partial class BaseViewModel : PanelViewModelBase
                 catch { }
             }
 
-            if (candidates.Count == 0 || ShowObjectPickerFunc == null) return;
+            if (candidates.Count == 0 || Dialogs is null) return;
 
-            var displayNames = candidates.Select(c => c.id).ToList();
-            int selectedIdx = await ShowObjectPickerFunc(displayNames);
+            // Which object becomes the base computer is the user's call: it decides where
+            // the game considers the base to be.
+            int? chosen = await Dialogs.ChooseAsync(
+                UiStrings.Get("base.move_basecomp_title"),
+                UiStrings.Get("base.select_target"),
+                candidates.Select(c => c.id).ToList());
+            if (chosen is null) return;
+
+            int selectedIdx = chosen.Value;
             if (selectedIdx < 0 || selectedIdx >= candidates.Count) return;
 
             var target = candidates[selectedIdx];

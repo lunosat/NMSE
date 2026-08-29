@@ -218,6 +218,157 @@ public partial class DiscoveryViewModel : PanelViewModelBase
         ApplyFishFilter();
     }
 
+    /// <summary>
+    /// Marks the words in a file as known. The file carries ids, so a word the database
+    /// does not list is skipped rather than invented.
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportWordsAsync()
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null) return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("discovery.import_title"),
+            ExportConfig.Instance.DiscoveryExt);
+        if (path is null) return;
+
+        try
+        {
+            var ids = ReadFirstArray(JsonObject.ImportFromFile(path));
+            if (ids.Count == 0)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                    UiStrings.Get("discovery.import_no_words"), Services.DialogIcon.Warning);
+                return;
+            }
+
+            var wanted = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase);
+            int added = 0;
+
+            foreach (var word in _allWords.Where(w => !w.IsKnown && wanted.Contains(w.Id)))
+            {
+                word.IsKnown = true;
+                added++;
+            }
+
+            ApplyWordFilter();
+            await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                UiStrings.Format("discovery.import_words_success", added));
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("discovery.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>Replaces the teleport endpoints with the ones in a file.</summary>
+    [RelayCommand]
+    private async Task ImportLocationsAsync()
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null || _playerState is null) return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("discovery.import_title"),
+            ExportConfig.Instance.DiscoveryExt);
+        if (path is null) return;
+
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
+
+            JsonArray? source = null;
+            foreach (string name in imported.Names())
+            {
+                try { source = imported.GetArray(name); } catch { }
+                if (source is not null && source.Length > 0) break;
+            }
+
+            if (source is null || source.Length == 0)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                    UiStrings.Get("discovery.import_no_locations"), Services.DialogIcon.Warning);
+                return;
+            }
+
+            var endpoints = _playerState.GetArray("TeleportEndpoints");
+            if (endpoints is null) return;
+
+            int added = 0;
+            for (int i = 0; i < source.Length; i++)
+            {
+                var entry = source.GetObject(i);
+                if (entry is null) continue;
+                endpoints.Add(entry);
+                added++;
+            }
+
+            _teleportEndpoints = endpoints;
+            RefreshLocations();
+
+            await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                UiStrings.Format("discovery.import_locations_success", added));
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("discovery.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>Overwrites the whole fishing record with the one in a file.</summary>
+    [RelayCommand]
+    private async Task ImportFishAsync()
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null || _fishingRecord is null) return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("discovery.import_title"),
+            ExportConfig.Instance.DiscoveryExt);
+        if (path is null) return;
+
+        try
+        {
+            var record = JsonObject.ImportFromFile(path).GetObject("FishingRecord");
+            if (record is null)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                    UiStrings.Get("discovery.import_no_fish"), Services.DialogIcon.Warning);
+                return;
+            }
+
+            foreach (string name in record.Names())
+                _fishingRecord.Set(name, record.Get(name));
+
+            if (_playerState is not null) LoadFish(_playerState);
+
+            await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                UiStrings.Get("discovery.import_fish_success"));
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("discovery.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>The first array in an imported file, read as strings.</summary>
+    private static List<string> ReadFirstArray(JsonObject imported)
+    {
+        foreach (string name in imported.Names())
+        {
+            JsonArray? arr = null;
+            try { arr = imported.GetArray(name); } catch { }
+            if (arr is null) continue;
+
+            var ids = new List<string>(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string id = arr.GetString(i) ?? "";
+                if (!string.IsNullOrEmpty(id)) ids.Add(id);
+            }
+            if (ids.Count > 0) return ids;
+        }
+        return [];
+    }
+
     // ===================================== Fish =====================================
 
     /// <summary>The fishing record's arrays, held so the fish tab can edit them.</summary>
@@ -447,16 +598,32 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     [RelayCommand]
     private async Task DeleteLocationAsync()
     {
-        if (Dialogs is null || _teleportEndpoints is null || SelectedLocation is null) return;
+        if (Dialogs is null || _teleportEndpoints is null) return;
+
+        // The grid allows several at once; fall back to the one highlighted.
+        var targets = SelectedLocations.Count > 0
+            ? SelectedLocations.ToList()
+            : SelectedLocation is null ? [] : [SelectedLocation];
+        if (targets.Count == 0) return;
+
+        string message = targets.Count == 1
+            ? UiStrings.Format("discovery.delete_location_single", targets[0].TypeName)
+            : UiStrings.Format("discovery.delete_location_multi", targets.Count);
 
         if (!await Dialogs.ConfirmAsync(UiStrings.Get("discovery.delete_location_title"),
-                UiStrings.Format("discovery.delete_location_single", SelectedLocation.TypeName),
-                Services.DialogIcon.Warning))
+                message, Services.DialogIcon.Warning))
             return;
 
-        _teleportEndpoints.RemoveAt(SelectedLocation.Index);
+        // Removing from the end keeps the earlier indices valid.
+        foreach (var target in targets.OrderByDescending(t => t.Index))
+            _teleportEndpoints.RemoveAt(target.Index);
+
+        SelectedLocations.Clear();
         RefreshLocations();
     }
+
+    /// <summary>Every location the grid has highlighted, kept in step by the view.</summary>
+    public List<TeleportLocationViewModel> SelectedLocations { get; } = new();
 
     /// <summary>
     /// Moves the player to the selected endpoint's system by copying its address, and
@@ -564,7 +731,11 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     {
         if (PickItemFunc is null || _database is null) return;
 
+        // Building the specials list walks the whole item database, which takes a moment
+        // on a slower machine, so the status line says what is happening.
+        StatusText = UiStrings.Get("discovery.loading_specials");
         string? id = await PickItemFunc(UiStrings.Get(titleKey));
+        StatusText = "";
         if (string.IsNullOrEmpty(id)) return;
 
         string bare = CatalogueLogic.StripCaretPrefix(id);
@@ -788,6 +959,10 @@ public partial class TeleportLocationViewModel : ObservableObject
     public string PortalDec { get; }
     public string SignalBooster { get; }
 
+    /// <summary>The galaxy's core colour, shown as a dot beside its name.</summary>
+    public Avalonia.Media.IBrush CoreBrush { get; private set; } =
+        Avalonia.Media.Brushes.Transparent;
+
     public TeleportLocationViewModel(int index, JsonObject endpoint)
     {
         Index = index;
@@ -808,6 +983,10 @@ public partial class TeleportLocationViewModel : ObservableObject
 
         int realityIndex = address!.GetInt("RealityIndex");
         Galaxy = GalaxyDatabase.GetGalaxyName(realityIndex);
+
+        // Galaxies cycle through core colours; the dot is how the panel showed which.
+        CoreBrush = new Avalonia.Media.SolidColorBrush(
+            GalaxyDatabase.GetGalaxyCoreColorValue(realityIndex));
 
         int vx = galactic.GetInt("VoxelX"), vy = galactic.GetInt("VoxelY"), vz = galactic.GetInt("VoxelZ");
         int system = galactic.GetInt("SolarSystemIndex"), planet = galactic.GetInt("PlanetIndex");

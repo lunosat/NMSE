@@ -19,6 +19,16 @@ public partial class RecipeRowViewModel : ObservableObject
     public Recipe? Source { get; init; }
 }
 
+/// <summary>One entry of the player's learned refiner and cooking recipes.</summary>
+public partial class KnownRecipeViewModel : ObservableObject
+{
+    /// <summary>The id as the save spells it, caret prefix included.</summary>
+    public string Id { get; init; } = "";
+    public string Name { get; init; } = "";
+
+    public override string ToString() => Name;
+}
+
 public partial class RecipeViewModel : PanelViewModelBase
 {
     private RecipeDatabase? _recipeDb;
@@ -89,6 +99,94 @@ public partial class RecipeViewModel : PanelViewModelBase
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _itemDb = database;
+        _playerState = saveData.GetObject("PlayerStateData");
+        LoadKnownRecipes();
+    }
+
+    // ================================ Known recipes =================================
+
+    private JsonObject? _playerState;
+
+    /// <summary>
+    /// The recipes the player has actually learned, as opposed to the full database the
+    /// info tab lists. These are what the game reads from KnownRefinerRecipes.
+    /// </summary>
+    public ObservableCollection<KnownRecipeViewModel> KnownRecipes { get; } = new();
+
+    [ObservableProperty] private KnownRecipeViewModel? _selectedKnownRecipe;
+
+    private void LoadKnownRecipes()
+    {
+        KnownRecipes.Clear();
+
+        var known = _playerState?.GetArray("KnownRefinerRecipes");
+        if (known is null) return;
+
+        for (int i = 0; i < known.Length; i++)
+        {
+            string id = known.GetString(i) ?? "";
+            if (string.IsNullOrEmpty(id) || id == "^") continue;
+
+            string bare = id.TrimStart('^');
+            KnownRecipes.Add(new KnownRecipeViewModel
+            {
+                Id = id,
+                Name = _recipeDb?.GetRecipe(bare)?.RecipeName is { Length: > 0 } n ? n : bare,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Offers the recipes the player has not learned yet. Listing the ones they already
+    /// have would only let them be added twice.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddKnownRecipeAsync()
+    {
+        if (Dialogs is null || _recipeDb is null) return;
+
+        var have = new HashSet<string>(
+            KnownRecipes.Select(r => r.Id.TrimStart('^')), StringComparer.OrdinalIgnoreCase);
+
+        var missing = _recipeDb.Recipes
+            .Where(r => !string.IsNullOrEmpty(r.Id) && !have.Contains(r.Id))
+            .OrderBy(r => string.IsNullOrEmpty(r.RecipeName) ? r.Id : r.RecipeName)
+            .ToList();
+
+        if (missing.Count == 0) return;
+
+        int? chosen = await Dialogs.ChooseAsync(
+            UiStrings.Get("recipe.add_recipe_title"),
+            UiStrings.Get("recipe.add_recipe"),
+            missing.Select(r => string.IsNullOrEmpty(r.RecipeName) ? r.Id : r.RecipeName).ToList());
+        if (chosen is null) return;
+
+        var recipe = missing[chosen.Value];
+        var array = _playerState?.GetArray("KnownRefinerRecipes");
+        if (array is null) return;
+
+        array.Add("^" + recipe.Id);
+        LoadKnownRecipes();
+    }
+
+    [RelayCommand]
+    private void RemoveKnownRecipe()
+    {
+        if (SelectedKnownRecipe is not { } row) return;
+
+        var array = _playerState?.GetArray("KnownRefinerRecipes");
+        if (array is null) return;
+
+        for (int i = array.Length - 1; i >= 0; i--)
+        {
+            if (string.Equals(array.GetString(i), row.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                array.RemoveAt(i);
+                break;
+            }
+        }
+
+        LoadKnownRecipes();
     }
 
     public override void SaveData(JsonObject saveData) { }

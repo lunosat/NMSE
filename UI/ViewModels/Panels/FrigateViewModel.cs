@@ -147,7 +147,7 @@ public partial class FrigateViewModel : PanelViewModelBase
             try { _expeditions = playerState.GetArray("FleetExpeditions"); } catch { }
             if (_frigates == null || _frigates.Length == 0)
             {
-                CountLabel = UiStrings.Get("frigate.no_frigates_found");
+                CountLabel = UiStrings.Get("frigate.no_frigates");
                 return;
             }
 
@@ -379,10 +379,17 @@ public partial class FrigateViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void CopyFrigate()
+    private async Task CopyFrigateAsync()
     {
         if (_frigates == null || SelectedFrigate?.Data == null) return;
-        if (_frigates.Length >= 30) return;
+
+        if (_frigates.Length >= MaxFrigates)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("frigate.copy_title"),
+                    UiStrings.Get("frigate.max_reached"));
+            return;
+        }
 
         var clone = SelectedFrigate.Data.DeepClone();
         _frigates.Add(clone);

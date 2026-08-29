@@ -78,50 +78,6 @@ public partial class MainWindow : Window
                 panel.GoToJsonFunc = _viewModel.GoToJsonCommand.ExecuteAsync;
             }
 
-            _viewModel.Base.ShowObjectPickerFunc = async (items) =>
-            {
-                var tcs = new TaskCompletionSource<int>();
-                var dialog = new Window
-                {
-                    Title = NMSE.Data.UiStrings.Get("base.select_target"),
-                    Width = 400,
-                    Height = 350,
-                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                    CanResize = false
-                };
-
-                var listBox = new ListBox
-                {
-                    ItemsSource = items,
-                    SelectedIndex = 0,
-                    Margin = new Thickness(8)
-                };
-
-                var okButton = new Button
-                {
-                    Content = "OK",
-                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
-                    Margin = new Thickness(8),
-                    MinWidth = 80
-                };
-
-                okButton.Click += (_, _) =>
-                {
-                    tcs.TrySetResult(listBox.SelectedIndex);
-                    dialog.Close();
-                };
-
-                dialog.Closing += (_, _) => tcs.TrySetResult(-1);
-
-                var panel = new DockPanel();
-                DockPanel.SetDock(okButton, Avalonia.Controls.Dock.Bottom);
-                panel.Children.Add(okButton);
-                panel.Children.Add(listBox);
-                dialog.Content = panel;
-
-                await dialog.ShowDialog(this);
-                return await tcs.Task;
-            };
 
             _viewModel.ShutdownApp = () =>
             {
