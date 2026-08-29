@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
+using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.UI.ViewModels.Controls;
@@ -53,6 +54,7 @@ public partial class MultitoolViewModel : PanelViewModelBase
         StoreGrid.SetIsTechInventory(true);
         StoreGrid.SetInventoryOwnerType("Weapon");
         StoreGrid.SetInventoryGroup("Weapon");
+        StoreGrid.MaxSupportedText = UiStrings.Format("common.max_supported", "10x6");
     }
 
     public override IEnumerable<Controls.InventoryGridViewModel> Grids => [StoreGrid];
@@ -77,7 +79,8 @@ public partial class MultitoolViewModel : PanelViewModelBase
             {
                 _activeToolIndex = 0;
                 try { _activeToolIndex = _playerState.GetInt("ActiveMultioolIndex"); } catch { }
-                PrimaryToolLabel = MultitoolLogic.GetPrimaryToolName(_multitools, _activeToolIndex);
+                PrimaryToolLabel = UiStrings.Format("multitool.primary_label",
+                    MultitoolLogic.GetPrimaryToolName(_multitools, _activeToolIndex));
                 RefreshArchive();
 
                 RefreshToolList();
@@ -102,7 +105,44 @@ public partial class MultitoolViewModel : PanelViewModelBase
 
     /// <summary>Reveals this data where it lives in the raw editor.</summary>
     [RelayCommand]
-    private Task GoToToolJsonAsync() => GoToJsonAsync("PlayerStateData", "Multitools", (_toolDataIndices.Count > SelectedToolIndex && SelectedToolIndex >= 0 ? _toolDataIndices[SelectedToolIndex] : 0).ToString(CultureInfo.InvariantCulture));
+    private Task GoToToolJsonAsync() => GoToJsonAsync("PlayerStateData", "Multitools");
+
+    [RelayCommand]
+    private Task GoToSelectedToolJsonAsync()
+    {
+        int idx = SelectedToolDataIndex;
+        return idx < 0 ? Task.CompletedTask
+                       : GoToJsonAsync("PlayerStateData", "Multitools", $"[{idx}]");
+    }
+
+    [RelayCommand]
+    private Task GoToStoreJsonAsync()
+    {
+        int idx = SelectedToolDataIndex;
+        return idx < 0 ? Task.CompletedTask
+                       : GoToJsonAsync("PlayerStateData", "Multitools", $"[{idx}]", "Store");
+    }
+
+    /// <summary>The array index of the selected tool, or -1.</summary>
+    private int SelectedToolDataIndex =>
+        SelectedToolIndex >= 0 && SelectedToolIndex < _toolDataIndices.Count
+            ? _toolDataIndices[SelectedToolIndex] : -1;
+
+    public string GoToListTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("multitool.title"));
+
+    public string GoToSelectedTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("multitool.details"));
+
+    public string GoToStoreTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_cargo"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToListTooltip));
+        OnPropertyChanged(nameof(GoToSelectedTooltip));
+        OnPropertyChanged(nameof(GoToStoreTooltip));
+    }
 
     public override void SaveData(JsonObject saveData)
     {
@@ -185,7 +225,8 @@ public partial class MultitoolViewModel : PanelViewModelBase
 
         _activeToolIndex = idx;
         try { _playerState.Set("ActiveMultioolIndex", _activeToolIndex); } catch { }
-        PrimaryToolLabel = MultitoolLogic.GetPrimaryToolName(_multitools, _activeToolIndex);
+        PrimaryToolLabel = UiStrings.Format("multitool.primary_label",
+                    MultitoolLogic.GetPrimaryToolName(_multitools, _activeToolIndex));
     }
 
     // =================================== Archive ===================================
@@ -321,34 +362,84 @@ public partial class MultitoolViewModel : PanelViewModelBase
         var tool = _multitools.GetObject(idx);
         if (tool == null) return;
 
-        var cfg = ExportConfig.Instance;
-        var vars = new Dictionary<string, string>
+        try
         {
-            ["multitool_name"] = ToolName,
-            ["type"] = ToolTypes.Count > 0 && SelectedTypeIndex >= 0 ? ToolTypes[SelectedTypeIndex] : "",
-            ["class"] = ToolClasses.Count > 0 && SelectedClassIndex >= 0 ? ToolClasses[SelectedClassIndex] : ""
-        };
-        string fileName = ExportConfig.BuildFileName(cfg.MultitoolTemplate, cfg.MultitoolExt, vars);
-        var path = await SaveFileFunc(fileName, cfg.MultitoolExt);
-        if (path != null)
-            tool.ExportToFile(path);
+            var cfg = ExportConfig.Instance;
+
+            // The template substitutes internal names, so a file exported under one
+            // language matches one exported under another.
+            var vars = new Dictionary<string, string>
+            {
+                ["multitool_name"] = ToolName,
+                ["type"] = SelectedTypeIndex >= 0 && SelectedTypeIndex < _typeItems.Length
+                    ? _typeItems[SelectedTypeIndex].InternalName
+                    : UiStrings.Get("common.unknown"),
+                ["class"] = SelectedClassIndex >= 0 && SelectedClassIndex < MultitoolLogic.ToolClasses.Length
+                    ? MultitoolLogic.ToolClasses[SelectedClassIndex]
+                    : "C",
+            };
+
+            string fileName = ExportConfig.BuildFileName(cfg.MultitoolTemplate, cfg.MultitoolExt, vars);
+            var path = await SaveFileFunc(fileName, cfg.MultitoolExt);
+            if (path != null)
+                tool.ExportToFile(path);
+        }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("common.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
+    /// <summary>
+    /// Imports into the first empty slot rather than over the selected tool, which is
+    /// what the player asked for: an import adds a tool, it does not replace one.
+    /// </summary>
     [RelayCommand]
     private async Task ImportTool()
     {
-        if (_multitools == null || SelectedToolIndex < 0 || OpenFileFunc == null) return;
-        int idx = _toolDataIndices[SelectedToolIndex];
-        if (idx >= _multitools.Length) return;
+        if (_multitools == null || OpenFileFunc == null) return;
 
         var path = await OpenFileFunc(ExportConfig.Instance.MultitoolExt);
         if (path == null) return;
 
-        var imported = JsonObject.ImportFromFile(path);
-        if (imported == null) return;
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
+            if (imported == null) return;
 
-        _multitools.Set(idx, imported);
-        OnSelectedToolIndexChanged(SelectedToolIndex);
+            // Files exported by NomNom wrap the tool in a Data envelope.
+            imported = InventoryImportHelper.UnwrapNomNom(imported, "Multitool");
+
+            int emptyIdx = MultitoolLogic.FindEmptySlot(_multitools);
+            if (emptyIdx < 0)
+            {
+                if (Dialogs is not null)
+                    await Dialogs.ShowMessageAsync(UiStrings.Get("multitool.import_title"),
+                        UiStrings.Get("multitool.no_empty_slots"), Services.DialogIcon.Warning);
+                return;
+            }
+
+            var target = _multitools.GetObject(emptyIdx);
+            foreach (var name in imported.Names())
+                target.Set(name, imported.Get(name));
+
+            int prevSel = SelectedToolIndex;
+            RefreshToolList();
+
+            // Land the selection on what was just imported.
+            int newSel = _toolDataIndices.IndexOf(emptyIdx);
+            SelectedToolIndex = ToolList.Count == 0
+                ? -1
+                : newSel >= 0 ? newSel : Math.Clamp(prevSel, 0, ToolList.Count - 1);
+        }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("common.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]

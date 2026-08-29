@@ -9,11 +9,17 @@
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="{loc:Locale tab.multitools}" Classes="sectionHeader"
-                       VerticalAlignment="Center" />
+                <TextBlock Text="{loc:Locale multitool.title}" Classes="sectionHeader"
+                           VerticalAlignment="Center" />
                 <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
-                               Command="{Binding GoToToolJsonCommand}"
-                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+                        Command="{Binding GoToToolJsonCommand}"
+                        ToolTip.Tip="{Binding GoToListTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToSelectedToolJsonCommand}"
+                        ToolTip.Tip="{Binding GoToSelectedTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToStoreJsonCommand}"
+                        ToolTip.Tip="{Binding GoToStoreTooltip}" />
             </StackPanel>
 
             <Grid ColumnDefinitions="300,16,*">
@@ -24,7 +30,7 @@
                               SelectedIndex="{Binding SelectedToolIndex}"
                               HorizontalAlignment="Stretch" />
 
-                    <TextBlock Text="{Binding PrimaryToolLabel, StringFormat='Primary: {0}'}"
+                    <TextBlock Text="{Binding PrimaryToolLabel}"
                                FontStyle="Italic" Opacity="0.7" Margin="0,4,0,8" />
 
                     <TextBlock Text="{loc:Locale multitool.details}" FontWeight="SemiBold" Margin="0,4,0,4" />
@@ -34,12 +40,12 @@
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ToolName}"
                                  Watermark="{loc:Locale common.procedural_no_name}" />
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale common.type}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale multitool.type}" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ToolTypes}"
                                   SelectedIndex="{Binding SelectedTypeIndex}"
                                   HorizontalAlignment="Stretch" />
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale common.class}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale multitool.class}" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding ToolClasses}"
                                   SelectedIndex="{Binding SelectedClassIndex}"
                                   HorizontalAlignment="Stretch" />

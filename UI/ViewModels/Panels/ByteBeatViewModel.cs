@@ -31,6 +31,10 @@ public partial class ByteBeatViewModel : PanelViewModelBase
     [ObservableProperty] private string _authorOnlineId = "";
     [ObservableProperty] private string _authorPlatform = "";
 
+    /// <summary>Labels for the eight data rows, formatted from one string as the panel did.</summary>
+    public string[] DataLabels { get; } =
+        [.. Enumerable.Range(0, 8).Select(i => UiStrings.Format("bytebeat.data_channel", i))];
+
     [ObservableProperty] private string _data0 = "";
     [ObservableProperty] private string _data1 = "";
     [ObservableProperty] private string _data2 = "";
@@ -61,14 +65,14 @@ public partial class ByteBeatViewModel : PanelViewModelBase
             _library = commonState.GetObject("ByteBeatLibrary");
             if (_library == null)
             {
-                InfoText = "No ByteBeat library found";
+                InfoText = UiStrings.Get("bytebeat.no_library");
                 return;
             }
 
             _mySongs = _library.GetArray("MySongs");
             if (_mySongs == null || _mySongs.Length == 0)
             {
-                InfoText = "No songs found";
+                InfoText = UiStrings.Get("bytebeat.no_songs_found");
                 return;
             }
 
@@ -84,7 +88,7 @@ public partial class ByteBeatViewModel : PanelViewModelBase
             }
             finally { _loading = false; }
         }
-        catch { InfoText = "Failed to load ByteBeat data"; }
+        catch { InfoText = UiStrings.Get("bytebeat.failed_load"); }
     }
 
     public override void SaveData(JsonObject saveData)
@@ -198,11 +202,11 @@ public partial class ByteBeatViewModel : PanelViewModelBase
             }
             catch
             {
-                SongList.Add(new ByteBeatSongViewModel { DisplayName = $"Song {i + 1}", Index = i });
+                SongList.Add(new ByteBeatSongViewModel { DisplayName = UiStrings.Format("bytebeat.song_format", i + 1), Index = i });
             }
         }
 
-        InfoText = $"Total songs: {_mySongs.Length}";
+        InfoText = UiStrings.Format("bytebeat.total_songs", _mySongs.Length);
     }
 
     [RelayCommand]
@@ -217,10 +221,24 @@ public partial class ByteBeatViewModel : PanelViewModelBase
             ["name"] = song.GetString("Name") ?? "song",
             ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
         };
-        string? path = await SaveFilePickerFunc("Export Song", cfg.ByteBeatExt.TrimStart('.'),
-            ExportConfig.BuildDialogFilter(cfg.ByteBeatExt, "ByteBeat songs"));
+        string? path = await SaveFilePickerFunc(UiStrings.Get("bytebeat.export_title"),
+            cfg.ByteBeatExt.TrimStart('.'),
+            ExportConfig.BuildFileName(cfg.ByteBeatTemplate, cfg.ByteBeatExt, vars));
         if (string.IsNullOrEmpty(path)) return;
-        try { song.ExportToFile(path); } catch { }
+
+        try
+        {
+            song.ExportToFile(path);
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("bytebeat.export_title"),
+                    UiStrings.Get("bytebeat.export_success"));
+        }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("common.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
@@ -228,9 +246,10 @@ public partial class ByteBeatViewModel : PanelViewModelBase
     {
         int idx = SelectedSongIndex;
         if (idx < 0 || _mySongs == null || idx >= _mySongs.Length || OpenFilePickerFunc == null) return;
-        string? path = await OpenFilePickerFunc("Import Song",
-            ExportConfig.BuildOpenFilter(ExportConfig.Instance.ByteBeatExt, "ByteBeat songs"));
+        string? path = await OpenFilePickerFunc(UiStrings.Get("bytebeat.import_title"),
+            ExportConfig.Instance.ByteBeatExt);
         if (string.IsNullOrEmpty(path)) return;
+
         try
         {
             var imported = JsonObject.ImportFromFile(path);
@@ -241,8 +260,17 @@ public partial class ByteBeatViewModel : PanelViewModelBase
             _previousSongIndex = -1;
             OnSelectedSongIndexChanged(idx);
             RefreshSongList();
+
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("bytebeat.import_title"),
+                    UiStrings.Get("bytebeat.import_success"));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("common.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]

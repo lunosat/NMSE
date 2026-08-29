@@ -37,7 +37,7 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
-                        <Button Content="{loc:Locale bytebeat.delete_song}" Command="{Binding DeleteSongCommand}"
+                        <Button Content="{loc:Locale common.delete}" Command="{Binding DeleteSongCommand}"
                                 HorizontalAlignment="Stretch" />
                         <StackPanel Orientation="Horizontal" Spacing="4">
                             <Button Content="{loc:Locale common.export}" Command="{Binding ExportSongCommand}" HorizontalAlignment="Stretch" />
@@ -68,28 +68,28 @@
                         <TextBlock Text="{loc:Locale bytebeat.section_data}" FontWeight="SemiBold" Margin="0,12,0,4" />
 
                         <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale bytebeat.channel_0}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding DataLabels[0]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Data0}" />
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale bytebeat.channel_1}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding DataLabels[1]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Data1}" />
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale bytebeat.channel_2}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding DataLabels[2]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Data2}" />
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Locale bytebeat.channel_3}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding DataLabels[3]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Data3}" />
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale bytebeat.channel_4}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding DataLabels[4]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Data4}" />
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale bytebeat.channel_5}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="{Binding DataLabels[5]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Data5}" />
 
-                            <TextBlock Grid.Row="6" Grid.Column="0" Text="{loc:Locale bytebeat.channel_6}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="{Binding DataLabels[6]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding Data6}" />
 
-                            <TextBlock Grid.Row="7" Grid.Column="0" Text="{loc:Locale bytebeat.channel_7}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="7" Grid.Column="0" Text="{Binding DataLabels[7]}" VerticalAlignment="Center" />
                             <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Data7}" />
                         </Grid>
                     </StackPanel>
