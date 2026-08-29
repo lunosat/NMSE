@@ -35,10 +35,16 @@
 
                     <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
                     <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="{loc:Locale common.export}" Command="{Binding ExportCommand}" />
-                        <Button Content="{loc:Locale common.import}" Command="{Binding ImportCommand}" />
-                        <Button Content="{loc:Locale common.delete}" Command="{Binding DeleteCommand}" />
+                        <Button Content="{loc:Locale exocraft.export}" Command="{Binding ExportCommand}" />
+                        <Button Content="{loc:Locale exocraft.import}" Command="{Binding ImportCommand}" />
                     </StackPanel>
+
+                    <!-- Clearing the deployed location is how the game marks a vehicle
+                         as not standing anywhere in the world. -->
+                    <Button Content="{loc:Locale exocraft.undeploy_title}" Margin="0,6,0,0"
+                            HorizontalAlignment="Stretch" Command="{Binding UndeployCommand}" />
+                    <TextBlock Text="{loc:Locale exocraft.supercharge_note}" Classes="hint"
+                               TextWrapping="Wrap" Margin="0,8,0,0" />
                 </StackPanel>
 
                 <!-- Right: Inventories -->
@@ -49,6 +55,49 @@
                         </TabItem>
                         <TabItem Header="{loc:Locale exocraft.tab_tech}">
                             <controls:InventoryGridControl DataContext="{Binding TechGrid}" />
+                        </TabItem>
+
+                        <!-- Summoning stations, which appear either loose in the world or
+                             as an object inside a base. -->
+                        <TabItem Header="{loc:Locale exocraft.tab_stations}">
+                            <Grid ColumnDefinitions="320,12,*" Margin="8">
+                                <DockPanel Grid.Column="0">
+                                    <Button DockPanel.Dock="Bottom" Classes="danger" Margin="0,8,0,0"
+                                            HorizontalAlignment="Stretch"
+                                            Content="{loc:Locale exocraft.delete_station}"
+                                            Command="{Binding DeleteStationCommand}" />
+                                    <TextBlock DockPanel.Dock="Top" Classes="label"
+                                               Text="{loc:Locale exocraft.individual_stations}" />
+                                    <ListBox DockPanel.Dock="Top" MaxHeight="220"
+                                             ItemsSource="{Binding IndividualStations}"
+                                             SelectedItem="{Binding SelectedStation}"
+                                             Margin="0,4,0,10">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ExocraftStationViewModel">
+                                                <TextBlock Text="{Binding DisplayName}" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <TextBlock DockPanel.Dock="Top" Classes="label"
+                                               Text="{loc:Locale exocraft.part_of_bases}" />
+                                    <ListBox ItemsSource="{Binding BaseStations}"
+                                             SelectedItem="{Binding SelectedStation}" Margin="0,4,0,0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ExocraftStationViewModel">
+                                                <TextBlock Text="{Binding DisplayName}" />
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+
+                                <DockPanel Grid.Column="2">
+                                    <TextBlock DockPanel.Dock="Top"
+                                               Text="{loc:Locale exocraft.station_coordinates}"
+                                               Classes="sectionHeader" />
+                                    <TextBlock Text="{Binding StationDetails}" Classes="mono"
+                                               TextWrapping="Wrap" VerticalAlignment="Top" />
+                                </DockPanel>
+                            </Grid>
                         </TabItem>
                     </TabControl>
                 </DockPanel>
