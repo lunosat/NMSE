@@ -12,6 +12,9 @@ namespace NMSE.UI.ViewModels.Panels;
 public partial class CompanionViewModel : PanelViewModelBase
 {
     private JsonObject? _playerState;
+    private JsonObject? _saveData;
+    private GameItemDatabase? _database;
+    private IconManager? _iconManager;
 
     [ObservableProperty] private ObservableCollection<CompanionEntryViewModel> _companions = new();
     [ObservableProperty] private CompanionEntryViewModel? _selectedCompanion;
@@ -73,6 +76,10 @@ public partial class CompanionViewModel : PanelViewModelBase
 
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
+        _saveData = saveData;
+        _database = database;
+        _iconManager = iconManager;
+
         try
         {
             Companions.Clear();
@@ -315,8 +322,13 @@ public partial class CompanionViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteCompanion()
+    private async Task DeleteCompanionAsync()
     {
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("companion.delete_title"),
+                UiStrings.Get("companion.delete_confirm"), Services.DialogIcon.Warning))
+            return;
+
         if (SelectedCompanion?.CompanionData == null) return;
         CompanionLogic.DeleteCompanion(SelectedCompanion.CompanionData);
         SelectedCompanion.IsOccupied = false;
@@ -564,6 +576,137 @@ public partial class CompanionViewModel : PanelViewModelBase
 
         for (int i = 0; i < AccessorySlots.Count; i++)
             AccessorySlots[i].SaveInto(pac, i);
+    }
+
+    // ==================================== Eggs =====================================
+
+    /// <summary>
+    /// Backdates the companion's birth time by a day, which is what makes an egg ready
+    /// to hatch.
+    /// </summary>
+    [RelayCommand]
+    private async Task MakeHatchableAsync()
+    {
+        if (SelectedCompanion?.CompanionData is not { } companion) return;
+
+        try
+        {
+            long birthTime = companion.GetLong("BirthTime");
+            companion.Set("BirthTime", birthTime - 86400);
+            LoadCompanionDetails(SelectedCompanion);
+        }
+        catch
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("companion.make_hatchable"),
+                    UiStrings.Get("companion.make_hatchable_error"), Services.DialogIcon.Warning);
+        }
+    }
+
+    /// <summary>
+    /// Copies a pet into a free egg slot, replacing one the user picks when the slots are
+    /// full, and offers to drop the egg item into the exosuit.
+    /// </summary>
+    [RelayCommand]
+    private async Task InduceEggAsync()
+    {
+        if (Dialogs is null || _playerState is null) return;
+        if (SelectedCompanion is not { Source: "Pet" } entry ||
+            entry.CompanionData is not { } pet) return;
+
+        string title = UiStrings.Get("companion.induce_egg");
+
+        var eggs = _playerState.GetArray("Eggs");
+        if (eggs is null || eggs.Length == 0)
+        {
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("companion.induce_egg_no_slots"),
+                Services.DialogIcon.Warning);
+            return;
+        }
+
+        int target = -1;
+        for (int i = 0; i < eggs.Length; i++)
+        {
+            var slot = eggs.GetObject(i);
+            string id = slot?.GetString("CreatureID") ?? "";
+            if (string.IsNullOrEmpty(id) || id == "^") { target = i; break; }
+        }
+
+        if (target < 0)
+        {
+            // Every slot holds an egg, so one has to be given up.
+            var labels = new List<string>();
+            for (int i = 0; i < eggs.Length; i++)
+            {
+                string name = eggs.GetObject(i)?.GetString("CustomName") ?? "";
+                labels.Add(string.IsNullOrEmpty(name) || name == "^"
+                    ? $"Egg {(i + 1).ToString(CultureInfo.CurrentCulture)}"
+                    : name);
+            }
+
+            int? chosen = await Dialogs.ChooseAsync(title,
+                UiStrings.Get("companion.induce_egg_select_title"), labels);
+            if (chosen is not { } index) return;
+
+            if (!await Dialogs.ConfirmAsync(title,
+                    UiStrings.Format("companion.induce_egg_replace_confirm", labels[index])))
+                return;
+
+            target = index;
+        }
+
+        try
+        {
+            CompanionEggBuilder.CopyPetToEgg(pet, eggs.GetObject(target));
+        }
+        catch
+        {
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("companion.induce_egg_error"),
+                Services.DialogIcon.Error);
+            return;
+        }
+
+        if (_saveData is not null && _database is not null) LoadData(_saveData, _database, _iconManager);
+
+        if (await Dialogs.ConfirmAsync(title, UiStrings.Get("companion.induce_egg_place_prompt")))
+            await PlaceEggInExosuitAsync(target);
+    }
+
+    /// <summary>Adds the egg item to the first free exosuit cargo slot.</summary>
+    private async Task PlaceEggInExosuitAsync(int eggSlot)
+    {
+        if (Dialogs is null || _playerState is null) return;
+        string title = UiStrings.Get("companion.induce_egg");
+
+        var inventory = _playerState.GetObject("Inventory");
+        var slots = inventory?.GetArray("Slots");
+        if (inventory is null || slots is null)
+        {
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("companion.place_egg_no_inventory"),
+                Services.DialogIcon.Warning);
+            return;
+        }
+
+        for (int i = 0; i < slots.Length; i++)
+        {
+            var slot = slots.GetObject(i);
+            if (slot is null) continue;
+
+            string id = (slot.Get("Id")?.ToString() ?? "").TrimStart('^');
+            if (id.Length > 0 && id != "YOURSLOTITEM") continue;
+
+            // Egg items are numbered from EGG_STAND1 upward, matching the egg slot.
+            slot.Set("Id", $"^EGG_STAND{(eggSlot + 1).ToString(CultureInfo.InvariantCulture)}");
+            slot.Set("Type", "Product");
+            slot.Set("Amount", 1);
+            slot.Set("MaxAmount", 1);
+
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("companion.place_egg_success"));
+            return;
+        }
+
+        await Dialogs.ShowMessageAsync(title, UiStrings.Get("companion.place_egg_full"),
+            Services.DialogIcon.Warning);
     }
 
     [RelayCommand]

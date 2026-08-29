@@ -321,3 +321,101 @@ public partial class AccessorySlotViewModel : ObservableObject
         catch { }
     }
 }
+
+/// <summary>
+/// Copies a pet into an egg slot the way the game does when an egg is induced.
+/// </summary>
+internal static class CompanionEggBuilder
+{
+    private static readonly string[] ScalarFields =
+    {
+        "Scale", "CreatureID", "CustomName", "CustomSpeciesName",
+        "Predator", "UA", "AllowUnmodifiedReroll", "HasFur", "Trust", "EggModified",
+    };
+
+    /// <summary>
+    /// Arrays are replaced wholesale rather than copied element by element: descriptors
+    /// vary in length by species, and copying in place would truncate to the shorter one.
+    /// </summary>
+    private static readonly string[] ArrayFields =
+    {
+        "Descriptors", "CreatureSeed", "CreatureSecondarySeed",
+        "ColourBaseSeed", "BoneScaleSeed", "Traits",
+    };
+
+    private static readonly string[] BattleScalars =
+    {
+        "PetBattlerUseCoreStatClassOverrides", "PetBattlerTreatsAvailable",
+        "PetBattleProgressToTreat", "PetBattlerVictories",
+    };
+
+    private static readonly string[] BattleArrays =
+    {
+        "PetBattlerCoreStatClassOverrides", "PetBattlerTreatsEaten", "PetBattlerMoveList",
+    };
+
+    internal static void CopyPetToEgg(JsonObject pet, JsonObject egg)
+    {
+        foreach (string key in ScalarFields)
+        {
+            try { if (pet.Get(key) is { } value) egg.Set(key, value); } catch { }
+        }
+
+        foreach (string key in ArrayFields)
+        {
+            try { if (pet.GetArray(key) is { } array) egg.Set(key, array.DeepClone()); } catch { }
+        }
+
+        foreach (string key in new[] { "SpeciesSeed", "GenusSeed" })
+        {
+            try { egg.Set(key, pet.GetString(key) ?? "0x0"); } catch { }
+        }
+
+        CopyNested(pet, egg, "Biome", "Biome", "Lush");
+        CopyNested(pet, egg, "CreatureType", "CreatureType", "None");
+
+        foreach (string key in new[] { "LastTrustIncreaseTime", "LastTrustDecreaseTime" })
+        {
+            try { egg.Set(key, pet.GetLong(key)); } catch { }
+        }
+
+        // The egg is newly laid, and remembers when its parent was born.
+        try { egg.Set("BirthTime", DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
+        try { egg.Set("LastEggTime", pet.GetLong("BirthTime")); } catch { }
+        try { egg.Set("HasBeenSummoned", false); } catch { }
+
+        // A newly induced egg starts with the low moods the game gives it.
+        try
+        {
+            var moods = egg.GetArray("Moods");
+            if (moods is not null && moods.Length >= 2)
+            {
+                moods.Set(0, 0.01);
+                moods.Set(1, 0.02);
+            }
+        }
+        catch { }
+
+        foreach (string key in BattleScalars)
+        {
+            try { if (pet.Get(key) is { } value) egg.Set(key, value); } catch { }
+        }
+
+        foreach (string key in BattleArrays)
+        {
+            try { if (pet.GetArray(key) is { } array) egg.Set(key, array.DeepClone()); } catch { }
+        }
+    }
+
+    private static void CopyNested(JsonObject pet, JsonObject egg, string container, string field, string fallback)
+    {
+        try
+        {
+            var source = pet.GetObject(container);
+            var target = egg.GetObject(container);
+            if (source is not null && target is not null)
+                target.Set(field, source.GetString(field) ?? fallback);
+        }
+        catch { }
+    }
+}

@@ -286,6 +286,11 @@
                             <Button Content="{loc:Locale companion.accessory_reset}" Command="{Binding ResetAccessoryCommand}" />
                             <Button Content="{loc:Locale companion.battle_mutation_heading}"
                                     Command="{Binding ResetBattleDataCommand}" />
+                            <!-- Backdating the birth time is what makes an egg ready. -->
+                            <Button Content="{loc:Locale companion.make_hatchable}"
+                                    Command="{Binding MakeHatchableCommand}" />
+                            <Button Content="{loc:Locale companion.induce_egg}"
+                                    Command="{Binding InduceEggCommand}" />
                             <Button Content="{loc:Locale companion.delete}" Classes="danger"
                                     Command="{Binding DeleteCompanionCommand}" />
                             <Button Content="{loc:Locale common.export}" Command="{Binding ExportCompanionCommand}" />
