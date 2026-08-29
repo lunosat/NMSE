@@ -65,7 +65,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
     public event Func<string, string, Task<string?>>? EditValueRequested;
 
     /// <summary>Raised when the panel needs a file path; the view supplies the picker.</summary>
-    public event Func<bool, string, Task<string?>>? FilePathRequested;
+    public event Func<bool, string, string, Task<string?>>? FilePathRequested;
 
     /// <summary>The document currently on screen: the save, or the account data.</summary>
     private JsonObject? Current => IsShowingAccountData ? _accountData : _saveData;
@@ -89,7 +89,21 @@ public partial class RawJsonViewModel : PanelViewModelBase
     /// <summary>Records the path of the loaded save, used as the export dialog's starting point.</summary>
     public void SetSaveFilePath(string? path) => _saveFilePath = path;
 
-    partial void OnIsShowingAccountDataChanged(bool value) => RefreshTree();
+    /// <summary>The diff view's own heading.</summary>
+    [ObservableProperty] private string _diffTitle = "";
+
+    partial void OnIsShowingAccountDataChanged(bool value)
+    {
+        RefreshTree();
+
+        // Editing accountdata.hg rather than the save is worth saying out loud: the two
+        // are written to different files.
+        if (value && _accountData is not null)
+        {
+            StatusText = UiStrings.Format("raw_json.edited_account",
+                _accountData.Size().ToString("N0", CultureInfo.CurrentCulture));
+        }
+    }
 
     // ---------------------------------------------------------------- tree
 
@@ -128,6 +142,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
         IsSplitView = false;
         IsDiffView = false;
         RefreshTree();
+        StatusText = UiStrings.Get("raw_json.tree_rebuilt");
     }
 
     [RelayCommand]
@@ -163,12 +178,59 @@ public partial class RawJsonViewModel : PanelViewModelBase
         }
     }
 
+    /// <summary>True while an expand-all is running, which is when Stop is offered.</summary>
+    [ObservableProperty] private bool _isExpanding;
+
+    private bool _cancelExpand;
+
+    [RelayCommand] private void StopExpand() => _cancelExpand = true;
+
+    /// <summary>
+    /// Expands the whole tree in batches, yielding between them. A full save runs to
+    /// hundreds of thousands of nodes, so this asks first and can be stopped.
+    /// </summary>
     [RelayCommand]
-    private void ExpandAll()
+    private async Task ExpandAllAsync()
     {
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("raw_json.expand_title"),
+                UiStrings.Get("raw_json.expand_confirm"), Services.DialogIcon.Warning))
+            return;
+
+        _cancelExpand = false;
+        IsExpanding = true;
+        StatusText = UiStrings.Get("raw_json.expanding");
+
         int count = 0;
-        foreach (var node in TreeNodes) count += node.ExpandRecursive(maxNodes: 20000);
-        StatusText = UiStrings.Format("raw_json.expanded_nodes",
+        var stack = new Stack<JsonTreeNodeViewModel>(TreeNodes);
+
+        try
+        {
+            while (stack.Count > 0 && !_cancelExpand)
+            {
+                var node = stack.Pop();
+                if (!node.IsContainer) continue;
+
+                node.IsExpanded = true;
+                for (int i = node.Children.Count - 1; i >= 0; i--)
+                    stack.Push(node.Children[i]);
+
+                count++;
+                if (count % 500 == 0)
+                {
+                    StatusText = UiStrings.Format("raw_json.expanding_count",
+                        count.ToString("N0", CultureInfo.CurrentCulture));
+                    await Task.Delay(1);   // let the tree draw what has been expanded
+                }
+            }
+        }
+        finally
+        {
+            IsExpanding = false;
+        }
+
+        StatusText = UiStrings.Format(
+            _cancelExpand ? "raw_json.stopped_at" : "raw_json.expanded_nodes",
             count.ToString("N0", CultureInfo.CurrentCulture));
     }
 
@@ -198,6 +260,161 @@ public partial class RawJsonViewModel : PanelViewModelBase
         ImportNodeCommand.NotifyCanExecuteChanged();
     }
 
+    // ------------------------------------------------------------ undo/redo
+
+    private enum UndoActionType { Edit, Add, Delete }
+
+    /// <summary>
+    /// One reversible edit. The container is held by reference, so an action stays
+    /// valid across a tree rebuild — the nodes are recreated, the JSON is not.
+    /// </summary>
+    private sealed record UndoAction(
+        UndoActionType Type, object? Container, string Key, object? OldValue, object? NewValue);
+
+    private readonly Stack<UndoAction> _undoStack = new();
+    private readonly Stack<UndoAction> _redoStack = new();
+
+    public bool CanUndo => _undoStack.Count > 0;
+    public bool CanRedo => _redoStack.Count > 0;
+
+    /// <summary>Records an edit and drops the redo history, as any new edit does.</summary>
+    private void PushUndo(UndoActionType type, object? container, string key,
+        object? oldValue, object? newValue)
+    {
+        _undoStack.Push(new UndoAction(type, container, key, oldValue, newValue));
+        _redoStack.Clear();
+        NotifyUndoRedo();
+    }
+
+    private void NotifyUndoRedo()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        if (_undoStack.Count == 0) return;
+
+        var action = _undoStack.Pop();
+        ApplyUndoRedo(action, isUndo: true);
+        _redoStack.Push(action);
+
+        RefreshTree();
+        NotifyUndoRedo();
+        StatusText = UiStrings.Get("raw_json.undone");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo()
+    {
+        if (_redoStack.Count == 0) return;
+
+        var action = _redoStack.Pop();
+        ApplyUndoRedo(action, isUndo: false);
+        _undoStack.Push(action);
+
+        RefreshTree();
+        NotifyUndoRedo();
+        StatusText = UiStrings.Get("raw_json.redone");
+    }
+
+    /// <summary>
+    /// A key that looks like <c>[3]</c> addresses an array slot; anything else is an
+    /// object property.
+    /// </summary>
+    private static bool IsArrayKey(string key) => key.StartsWith('[');
+
+    /// <summary>
+    /// The key an undo action addresses. Tree nodes hold a bare array index, while the
+    /// action model distinguishes an array slot by the bracketed form.
+    /// </summary>
+    private static string UndoKey(JsonTreeNodeViewModel node) =>
+        node.Container is JsonArray ? $"[{node.Key}]" : node.Key ?? "";
+
+    private static int ParseArrayIndex(string key) =>
+        int.Parse(key.Trim('[', ']'), CultureInfo.InvariantCulture);
+
+    private static void ApplyUndoRedo(UndoAction action, bool isUndo)
+    {
+        object? value = isUndo ? action.OldValue : action.NewValue;
+
+        switch (action.Type)
+        {
+            case UndoActionType.Edit:
+                if (action.Container is JsonObject editObj && !IsArrayKey(action.Key))
+                    editObj.Set(action.Key, value);
+                else if (action.Container is JsonArray editArr && IsArrayKey(action.Key))
+                    editArr.Set(ParseArrayIndex(action.Key), value);
+                break;
+
+            case UndoActionType.Add when isUndo:
+            case UndoActionType.Delete when !isUndo:
+                if (action.Container is JsonObject removeObj && !IsArrayKey(action.Key))
+                    removeObj.Remove(action.Key);
+                else if (action.Container is JsonArray removeArr && IsArrayKey(action.Key))
+                    removeArr.RemoveAt(ParseArrayIndex(action.Key));
+                break;
+
+            case UndoActionType.Add:
+                if (action.Container is JsonObject addObj && !IsArrayKey(action.Key))
+                    addObj.Add(action.Key, action.NewValue);
+                else if (action.Container is JsonArray addArr)
+                    addArr.Add(action.NewValue);
+                break;
+
+            case UndoActionType.Delete:
+                if (action.Container is JsonObject delObj && !IsArrayKey(action.Key))
+                    delObj.Add(action.Key, action.OldValue);
+                else if (action.Container is JsonArray delArr && IsArrayKey(action.Key))
+                    delArr.Insert(ParseArrayIndex(action.Key), action.OldValue);
+                break;
+        }
+    }
+
+    // ---------------------------------------------------------- reordering
+
+    private bool CanMoveItem => SelectedNode is { Parent: not null }
+        && SelectedNode.Container is JsonArray or JsonObject;
+
+    [RelayCommand(CanExecute = nameof(CanMoveItem))] private void MoveItemUp() => MoveItem(-1);
+    [RelayCommand(CanExecute = nameof(CanMoveItem))] private void MoveItemDown() => MoveItem(1);
+
+    /// <summary>
+    /// Moves the selected array item one place. Order matters in the save — the game
+    /// indexes into these arrays — so this is a real edit, not a display convenience.
+    /// </summary>
+    private void MoveItem(int delta)
+    {
+        if (SelectedNode is not { Parent: { } parent } node) return;
+
+        int from = parent.Children.IndexOf(node);
+        int to = from + delta;
+        if (from < 0 || to < 0 || to >= parent.Children.Count) return;
+
+        switch (node.Container)
+        {
+            case JsonArray array when to < array.Length:
+                object? moved = array.Get(from);
+                array.RemoveAt(from);
+                array.Insert(to, moved);
+                break;
+
+            case JsonObject obj:
+                obj.Reorder(from, to);
+                break;
+
+            default:
+                return;
+        }
+
+        RefreshTree();
+        StatusText = UiStrings.Format("raw_json.reordered", from, to);
+    }
+
     [RelayCommand(CanExecute = nameof(CanEditSelected))]
     private async Task EditValueAsync()
     {
@@ -211,6 +428,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
         try
         {
             object? parsed = RawJsonLogic.ParseInputValue(input, node.Value);
+            PushUndo(UndoActionType.Edit, node.Container, UndoKey(node), node.Value, parsed);
             node.WriteBack(parsed);
             StatusText = UiStrings.Get("raw_json.value_modified");
         }
@@ -278,7 +496,9 @@ public partial class RawJsonViewModel : PanelViewModelBase
 
         try
         {
-            target.Add(key, RawJsonLogic.ParseInputValue(raw));
+            object? value = RawJsonLogic.ParseInputValue(raw);
+            target.Add(key, value);
+            PushUndo(UndoActionType.Add, target, key, null, value);
             SelectedNode.Populate(1, 0);
             StatusText = UiStrings.Format("raw_json.added_property", key);
         }
@@ -321,7 +541,8 @@ public partial class RawJsonViewModel : PanelViewModelBase
     {
         if (SelectedNode?.Value is not JsonObject node || FilePathRequested is null) return;
 
-        string? path = await FilePathRequested(true, (SelectedNode.Key ?? "node") + ".json");
+        string? path = await FilePathRequested(true, (SelectedNode.Key ?? "node") + ".json",
+            UiStrings.Get("raw_json.export_node_title"));
         if (path is null) return;
 
         try
@@ -332,6 +553,12 @@ public partial class RawJsonViewModel : PanelViewModelBase
         catch (Exception ex)
         {
             StatusText = UiStrings.Format("raw_json.export_failed", ex.Message);
+
+            if (Dialogs is not null)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("raw_json.export_failed", ex.Message), Services.DialogIcon.Error);
+            }
         }
     }
 
@@ -341,7 +568,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
     {
         if (SelectedNode?.Value is not JsonObject node || FilePathRequested is null) return;
 
-        string? path = await FilePathRequested(false, "");
+        string? path = await FilePathRequested(false, "", UiStrings.Get("raw_json.import_node_title"));
         if (path is null) return;
 
         try
@@ -352,7 +579,15 @@ public partial class RawJsonViewModel : PanelViewModelBase
         }
         catch (Exception ex)
         {
-            StatusText = UiStrings.Format("raw_json.import_failed", ex.Message);
+            // Replacing a node's contents from a file either works or leaves the node
+            // as it was, so a failure has to be shown rather than left in the status bar.
+            StatusText = UiStrings.Format("raw_json.import_error", ex.Message);
+
+            if (Dialogs is not null)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("raw_json.import_error_title"),
+                    UiStrings.Format("raw_json.import_error", ex.Message), Services.DialogIcon.Error);
+            }
         }
     }
 
@@ -372,6 +607,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
                 UiStrings.Get("raw_json.confirm_delete"), Services.DialogIcon.Warning))
             return;
 
+        PushUndo(UndoActionType.Delete, node.Container, UndoKey(node), node.Value, null);
         node.RemoveFromParent();
         SelectedNode = null;
         StatusText = UiStrings.Format("raw_json.deleted", label);
@@ -411,9 +647,12 @@ public partial class RawJsonViewModel : PanelViewModelBase
 
             if (_searchMatches.Count == 0)
             {
-                StatusText = UiStrings.Format("raw_json.no_matches", query);
+                StatusText = UiStrings.Get("raw_json.no_matches_found");
                 return;
             }
+
+            StatusText = UiStrings.Format("raw_json.search_found",
+                _searchMatches.Count.ToString("N0", CultureInfo.CurrentCulture));
         }
 
         _searchIndex = forward
@@ -510,6 +749,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
         IsTreeView = false;
         IsSplitView = false;
         IsDiffView = true;
+        DiffTitle = UiStrings.Get("raw_json.diff_title");
         StatusText = UiStrings.Get("raw_json.diff_computing");
 
         try
@@ -599,16 +839,22 @@ public partial class RawJsonViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void ValidateJson()
+    private async Task ValidateJsonAsync()
     {
         try
         {
             RawJsonLogic.ParseJson(JsonText);
-            StatusText = UiStrings.Get("raw_json.valid_json");
+            StatusText = UiStrings.Get("raw_json.json_valid");
         }
         catch (JsonException ex)
         {
             StatusText = UiStrings.Format("raw_json.invalid_json", ex.Message);
+
+            if (Dialogs is not null)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("raw_json.validation_error"),
+                    UiStrings.Format("raw_json.invalid_json", ex.Message), Services.DialogIcon.Warning);
+            }
         }
     }
 
@@ -621,7 +867,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
         if (data is null || FilePathRequested is null) return;
 
         string suggested = Path.GetFileNameWithoutExtension(_saveFilePath ?? "save") + ".json";
-        string? path = await FilePathRequested(true, suggested);
+        string? path = await FilePathRequested(true, suggested, UiStrings.Get("raw_json.export_title"));
         if (path is null) return;
 
         try
@@ -632,6 +878,12 @@ public partial class RawJsonViewModel : PanelViewModelBase
         catch (Exception ex)
         {
             StatusText = UiStrings.Format("raw_json.export_failed", ex.Message);
+
+            if (Dialogs is not null)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("raw_json.export_failed", ex.Message), Services.DialogIcon.Error);
+            }
         }
     }
 
@@ -641,7 +893,7 @@ public partial class RawJsonViewModel : PanelViewModelBase
         var data = Current;
         if (data is null || FilePathRequested is null) return;
 
-        string? path = await FilePathRequested(false, "");
+        string? path = await FilePathRequested(false, "", UiStrings.Get("raw_json.import_title"));
         if (path is null) return;
 
         try

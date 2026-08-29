@@ -166,7 +166,7 @@ public partial class RawJsonView : UserControl
 
         var dialog = new Window
         {
-            Title = UiStrings.Format("raw_json.edit_value_title", key),
+            Title = UiStrings.Format("raw_json.edit_title", key),
             Width = 560,
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -202,7 +202,7 @@ public partial class RawJsonView : UserControl
     /// Opens the platform file chooser through the storage provider, which routes to
     /// the XDG portal on Linux so it works under Flatpak.
     /// </summary>
-    private async Task<string?> PromptForPathAsync(bool saving, string suggestedName)
+    private async Task<string?> PromptForPathAsync(bool saving, string suggestedName, string title)
     {
         var top = TopLevel.GetTopLevel(this);
         if (top is null) return null;
@@ -218,7 +218,7 @@ public partial class RawJsonView : UserControl
             var file = await top.StorageProvider.SaveFilePickerAsync(
                 new FilePickerSaveOptions
                 {
-                    Title = UiStrings.Get("raw_json.export"),
+                    Title = title,
                     SuggestedFileName = suggestedName,
                     DefaultExtension = "json",
                     FileTypeChoices = new[] { jsonType },
@@ -229,7 +229,7 @@ public partial class RawJsonView : UserControl
         var files = await top.StorageProvider.OpenFilePickerAsync(
             new FilePickerOpenOptions
             {
-                Title = UiStrings.Get("raw_json.import"),
+                Title = title,
                 AllowMultiple = false,
                 FileTypeFilter = new[] { jsonType },
             });
