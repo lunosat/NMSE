@@ -436,3 +436,8 @@ build.patch
 Build/bin/
 Build/obj/
 BuildInfo.g.cs
+Build/package/
+Build/dist/
+Build/AppDir/
+Build/tarball/
+Build/appimagetool-*.AppImage

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=NMSE
+GenericName=No Man's Sky Save Editor
+Comment=Edit No Man's Sky save files
+Exec=NMSE %f
+Icon=io.github.vectorcmdr.NMSE
+Terminal=false
+Categories=Game;Utility;
+Keywords=nms;no mans sky;save;editor;
+StartupNotify=true
+StartupWMClass=NMSE

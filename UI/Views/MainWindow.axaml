@@ -9,7 +9,9 @@
         Title="{Binding Title}"
         Width="1200" Height="800"
         MinWidth="900" MinHeight="600"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        TransparencyLevelHint="None"
+        Background="{DynamicResource NmseBg0Brush}">
 
     <Design.DataContext>
         <vm:MainWindowViewModel />
@@ -134,7 +136,7 @@
                 </Border>
 
                 <!-- Content Area -->
-                <ContentControl Grid.Column="1" Content="{Binding SelectedPanel}" Margin="8">
+                <ContentControl Grid.Column="1" Classes="panelHost" Content="{Binding SelectedPanel}" Margin="8">
                     <ContentControl.DataTemplates>
                     <DataTemplate DataType="pvm:MainStatsViewModel">
                         <views:MainStatsView />

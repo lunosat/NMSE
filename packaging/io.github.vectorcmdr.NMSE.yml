@@ -1,0 +1,70 @@
+# Flatpak manifest for NMSE.
+#
+# Build:  flatpak-builder --user --install --force-clean build-dir packaging/io.github.vectorcmdr.NMSE.yml
+# Run:    flatpak run io.github.vectorcmdr.NMSE
+#
+# The .NET SDK is not available as a Flatpak SDK extension, so the binary is
+# published outside the sandbox by packaging/build.sh and this manifest installs
+# the result. That keeps the manifest simple at the cost of not being reproducible
+# from source inside flatpak-builder alone.
+app-id: io.github.vectorcmdr.NMSE
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: nmse
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Save discovery. The game runs under Proton, so its saves sit inside a Steam
+  # compatdata prefix or in the Steam Auto-Cloud copy - both under the Steam data
+  # directory. Read-write, because editing a save is the point of the application.
+  - --filesystem=~/.local/share/Steam
+  - --filesystem=~/.steam
+  - --filesystem=~/.var/app/com.valvesoftware.Steam
+
+  # Non-Steam launchers keep their Wine prefixes here.
+  - --filesystem=~/Games
+  - --filesystem=~/.wine
+  - --filesystem=~/.var/app/com.heroicgameslauncher.hgl
+  - --filesystem=~/.var/app/com.usebottles.bottles
+
+  # A library on another drive is listed in libraryfolders.vdf and can be anywhere,
+  # so the user picks it through the portal file chooser rather than a static path.
+  - --filesystem=xdg-download
+  - --filesystem=xdg-documents
+
+  # Update check and the sponsor/GitHub links.
+  - --share=network
+
+modules:
+  - name: nmse
+    buildsystem: simple
+    build-commands:
+      - mkdir -p /app/lib/nmse
+      - cp -a publish/. /app/lib/nmse/
+      - chmod +x /app/lib/nmse/NMSE
+      # The app resolves Resources/ relative to the working directory.
+      - |
+        cat > /app/bin/nmse <<'EOF'
+        #!/bin/sh
+        cd /app/lib/nmse
+        exec /app/lib/nmse/NMSE "$@"
+        EOF
+      - chmod +x /app/bin/nmse
+      - install -Dm644 io.github.vectorcmdr.NMSE.desktop /app/share/applications/io.github.vectorcmdr.NMSE.desktop
+      - install -Dm644 icons/16.png  /app/share/icons/hicolor/16x16/apps/io.github.vectorcmdr.NMSE.png
+      - install -Dm644 icons/32.png  /app/share/icons/hicolor/32x32/apps/io.github.vectorcmdr.NMSE.png
+      - install -Dm644 icons/48.png  /app/share/icons/hicolor/48x48/apps/io.github.vectorcmdr.NMSE.png
+      - install -Dm644 icons/64.png  /app/share/icons/hicolor/64x64/apps/io.github.vectorcmdr.NMSE.png
+      - install -Dm644 icons/128.png /app/share/icons/hicolor/128x128/apps/io.github.vectorcmdr.NMSE.png
+      - install -Dm644 icons/256.png /app/share/icons/hicolor/256x256/apps/io.github.vectorcmdr.NMSE.png
+    sources:
+      - type: dir
+        path: .
+      - type: dir
+        path: ../Build/package/linux-x64
+        dest: publish

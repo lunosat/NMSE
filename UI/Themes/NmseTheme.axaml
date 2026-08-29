@@ -17,13 +17,18 @@
 
     <!-- =============================== Window shell =============================== -->
 
-    <!-- Without an explicit Background the window inherits a transparent visual under
-         XWayland, so the desktop shows through the content area. -->
+    <!-- The window ground is set directly on MainWindow rather than here. Under
+         XWayland the surface has an alpha channel, and a Style setter for Background
+         loses to the theme's own, leaving the desktop visible through the content
+         area; a local value on the element wins outright. -->
     <Style Selector="Window">
-        <Setter Property="Background" Value="{DynamicResource NmseBg0Brush}" />
         <Setter Property="FontFamily" Value="{DynamicResource NmseUiFont}" />
         <Setter Property="FontSize" Value="{DynamicResource NmseFontMd}" />
-        <Setter Property="TransparencyLevelHint" Value="None" />
+    </Style>
+
+    <!-- The content host paints the ground behind the panels. -->
+    <Style Selector="ContentControl.panelHost">
+        <Setter Property="Background" Value="{DynamicResource NmseBg0Brush}" />
     </Style>
 
     <Style Selector="Menu">

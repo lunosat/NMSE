@@ -1,0 +1,49 @@
+# Maintainer: see https://github.com/vectorcmdr/NMSE
+pkgname=nmse
+pkgver=1.2.23
+pkgrel=1
+pkgdesc="Save editor for No Man's Sky (native Linux build)"
+arch=('x86_64')
+url="https://github.com/vectorcmdr/NMSE"
+license=('AGPL-3.0-or-later')
+# The publish is self-contained: no .NET runtime and no Wine on the target system.
+depends=('gcc-libs' 'glibc' 'zlib' 'krb5' 'openssl' 'icu' 'fontconfig' 'libx11' 'libice' 'libsm')
+makedepends=('dotnet-sdk-10.0' 'git' 'imagemagick')
+provides=('nmse')
+conflicts=('nmse-bin' 'nmse-git')
+source=("git+https://github.com/vectorcmdr/NMSE.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+build() {
+    cd "$srcdir/NMSE"
+    # ImageMagick is a makedepend so the icon set is shrunk from 338 MB to ~43 MB;
+    # the script skips the step and warns if it is unavailable.
+    ./packaging/build.sh --arch x64 --out "$srcdir/publish"
+}
+
+package() {
+    cd "$srcdir/NMSE"
+
+    install -dm755 "$pkgdir/usr/lib/nmse"
+    cp -a "$srcdir/publish/." "$pkgdir/usr/lib/nmse/"
+    chmod +x "$pkgdir/usr/lib/nmse/NMSE"
+
+    # The app resolves Resources/ relative to the working directory.
+    install -dm755 "$pkgdir/usr/bin"
+    cat > "$pkgdir/usr/bin/nmse" <<'EOF'
+#!/bin/sh
+cd /usr/lib/nmse
+exec /usr/lib/nmse/NMSE "$@"
+EOF
+    chmod +x "$pkgdir/usr/bin/nmse"
+
+    install -Dm644 packaging/io.github.vectorcmdr.NMSE.desktop \
+        "$pkgdir/usr/share/applications/io.github.vectorcmdr.NMSE.desktop"
+
+    for size in 16 32 48 64 128 256; do
+        install -Dm644 "packaging/icons/${size}.png" \
+            "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/io.github.vectorcmdr.NMSE.png"
+    done
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
