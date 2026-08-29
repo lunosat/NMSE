@@ -13,8 +13,13 @@ public interface IDialogService
     /// <summary>Shows a message and waits for acknowledgement.</summary>
     Task ShowMessageAsync(string title, string message, DialogIcon icon = DialogIcon.Information);
 
-    /// <summary>Asks a yes/no question. Returns true when the user confirms.</summary>
-    Task<bool> ConfirmAsync(string title, string message, DialogIcon icon = DialogIcon.Question);
+    /// <summary>
+    /// Asks a yes/no question. Returns true when the user confirms.
+    /// <paramref name="confirmLabel"/> names the accepting button when Yes reads wrong
+    /// for the action — an import picker offers Import and Cancel, not Yes and No.
+    /// </summary>
+    Task<bool> ConfirmAsync(string title, string message, DialogIcon icon = DialogIcon.Question,
+        string? confirmLabel = null);
 
     /// <summary>
     /// Asks for a single line of text. Returns null when cancelled, which callers must

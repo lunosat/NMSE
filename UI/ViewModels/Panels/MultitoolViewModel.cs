@@ -296,7 +296,8 @@ public partial class MultitoolViewModel : PanelViewModelBase
         }
 
         if (!await Dialogs.ConfirmAsync(UiStrings.Get("multitool.archive_import_title"),
-                UiStrings.Get("multitool.archive_import_confirm")))
+                UiStrings.Get("multitool.archive_import_confirm"),
+                confirmLabel: UiStrings.Get("common.import")))
             return;
 
         MultitoolLogic.ImportToolFromArchive(archived.GetObject(_archiveDataIndices[SelectedArchiveIndex]),

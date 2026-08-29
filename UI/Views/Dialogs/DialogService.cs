@@ -19,8 +19,9 @@ public sealed class DialogService : IDialogService
     public Task ShowMessageAsync(string title, string message, DialogIcon icon = DialogIcon.Information)
         => ShowAsync<object?>(title, message, icon, buttons: Buttons.Ok, build: null);
 
-    public async Task<bool> ConfirmAsync(string title, string message, DialogIcon icon = DialogIcon.Question)
-        => await ShowAsync<bool>(title, message, icon, Buttons.YesNo, null) is true;
+    public async Task<bool> ConfirmAsync(string title, string message, DialogIcon icon = DialogIcon.Question,
+        string? confirmLabel = null)
+        => await ShowAsync<bool>(title, message, icon, Buttons.YesNo, null, confirmLabel) is true;
 
     public async Task<string?> PromptAsync(string title, string prompt, string initialValue = "")
     {
@@ -65,7 +66,7 @@ public sealed class DialogService : IDialogService
     /// and returns a delegate that reads its value when the user accepts.
     /// </summary>
     private async Task<T?> ShowAsync<T>(string title, string message, DialogIcon icon,
-        Buttons buttons, Func<StackPanel, Func<T>>? build)
+        Buttons buttons, Func<StackPanel, Func<T>>? build, string? confirmLabel = null)
     {
         var owner = _ownerProvider();
 
@@ -126,8 +127,19 @@ public sealed class DialogService : IDialogService
             }
             case Buttons.YesNo:
             {
-                var no = new Button { Content = UiStrings.Get("common.no"), IsCancel = true, MinWidth = 88 };
-                var yes = new Button { Content = UiStrings.Get("common.yes"), IsDefault = true, MinWidth = 88 };
+                bool named = !string.IsNullOrEmpty(confirmLabel);
+                var no = new Button
+                {
+                    Content = UiStrings.Get(named ? "common.cancel" : "common.no"),
+                    IsCancel = true,
+                    MinWidth = 88,
+                };
+                var yes = new Button
+                {
+                    Content = named ? confirmLabel! : UiStrings.Get("common.yes"),
+                    IsDefault = true,
+                    MinWidth = 88,
+                };
                 yes.Classes.Add("primary");
                 no.Click += (_, _) => dialog.Close();
                 yes.Click += (_, _) => { accepted = true; if (readValue is not null) result = readValue(); dialog.Close(); };

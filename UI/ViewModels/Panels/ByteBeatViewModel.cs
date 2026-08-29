@@ -206,7 +206,9 @@ public partial class ByteBeatViewModel : PanelViewModelBase
             }
         }
 
-        InfoText = UiStrings.Format("bytebeat.total_songs", _mySongs.Length);
+        InfoText = _mySongs.Length == 0
+            ? UiStrings.Get("bytebeat.no_songs")
+            : UiStrings.Format("bytebeat.total_songs", _mySongs.Length);
     }
 
     [RelayCommand]

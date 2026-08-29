@@ -132,7 +132,30 @@ public partial class FreighterViewModel : PanelViewModelBase
 
     /// <summary>Reveals this data where it lives in the raw editor.</summary>
     [RelayCommand]
-    private Task GoToFreighterJsonAsync() => GoToJsonAsync("PlayerStateData");
+    private Task GoToFreighterJsonAsync() => GoToJsonAsync("PlayerStateData", "CurrentFreighter");
+
+    [RelayCommand]
+    private Task GoToCargoJsonAsync() => GoToJsonAsync("PlayerStateData", "FreighterInventory");
+
+    [RelayCommand]
+    private Task GoToTechJsonAsync() => GoToJsonAsync("PlayerStateData", "FreighterInventory_TechOnly");
+
+    // Each tooltip names the section it opens, so they are formatted here.
+    public string GoToFreighterTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("freighter.title"));
+
+    public string GoToCargoTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("common.cargo"));
+
+    public string GoToTechTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("common.technology"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToFreighterTooltip));
+        OnPropertyChanged(nameof(GoToCargoTooltip));
+        OnPropertyChanged(nameof(GoToTechTooltip));
+    }
 
     public override void SaveData(JsonObject saveData)
     {

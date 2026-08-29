@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
+using NMSE.Core.Utilities;
 using NMSE.Data;
 using NMSE.Models;
 using System.Globalization;
@@ -13,6 +14,12 @@ public partial class FrigateViewModel : PanelViewModelBase
     private JsonArray? _frigates;
     private JsonArray? _expeditions;
     private bool _loading;
+
+    /// <summary>A frigate carries five trait slots.</summary>
+    private const int TraitSlotCount = 5;
+
+    /// <summary>The game caps a fleet at thirty frigates.</summary>
+    private const int MaxFrigates = 30;
 
     private static string[] FrigateTypes => FrigateLogic.FrigateTypes;
     private static string[] FrigateGrades => FrigateLogic.FrigateGrades;
@@ -56,6 +63,68 @@ public partial class FrigateViewModel : PanelViewModelBase
     [ObservableProperty] private string _stateText = "";
     [ObservableProperty] private string _missionType = "";
 
+    /// <summary>
+    /// When the current expedition began. Only meaningful while one is running, so the
+    /// field disables itself otherwise.
+    /// </summary>
+    [ObservableProperty] private DateTimeOffset _expeditionStart = DateTimeOffset.Now;
+    [ObservableProperty] private bool _isOnExpedition;
+
+    /// <summary>
+    /// The five trait slots. NMS marks an unassigned one with "^", not an empty string,
+    /// which is why the picker carries an explicit None entry.
+    /// </summary>
+    public ObservableCollection<FrigateTraitSlotViewModel> TraitSlots { get; } = new();
+
+    /// <summary>
+    /// Rebuilds the trait pickers. The trait database loads after the panels are
+    /// constructed, so this runs once the save arrives rather than in the constructor.
+    /// </summary>
+    private void BuildTraitSlots()
+    {
+        if (TraitSlots.Count > 0) return;
+
+        var options = new List<FrigateTrait> { FrigateTraitDatabase.None };
+        options.AddRange(FrigateTraitDatabase.Traits);
+
+        for (int i = 0; i < TraitSlotCount; i++)
+        {
+            var slot = new FrigateTraitSlotViewModel(i, options)
+            {
+                Label = UiStrings.Get($"frigate.trait_{i + 1}"),
+            };
+            slot.SelectionChanged += OnTraitChanged;
+            TraitSlots.Add(slot);
+        }
+    }
+
+    /// <summary>
+    /// Writes the chosen trait back and recomputes the class, which is derived from the
+    /// traits rather than stored on its own.
+    /// </summary>
+    private void OnTraitChanged(FrigateTraitSlotViewModel slot)
+    {
+        if (_loading) return;
+
+        var frigate = SelectedFrigate?.Data;
+        var traits = frigate?.GetArray("TraitIDs");
+        if (frigate is null || traits is null || slot.SlotIndex >= traits.Length) return;
+
+        traits.Set(slot.SlotIndex, slot.Selected?.Id ?? "^");
+
+        string computedClass = FrigateLogic.ComputeClassFromTraits(frigate);
+
+        // Setting the class index would otherwise run the handler that rewrites traits
+        // to match the grade, undoing what was just chosen.
+        _loading = true;
+        int computedIdx = Array.IndexOf(FrigateGrades, computedClass);
+        ClassIndex = computedIdx >= 0 ? computedIdx : 0;
+        _loading = false;
+
+        try { frigate.GetObject("InventoryClass")?.Set("InventoryClass", computedClass); } catch { }
+        RefreshList();
+    }
+
     partial void OnSelectedFrigateChanged(FrigateListItemViewModel? value)
     {
         HasSelection = value != null;
@@ -78,13 +147,14 @@ public partial class FrigateViewModel : PanelViewModelBase
             try { _expeditions = playerState.GetArray("FleetExpeditions"); } catch { }
             if (_frigates == null || _frigates.Length == 0)
             {
-                CountLabel = "No frigates found.";
+                CountLabel = UiStrings.Get("frigate.no_frigates_found");
                 return;
             }
 
+            BuildTraitSlots();
             RefreshList();
         }
-        catch { CountLabel = "Failed to load frigates."; }
+        catch { CountLabel = UiStrings.Get("frigate.failed_load"); }
     }
 
     private void RefreshList()
@@ -112,13 +182,13 @@ public partial class FrigateViewModel : PanelViewModelBase
             {
                 FrigateList.Add(new FrigateListItemViewModel
                 {
-                    DisplayText = $"Frigate {i + 1}",
+                    DisplayText = UiStrings.Format("frigate.list_format", i + 1),
                     Index = i
                 });
             }
         }
 
-        CountLabel = $"Total frigates: {_frigates.Length}";
+        CountLabel = UiStrings.Format("frigate.total_frigates", _frigates.Length);
     }
 
     private void LoadFrigateDetails(FrigateListItemViewModel item)
@@ -172,21 +242,47 @@ public partial class FrigateViewModel : PanelViewModelBase
             try { TimesDamaged = frigate.GetInt("NumberOfTimesDamaged"); } catch { TimesDamaged = 0; }
 
             int levelUp = FrigateLogic.GetLevelUpIn(TotalExpeditions);
-            LevelUpIn = levelUp >= 0 ? levelUp.ToString(CultureInfo.InvariantCulture) : "MAX";
-            LevelsRemaining = FrigateLogic.GetLevelUpsRemaining(TotalExpeditions).ToString(CultureInfo.InvariantCulture);
+            LevelUpIn = levelUp >= 0
+                ? levelUp.ToString(CultureInfo.CurrentCulture)
+                : UiStrings.Get("frigate.level_max");
+            LevelsRemaining = FrigateLogic.GetLevelUpsRemaining(TotalExpeditions).ToString(CultureInfo.CurrentCulture);
 
             int state = FrigateLogic.GetFrigateState(frigate, item.Index, _expeditions);
             StateText = state >= 0 && state < FrigateLogic.FrigateStateKeys.Length
-                ? FrigateLogic.FrigateStateKeys[state] : "Unknown";
+                ? UiStrings.Get(FrigateLogic.FrigateStateKeys[state])
+                : UiStrings.Get("common.unknown");
 
-            if (state == 1 || state == 3)
+            var traitIds = frigate.GetArray("TraitIDs");
+            for (int i = 0; i < TraitSlots.Count; i++)
+            {
+                string id = i < (traitIds?.Length ?? 0) ? traitIds!.GetString(i) ?? "^" : "^";
+                var slot = TraitSlots[i];
+                slot.Selected = FrigateTraitDatabase.ById.TryGetValue(id, out var trait)
+                    ? slot.Options.FirstOrDefault(o => o.Id == trait.Id) ?? FrigateTraitDatabase.None
+                    : FrigateTraitDatabase.None;
+            }
+
+            // States 1 and 3 are on-expedition and awaiting-debrief; only then is there a
+            // mission and a start time to show.
+            IsOnExpedition = state is 1 or 3;
+            if (IsOnExpedition)
             {
                 int expIdx = _expeditions != null ? FrigateLogic.FindExpeditionIndex(item.Index, _expeditions) : -1;
-                MissionType = expIdx >= 0 && _expeditions != null ? FrigateLogic.GetExpeditionCategory(_expeditions, expIdx) : "";
+                MissionType = expIdx >= 0 && _expeditions != null
+                    ? FrigateLogic.GetExpeditionCategory(_expeditions, expIdx) : "";
+
+                try
+                {
+                    ExpeditionStart = expIdx >= 0 && _expeditions != null
+                        ? DateTimeOffset.FromUnixTimeSeconds(_expeditions.GetObject(expIdx).GetLong("StartTime"))
+                        : DateTimeOffset.Now;
+                }
+                catch { ExpeditionStart = DateTimeOffset.Now; }
             }
             else
             {
                 MissionType = "";
+                ExpeditionStart = DateTimeOffset.Now;
             }
         }
         catch { }
@@ -341,7 +437,7 @@ public partial class FrigateViewModel : PanelViewModelBase
         int expIndex = FrigateLogic.FindExpeditionIndex(frigateIndex, expeditions);
         if (expIndex < 0)
         {
-            MissionType = UiStrings.Get("frigate.no_frigates_found");
+            CountLabel = UiStrings.Get("frigate.no_frigates_found");
             return;
         }
 
@@ -392,7 +488,7 @@ public partial class FrigateViewModel : PanelViewModelBase
         }
         catch (Exception ex)
         {
-            MissionType = UiStrings.Format("common.error", ex.Message);
+            CountLabel = UiStrings.Get("frigate.failed_load");
         }
 
         static void Clear(JsonArray? array)
@@ -431,6 +527,65 @@ public partial class FrigateViewModel : PanelViewModelBase
         SaveFrigateChanges();
     }
 
+    [RelayCommand]
+    private async Task ExportAsync()
+    {
+        var frigate = SelectedFrigate?.Data;
+        if (Dialogs is null || SaveFilePickerFunc is null || frigate is null) return;
+
+        var config = ExportConfig.Instance;
+        var vars = new Dictionary<string, string>
+        {
+            ["frigate_name"] = FrigateName,
+            ["type"] = FrigateLogic.GetFrigateType(frigate),
+            ["class"] = FrigateLogic.ComputeClassFromTraits(frigate),
+        };
+
+        string? path = await SaveFilePickerFunc(UiStrings.Get("common.export"),
+            config.FrigateExt.TrimStart('.'),
+            ExportConfig.BuildFileName(config.FrigateTemplate, config.FrigateExt, vars));
+        if (path is null) return;
+
+        try { frigate.ExportToFile(path); }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("common.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportAsync()
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null || _frigates is null) return;
+
+        if (_frigates.Length >= MaxFrigates)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("frigate.import_title"),
+                UiStrings.Get("frigate.max_reached"));
+            return;
+        }
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("frigate.import_title"),
+            ExportConfig.Instance.FrigateExt);
+        if (path is null) return;
+
+        try
+        {
+            // Files exported by NomNom wrap the frigate in a Data envelope.
+            var imported = InventoryImportHelper.UnwrapNomNomFrigate(JsonObject.ImportFromFile(path));
+
+            _frigates.Add(imported);
+            RefreshList();
+            SelectedFrigate = FrigateList.Count > 0 ? FrigateList[^1] : null;
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("common.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
     // Go to JSON. The tooltips name the section they open, so they are formatted here
     // rather than bound straight to the string table.
     public override void ApplyLocalisation()
@@ -459,6 +614,27 @@ public partial class FrigateViewModel : PanelViewModelBase
             ? Task.CompletedTask
             : GoToJsonAsync("PlayerStateData", "FleetFrigates", $"[{idx}]");
     }
+}
+
+/// <summary>One trait slot: its label, the traits it can hold, and the one chosen.</summary>
+public partial class FrigateTraitSlotViewModel : ObservableObject
+{
+    public int SlotIndex { get; }
+    public IReadOnlyList<FrigateTrait> Options { get; }
+
+    [ObservableProperty] private string _label = "";
+    [ObservableProperty] private FrigateTrait? _selected;
+
+    /// <summary>Raised when the user picks a trait, not when the panel loads one.</summary>
+    public event Action<FrigateTraitSlotViewModel>? SelectionChanged;
+
+    public FrigateTraitSlotViewModel(int slotIndex, IReadOnlyList<FrigateTrait> options)
+    {
+        SlotIndex = slotIndex;
+        Options = options;
+    }
+
+    partial void OnSelectedChanged(FrigateTrait? value) => SelectionChanged?.Invoke(this);
 }
 
 public partial class FrigateListItemViewModel : ObservableObject

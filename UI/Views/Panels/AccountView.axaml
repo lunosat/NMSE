@@ -31,7 +31,7 @@
                             <Button Content="{loc:Locale account.lock_all}" Command="{Binding LockAllSeasonCommand}" />
                             <Button Content="{loc:Locale account.redeem_all}" Command="{Binding RedeemAllSeasonCommand}" />
                             <Button Content="{loc:Locale account.remove_all}" Command="{Binding RemoveAllSeasonCommand}" />
-                            <TextBlock Text="{loc:Locale account.filter}" VerticalAlignment="Center" Margin="16,0,4,0" />
+                            <TextBlock Text="{loc:Locale common.filter}" VerticalAlignment="Center" Margin="16,0,4,0" />
                             <TextBox Text="{Binding SeasonFilter}" Width="200" />
                         </StackPanel>
 
@@ -65,7 +65,7 @@
                             <Button Content="{loc:Locale account.lock_all}" Command="{Binding LockAllTwitchCommand}" />
                             <Button Content="{loc:Locale account.redeem_all}" Command="{Binding RedeemAllTwitchCommand}" />
                             <Button Content="{loc:Locale account.remove_all}" Command="{Binding RemoveAllTwitchCommand}" />
-                            <TextBlock Text="{loc:Locale account.filter}" VerticalAlignment="Center" Margin="16,0,4,0" />
+                            <TextBlock Text="{loc:Locale common.filter}" VerticalAlignment="Center" Margin="16,0,4,0" />
                             <TextBox Text="{Binding TwitchFilter}" Width="200" />
                         </StackPanel>
 
@@ -116,7 +116,7 @@
                             <Button Content="{loc:Locale account.lock_all}" Command="{Binding LockAllPlatformCommand}" />
                             <Button Content="{loc:Locale account.redeem_all}" Command="{Binding RedeemAllPlatformCommand}" />
                             <Button Content="{loc:Locale account.remove_all}" Command="{Binding RemoveAllPlatformCommand}" />
-                            <TextBlock Text="{loc:Locale account.filter}" VerticalAlignment="Center" Margin="16,0,4,0" />
+                            <TextBlock Text="{loc:Locale common.filter}" VerticalAlignment="Center" Margin="16,0,4,0" />
                             <TextBox Text="{Binding PlatformFilter}" Width="200" />
                         </StackPanel>
 

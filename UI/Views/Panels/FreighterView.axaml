@@ -12,8 +12,14 @@
                 <TextBlock Text="{loc:Locale freighter.title}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
                 <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
-                               Command="{Binding GoToFreighterJsonCommand}"
-                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+                        Command="{Binding GoToFreighterJsonCommand}"
+                        ToolTip.Tip="{Binding GoToFreighterTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToCargoJsonCommand}"
+                        ToolTip.Tip="{Binding GoToCargoTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToTechJsonCommand}"
+                        ToolTip.Tip="{Binding GoToTechTooltip}" />
             </StackPanel>
 
             <TabControl>
