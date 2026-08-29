@@ -13,6 +13,10 @@ public partial class App : Application
     {
         AvaloniaXamlLoader.Load(this);
 
+        // The config has to be read before the theme is: Theme returns null until it is,
+        // so the saved choice was ignored and every start came up dark.
+        AppConfig.Instance.Initialize();
+
         var theme = AppConfig.Instance.Theme;
         if (string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase))
             RequestedThemeVariant = ThemeVariant.Light;
@@ -27,8 +31,7 @@ public partial class App : Application
             // View models read their fixed lists — difficulty presets, sort modes, race
             // names — through UiStrings when they are constructed. Loading the table
             // first means those reads find strings rather than the keys themselves.
-            var config = NMSE.Config.AppConfig.Instance;
-            config.Initialize();
+            var config = AppConfig.Instance;
 
             NMSE.Data.UiStrings.SetDirectory(
                 System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "ui", "lang"));
