@@ -11,10 +11,10 @@
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="{loc:Locale exocraft.title}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
-                <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
+                <Button Classes="gotoJson" Padding="6,2" Margin="8,0,0,0"
                         Command="{Binding GoToVehicleJsonCommand}"
                         ToolTip.Tip="{Binding GoToVehicleListTooltip}" />
-                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                <Button Classes="gotoJson" Padding="6,2" Margin="4,0,0,0"
                         Command="{Binding GoToVehicleCargoJsonCommand}"
                         ToolTip.Tip="{Binding GoToVehicleCargoTooltip}" />
             </StackPanel>

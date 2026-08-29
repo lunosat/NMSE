@@ -82,6 +82,12 @@ public partial class MultiplayerViewModel : PanelViewModelBase
     public SeededFlagViewModel WeaponSeed { get; } = new(UiStrings.Get("multiplayer.weapon_seed"));
     public SeededFlagViewModel ShipSeed { get; } = new(UiStrings.Get("multiplayer.ship_seed"));
 
+    public override void ApplyLocalisation()
+    {
+        TeamItems = new ObservableCollection<string>(CommunityTeams);
+        RaceItems = new ObservableCollection<string>(AlienRaces);
+    }
+
     // =================================== Loading ===================================
 
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)

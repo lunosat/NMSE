@@ -198,6 +198,18 @@
         <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
     </Style>
 
+    <!--
+        Jumps to the selected data in the raw JSON editor. Every panel has at least one,
+        so the icon is defined once here rather than repeated at each site; the tooltip
+        at each site says which section it opens.
+    -->
+    <Style Selector="Button.gotoJson">
+        <Setter Property="Content" Value="&#x1F4D1;" />
+        <Setter Property="FontFamily" Value="Noto Color Emoji, Segoe UI Emoji, sans-serif" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="MinWidth" Value="30" />
+    </Style>
+
     <!-- The one call to action per screen: Load, Save, Apply -->
     <Style Selector="Button.primary /template/ ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource NmseAccentBrush}" />

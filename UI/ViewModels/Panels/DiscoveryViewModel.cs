@@ -369,6 +369,16 @@ public partial class DiscoveryViewModel : PanelViewModelBase
         return [];
     }
 
+    /// <summary>
+    /// The recipe panel is hosted here rather than in the shell's panel list, so it is
+    /// told about a language change through this one.
+    /// </summary>
+    public override void ApplyLocalisation()
+    {
+        WordRaces = new ObservableCollection<string>(RaceLocKeys.Select(UiStrings.Get));
+        Recipe.ApplyLocalisation();
+    }
+
     // ===================================== Fish =====================================
 
     /// <summary>The fishing record's arrays, held so the fish tab can edit them.</summary>

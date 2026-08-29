@@ -12,7 +12,7 @@
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="{loc:Locale player.section_stats}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
-                <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
+                <Button Classes="gotoJson" Padding="6,2" Margin="8,0,0,0"
                                Command="{Binding GoToPlayerJsonCommand}"
                                ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
             </StackPanel>

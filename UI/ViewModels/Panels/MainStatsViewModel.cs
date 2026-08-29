@@ -562,6 +562,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
 
     public override void ApplyLocalisation()
     {
+        Multiplayer.ApplyLocalisation();
         PresetItems = new List<string>(DifficultyPresetLocKeys.Select(UiStrings.Get));
         PlatformItems = new List<string>(
         [

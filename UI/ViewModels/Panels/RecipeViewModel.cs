@@ -40,12 +40,20 @@ public partial class RecipeViewModel : PanelViewModelBase
     [ObservableProperty] private int _selectedFilterIndex;
     [ObservableProperty] private string _detailText = UiStrings.Get("recipe.details_placeholder");
 
-    public string[] FilterOptions { get; } =
+    [ObservableProperty] private string[] _filterOptions = BuildFilterOptions();
+
+    private static string[] BuildFilterOptions() =>
     [
         UiStrings.Get("recipe.filter_all"),
         UiStrings.Get("recipe.type_refining"),
         UiStrings.Get("recipe.type_cooking"),
     ];
+
+    public override void ApplyLocalisation()
+    {
+        FilterOptions = BuildFilterOptions();
+        PopulateGrid();
+    }
 
     partial void OnSearchTextChanged(string value) => PopulateGrid();
     partial void OnSelectedFilterIndexChanged(int value) => PopulateGrid();

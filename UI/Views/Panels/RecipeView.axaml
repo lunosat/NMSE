@@ -31,7 +31,7 @@
                                Fill="{DynamicResource NmseBorderBrush}" />
 
                     <Button Content="{loc:Locale recipe.nms_recipes_web}" Command="{Binding OpenNmsRecipesCommand}" />
-                    <Button Content="{}" Padding="6,2" Command="{Binding GoToRecipeJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+                    <Button Classes="gotoJson" Padding="6,2" Command="{Binding GoToRecipeJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                 </StackPanel>
             </Border>
 

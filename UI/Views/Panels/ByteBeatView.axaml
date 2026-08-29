@@ -9,7 +9,7 @@
         <DockPanel>
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
                 <TextBlock Text="{loc:Locale bytebeat.title}" Classes="sectionHeader" VerticalAlignment="Center" />
-                <Button Content="{}" Padding="6,2" Command="{Binding GoToLibraryJsonCommand}"
+                <Button Classes="gotoJson" Padding="6,2" Command="{Binding GoToLibraryJsonCommand}"
                         ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
             </StackPanel>
             <TextBlock Text="{Binding InfoText}" DockPanel.Dock="Top"

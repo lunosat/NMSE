@@ -10,13 +10,13 @@
             <StackPanel Orientation="Horizontal" Spacing="4" DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="{loc:Locale companion.title}" Classes="sectionHeader"
                            VerticalAlignment="Center" Margin="0,0,4,0" />
-                <Button Content="{}" Padding="6,2" Command="{Binding GoToPetsJsonCommand}"
+                <Button Classes="gotoJson" Padding="6,2" Command="{Binding GoToPetsJsonCommand}"
                         ToolTip.Tip="{Binding GoToPetsTooltip}" />
-                <Button Content="{}" Padding="6,2" Command="{Binding GoToSelectedJsonCommand}"
+                <Button Classes="gotoJson" Padding="6,2" Command="{Binding GoToSelectedJsonCommand}"
                         ToolTip.Tip="{Binding GoToSelectedTooltip}" />
-                <Button Content="{}" Padding="6,2" Command="{Binding GoToEggsJsonCommand}"
+                <Button Classes="gotoJson" Padding="6,2" Command="{Binding GoToEggsJsonCommand}"
                         ToolTip.Tip="{Binding GoToEggsTooltip}" />
-                <Button Content="{}" Padding="6,2" Command="{Binding GoToBattleTeamJsonCommand}"
+                <Button Classes="gotoJson" Padding="6,2" Command="{Binding GoToBattleTeamJsonCommand}"
                         ToolTip.Tip="{Binding GoToBattleTeamTooltip}" />
             </StackPanel>
             <TextBlock Text="{Binding CountLabel}" DockPanel.Dock="Top" Margin="0,0,0,12"

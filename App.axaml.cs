@@ -24,6 +24,16 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // View models read their fixed lists — difficulty presets, sort modes, race
+            // names — through UiStrings when they are constructed. Loading the table
+            // first means those reads find strings rather than the keys themselves.
+            var config = NMSE.Config.AppConfig.Instance;
+            config.Initialize();
+
+            NMSE.Data.UiStrings.SetDirectory(
+                System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "ui", "lang"));
+            NMSE.Data.UiStrings.Load(config.Language);
+
             desktop.MainWindow = new MainWindow();
         }
 
