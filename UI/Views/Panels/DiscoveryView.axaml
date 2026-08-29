@@ -25,7 +25,7 @@
                             <Button Content="{loc:Locale common.export}" Command="{Binding ExportTechCommand}" />
                             <Button Content="{loc:Locale common.import}" Command="{Binding ImportTechCommand}" />
                         </StackPanel>
-                        <ListBox ItemsSource="{Binding KnownTechs}" SelectionMode="Single"
+                        <ListBox ItemsSource="{Binding FilteredTechs}" SelectionMode="Single"
                                  SelectedItem="{Binding SelectedTech}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:DiscoveryItemViewModel">
@@ -53,7 +53,7 @@
                             <Button Content="{loc:Locale common.export}" Command="{Binding ExportProductCommand}" />
                             <Button Content="{loc:Locale common.import}" Command="{Binding ImportProductCommand}" />
                         </StackPanel>
-                        <ListBox ItemsSource="{Binding KnownProducts}" SelectionMode="Single"
+                        <ListBox ItemsSource="{Binding FilteredProducts}" SelectionMode="Single"
                                  SelectedItem="{Binding SelectedProduct}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="vm:DiscoveryItemViewModel">
@@ -106,15 +106,20 @@
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                             <TextBlock Text="{loc:Locale discovery.tab_fish}" Classes="sectionHeader"
                                        VerticalAlignment="Center" />
+                            <TextBox Text="{Binding FishFilter}" Width="220"
+                                     Watermark="{loc:Locale discovery.filter_fish}" />
+                            <Button Content="{loc:Locale discovery.add_fish_title}" Command="{Binding AddFishCommand}" />
+                            <Button Content="{loc:Locale common.remove_selected}" Classes="danger"
+                                    Command="{Binding RemoveFishCommand}" />
                             <Button Content="{}" Padding="6,2" Command="{Binding GoToFishJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
-                        <DataGrid ItemsSource="{Binding FishEntries}"
+                        <DataGrid ItemsSource="{Binding FilteredFish}" SelectedItem="{Binding SelectedFish}"
                                   AutoGenerateColumns="False" IsReadOnly="True"
                                   SelectionMode="Single">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_id}" Binding="{Binding ProductId}" Width="200" />
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_name}" Binding="{Binding Name}" Width="*" />
-                                <DataGridTextColumn Header="{loc:Locale discovery.col_count}" Binding="{Binding CatchCount}" Width="80" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_caught_fish}" Binding="{Binding CatchCount}" Width="120" />
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_largest_catch}" Binding="{Binding LargestCatch}" Width="100" />
                             </DataGrid.Columns>
                         </DataGrid>
@@ -131,7 +136,7 @@
                             <Button Content="{loc:Locale discovery.add_special}" Command="{Binding AddSpecialCommand}" />
                             <Button Content="{}" Padding="6,2" Command="{Binding GoToSpecialJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
-                        <DataGrid ItemsSource="{Binding KnownSpecials}" SelectedItem="{Binding SelectedSpecial}"
+                        <DataGrid ItemsSource="{Binding FilteredSpecials}" SelectedItem="{Binding SelectedSpecial}"
                                   AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="{loc:Locale discovery.col_name}" Binding="{Binding Name}" Width="*" />

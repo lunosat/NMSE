@@ -30,8 +30,64 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     [ObservableProperty] private ObservableCollection<DiscoveryItemViewModel> _knownProducts = new();
     [ObservableProperty] private ObservableCollection<GlyphViewModel> _glyphs = new();
     [ObservableProperty] private ObservableCollection<FishEntryViewModel> _fishEntries = new();
+    [ObservableProperty] private FishEntryViewModel? _selectedFish;
+    [ObservableProperty] private string _fishFilter = "";
+
+    /// <summary>The fish rows the filter leaves visible.</summary>
+    [ObservableProperty] private ObservableCollection<FishEntryViewModel> _filteredFish = new();
+
+    partial void OnFishFilterChanged(string value) => ApplyFishFilter();
+
+    private void ApplyFishFilter()
+    {
+        string filter = FishFilter.Trim();
+        FilteredFish = new ObservableCollection<FishEntryViewModel>(
+            string.IsNullOrEmpty(filter)
+                ? FishEntries
+                : FishEntries.Where(f =>
+                    f.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                    || f.ProductId.Contains(filter, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// Localisation keys for <see cref="CatalogueLogic.RaceColumns"/>, in the same order.
+    /// </summary>
+    private static readonly string[] RaceLocKeys =
+        ["common.race_gek", "common.race_vykeen", "common.race_korvax",
+         "discovery.race_atlas", "discovery.race_autophage"];
 
     [ObservableProperty] private string _techFilter = "";
+
+    // The three known-item lists are filtered into their own collections; the grids bind
+    // to these rather than to the full lists, which is what the filter boxes edit.
+    [ObservableProperty] private ObservableCollection<DiscoveryItemViewModel> _filteredTechs = new();
+    [ObservableProperty] private ObservableCollection<DiscoveryItemViewModel> _filteredProducts = new();
+    [ObservableProperty] private ObservableCollection<DiscoveryItemViewModel> _filteredSpecials = new();
+
+    partial void OnTechFilterChanged(string value) => ApplyFilters();
+    partial void OnProductFilterChanged(string value) => ApplyFilters();
+    partial void OnSpecialFilterChanged(string value) => ApplyFilters();
+
+    private void ApplyFilters()
+    {
+        FilteredTechs = FilterItems(KnownTechs, TechFilter);
+        FilteredProducts = FilterItems(KnownProducts, ProductFilter);
+        FilteredSpecials = FilterItems(KnownSpecials, SpecialFilter);
+    }
+
+    /// <summary>Matches on name, category or id, as the panel's filter boxes did.</summary>
+    private static ObservableCollection<DiscoveryItemViewModel> FilterItems(
+        IEnumerable<DiscoveryItemViewModel> source, string filter)
+    {
+        filter = filter?.Trim() ?? "";
+        return new ObservableCollection<DiscoveryItemViewModel>(
+            filter.Length == 0
+                ? source
+                : source.Where(i =>
+                    i.Name.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+                    || i.Category.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+                    || i.Id.Contains(filter, StringComparison.OrdinalIgnoreCase)));
+    }
     [ObservableProperty] private string _productFilter = "";
 
     [ObservableProperty] private DiscoveryItemViewModel? _selectedTech;
@@ -77,6 +133,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
             LoadKnownItems(playerState, "KnownTech", KnownTechs);
             LoadKnownItems(playerState, "KnownProducts", KnownProducts);
             LoadKnownItems(playerState, "KnownSpecials", KnownSpecials);
+            ApplyFilters();
             LoadGlyphs(playerState);
             LoadFish(playerState);
             LoadWords(playerState, WordDb);
@@ -111,7 +168,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
             Glyphs.Add(new GlyphViewModel
             {
                 Index = i,
-                Label = $"Glyph {i + 1}",
+                Label = UiStrings.Format("discovery.glyph_n", i + 1),
                 IsKnown = (runesBitfield & mask) == mask
             });
         }
@@ -123,6 +180,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
         try
         {
             var fishingRecord = playerState.GetObject("FishingRecord");
+            _fishingRecord = fishingRecord;
             if (fishingRecord == null) return;
 
             var productList = fishingRecord.GetArray("ProductList");
@@ -156,6 +214,71 @@ public partial class DiscoveryViewModel : PanelViewModelBase
             }
         }
         catch { }
+
+        ApplyFishFilter();
+    }
+
+    // ===================================== Fish =====================================
+
+    /// <summary>The fishing record's arrays, held so the fish tab can edit them.</summary>
+    private JsonObject? _fishingRecord;
+
+    /// <summary>
+    /// Adds a fish to the first free slot. The record is fixed-length, with "^" marking
+    /// an unused entry, so this fills a gap rather than growing the array.
+    /// </summary>
+    [RelayCommand]
+    private async Task AddFishAsync()
+    {
+        if (Dialogs is null || PickItemFunc is null) return;
+
+        var productList = _fishingRecord?.GetArray("ProductList");
+        if (productList is null) return;
+
+        int empty = -1;
+        for (int i = 0; i < productList.Length; i++)
+        {
+            string value;
+            try { value = productList.GetString(i) ?? ""; } catch { empty = i; break; }
+            if (string.IsNullOrEmpty(value) || value == "^") { empty = i; break; }
+        }
+
+        if (empty < 0)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.add_fish_title"),
+                UiStrings.Get("discovery.no_fish_slots"));
+            return;
+        }
+
+        string? picked = await PickItemFunc(UiStrings.Get("discovery.add_fish_title"));
+        if (string.IsNullOrEmpty(picked)) return;
+
+        string saveId = picked.StartsWith('^') ? picked : "^" + picked;
+        productList.Set(empty, saveId);
+
+        if (_fishingRecord!.GetArray("ProductCountList") is { } counts && empty < counts.Length)
+            counts.Set(empty, 0);
+        if (_fishingRecord.GetArray("LargestCatchList") is { } largest && empty < largest.Length)
+            largest.Set(empty, 0.0);
+
+        if (_playerState is not null) LoadFish(_playerState);
+    }
+
+    /// <summary>Clears the selected slot back to the unused marker.</summary>
+    [RelayCommand]
+    private void RemoveFish()
+    {
+        if (SelectedFish is null || _fishingRecord is null) return;
+
+        int idx = SelectedFish.ArrayIndex;
+        if (_fishingRecord.GetArray("ProductList") is { } products && idx < products.Length)
+            products.Set(idx, "^");
+        if (_fishingRecord.GetArray("ProductCountList") is { } counts && idx < counts.Length)
+            counts.Set(idx, 0);
+        if (_fishingRecord.GetArray("LargestCatchList") is { } largest && idx < largest.Length)
+            largest.Set(idx, 0.0);
+
+        if (_playerState is not null) LoadFish(_playerState);
     }
 
     [RelayCommand]
@@ -165,6 +288,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
         {
             KnownTechs.Remove(SelectedTech);
             SelectedTech = null;
+            ApplyFilters();
         }
     }
 
@@ -174,6 +298,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
         if (SelectedProduct != null)
         {
             KnownProducts.Remove(SelectedProduct);
+            ApplyFilters();
             SelectedProduct = null;
         }
     }
@@ -202,8 +327,8 @@ public partial class DiscoveryViewModel : PanelViewModelBase
         _knownWordGroups = playerState.GetArray("KnownWordGroups");
         _allWords.Clear();
 
-        WordRaces = new ObservableCollection<string>(
-            CatalogueLogic.RaceColumns.Select(r => r.Name));
+        // RaceColumns carries the internal names; the picker shows the localised ones.
+        WordRaces = new ObservableCollection<string>(RaceLocKeys.Select(UiStrings.Get));
         if (WordRaces.Count > 0 && SelectedWordRaceIndex < 0) SelectedWordRaceIndex = 0;
 
         if (database is null) { Words = new(); return; }
@@ -426,6 +551,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     {
         if (SelectedSpecial is null) return;
         KnownSpecials.Remove(SelectedSpecial);
+        ApplyFilters();
         SelectedSpecial = null;
     }
 
@@ -455,22 +581,115 @@ public partial class DiscoveryViewModel : PanelViewModelBase
             Name = item?.Name ?? bare,
             Category = item?.Category ?? "",
         });
+
+        ApplyFilters();
     }
 
     /// <summary>Opens the item picker; supplied by the view, which owns the dialog.</summary>
     public Func<string, Task<string?>>? PickItemFunc { get; set; }
 
     [RelayCommand]
-    private void ExportTech() { /* TODO: export known tech */ }
+    private Task ExportTechAsync() => ExportItemsAsync(KnownTechs, "KnownTech");
 
     [RelayCommand]
-    private void ImportTech() { /* TODO: import known tech */ }
+    private Task ImportTechAsync() => ImportItemsAsync(KnownTechs);
 
     [RelayCommand]
-    private void ExportProduct() { /* TODO: export known products */ }
+    private Task ExportProductAsync() => ExportItemsAsync(KnownProducts, "KnownProducts");
 
     [RelayCommand]
-    private void ImportProduct() { /* TODO: import known products */ }
+    private Task ImportProductAsync() => ImportItemsAsync(KnownProducts);
+
+    /// <summary>
+    /// Writes the list's ids under one named array, which is the shape the importer
+    /// below looks for.
+    /// </summary>
+    private async Task ExportItemsAsync(ObservableCollection<DiscoveryItemViewModel> items, string arrayName)
+    {
+        if (Dialogs is null || SaveFilePickerFunc is null) return;
+
+        var config = ExportConfig.Instance;
+        var vars = new Dictionary<string, string> { ["name"] = arrayName };
+        string? path = await SaveFilePickerFunc(UiStrings.Get("common.export"),
+            config.DiscoveryExt.TrimStart('.'),
+            ExportConfig.BuildFileName(config.DiscoveryTemplate, config.DiscoveryExt, vars));
+        if (path is null) return;
+
+        try
+        {
+            var arr = new JsonArray();
+            foreach (var item in items) arr.Add(item.Id);
+
+            var root = new JsonObject();
+            root.Set(arrayName, arr);
+            root.ExportToFile(path);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("discovery.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// Adds the ids from a file that are not already known. The first array in the file
+    /// is taken, so a file exported under any of the list names is accepted.
+    /// </summary>
+    private async Task ImportItemsAsync(ObservableCollection<DiscoveryItemViewModel> items)
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null) return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("discovery.import_title"),
+            ExportConfig.Instance.DiscoveryExt);
+        if (path is null) return;
+
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
+
+            JsonArray? arr = null;
+            foreach (string name in imported.Names())
+            {
+                try { arr = imported.GetArray(name); } catch { }
+                if (arr is not null) break;
+            }
+
+            if (arr is null || arr.Length == 0)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                    UiStrings.Get("discovery.import_no_items"), Services.DialogIcon.Warning);
+                return;
+            }
+
+            var existing = new HashSet<string>(items.Select(i => i.Id), StringComparer.OrdinalIgnoreCase);
+            int added = 0;
+
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string id = arr.GetString(i) ?? "";
+                if (string.IsNullOrEmpty(id) || !existing.Add(id)) continue;
+
+                string lookupId = CatalogueLogic.StripCaretPrefix(id);
+                var dbItem = _database?.GetItem(lookupId);
+                items.Add(new DiscoveryItemViewModel
+                {
+                    Id = id,
+                    Name = dbItem?.Name ?? lookupId,
+                    Category = dbItem?.ItemType ?? "",
+                });
+                added++;
+            }
+
+            ApplyFilters();
+            await Dialogs.ShowMessageAsync(UiStrings.Get("discovery.import_title"),
+                UiStrings.Format("discovery.import_success_items", added));
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("discovery.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
 
     // Go to JSON — one target per tab, mirroring the buttons the WinForms panel put in
     // each filter row.
