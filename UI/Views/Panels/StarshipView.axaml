@@ -84,18 +84,161 @@
                     <StackPanel Orientation="Horizontal" Spacing="4">
                         <Button Content="{loc:Locale common.export}" Command="{Binding ExportShipCommand}" />
                         <Button Content="{loc:Locale common.import}" Command="{Binding ImportShipCommand}" />
-                        <Button Content="{loc:Locale common.delete}" Command="{Binding DeleteShipCommand}" />
+                        <Button Content="{loc:Locale common.delete}" Classes="danger"
+                                Command="{Binding DeleteShipCommand}" />
+                    </StackPanel>
+
+                    <Button Content="{loc:Locale starship.archive_move_btn}" Margin="0,4,0,0"
+                            HorizontalAlignment="Stretch"
+                            Command="{Binding ArchiveShipCommand}" />
+
+                    <!-- Corvettes render their parts in list order, so an unsorted base
+                         shows the ship built wrong. -->
+                    <StackPanel IsVisible="{Binding IsCorvette}" Spacing="4" Margin="0,8,0,0">
+                        <Button Content="{loc:Locale starship.optimise}" HorizontalAlignment="Stretch"
+                                Command="{Binding OptimiseCorvetteCommand}" />
+                        <TextBlock Text="{loc:Locale starship.corvette_warning}" Classes="hint"
+                                   TextWrapping="Wrap" />
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Right: Inventories -->
                 <DockPanel Grid.Column="2">
                     <TabControl>
-                        <TabItem Header="{loc:Locale common.cargo}">
+                        <TabItem Header="{loc:Locale starship.tab_cargo}">
                             <controls:InventoryGridControl DataContext="{Binding CargoGrid}" />
                         </TabItem>
-                        <TabItem Header="{loc:Locale common.technology}">
+                        <TabItem Header="{loc:Locale starship.tab_tech}">
                             <controls:InventoryGridControl DataContext="{Binding TechGrid}" />
+                        </TabItem>
+
+                        <TabItem Header="{loc:Locale starship.tab_customisation}">
+                            <ScrollViewer>
+                                <StackPanel Margin="8" Spacing="6">
+                                    <!-- Scene resource decides which customisation config applies. -->
+                                    <TextBlock Text="{loc:Locale starship.customisation_scene_label}" Classes="label" />
+                                    <DockPanel>
+                                        <Button DockPanel.Dock="Right" Margin="4,0,0,0"
+                                                Content="{loc:Locale common.apply}"
+                                                Command="{Binding ApplySceneCommand}" />
+                                        <ComboBox ItemsSource="{Binding SceneResources}"
+                                                  SelectedItem="{Binding SceneResource}"
+                                                  IsTextSearchEnabled="True"
+                                                  HorizontalAlignment="Stretch" />
+                                    </DockPanel>
+
+                                    <TextBlock Text="{Binding CustomisationMessage}" Classes="hint"
+                                               TextWrapping="Wrap" Margin="0,8,0,0"
+                                               IsVisible="{Binding !CustomisationAvailable}" />
+
+                                    <StackPanel IsVisible="{Binding CustomisationAvailable}" Spacing="6">
+                                        <TextBlock Text="{loc:Locale starship.customisation_combo_warning}"
+                                                   Foreground="{DynamicResource NmseWarningBrush}"
+                                                   TextWrapping="Wrap" Margin="0,4,0,4" />
+
+                                        <TextBlock Text="{loc:Locale starship.customisation_parts_heading}"
+                                                   Classes="sectionHeader" Margin="0,8,0,4"
+                                                   IsVisible="{Binding PartSlots.Count}" />
+                                        <ItemsControl ItemsSource="{Binding PartSlots}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ShipPartSlotViewModel">
+                                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
+                                                        <TextBlock Text="{Binding Label}" Classes="label" />
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding Options}"
+                                                                  SelectedIndex="{Binding SelectedIndex}"
+                                                                  HorizontalAlignment="Stretch" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Text="{loc:Locale starship.customisation_texture_heading}"
+                                                   Classes="sectionHeader" Margin="0,12,0,4"
+                                                   IsVisible="{Binding TextureGroups.Count}" />
+                                        <ItemsControl ItemsSource="{Binding TextureGroups}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ShipTextureGroupViewModel">
+                                                    <Grid ColumnDefinitions="170,*" Margin="0,2">
+                                                        <TextBlock Text="{Binding Label}" Classes="label" />
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding Options}"
+                                                                  SelectedIndex="{Binding SelectedIndex}"
+                                                                  HorizontalAlignment="Stretch" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Text="{loc:Locale starship.customisation_colours_heading}"
+                                                   Classes="sectionHeader" Margin="0,12,0,4" />
+
+                                        <Grid ColumnDefinitions="170,*" Margin="0,2"
+                                              IsVisible="{Binding Palettes.Count}">
+                                            <TextBlock Text="{loc:Locale starship.customisation_paint_palette}"
+                                                       Classes="label" />
+                                            <ComboBox Grid.Column="1" ItemsSource="{Binding Palettes}"
+                                                      SelectedIndex="{Binding SelectedPaletteIndex}"
+                                                      HorizontalAlignment="Stretch" />
+                                        </Grid>
+
+                                        <TextBlock Text="{loc:Locale starship.customisation_sail_warning}"
+                                                   Foreground="{DynamicResource NmseWarningBrush}"
+                                                   TextWrapping="Wrap" Margin="0,4"
+                                                   IsVisible="{Binding ShowSailColourWarning}" />
+
+                                        <!-- Each channel opens the palette grid it draws from. -->
+                                        <ItemsControl ItemsSource="{Binding ColourChannels}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ShipColourChannelViewModel">
+                                                    <Grid ColumnDefinitions="170,*" Margin="0,3">
+                                                        <TextBlock Text="{Binding Label}" Classes="label" />
+                                                        <Button Grid.Column="1" HorizontalAlignment="Left"
+                                                                Width="140" Height="26" Padding="0"
+                                                                Background="{Binding Swatch}">
+                                                            <Button.Flyout>
+                                                                <Flyout>
+                                                                    <ItemsControl ItemsSource="{Binding Choices}"
+                                                                                  Width="300">
+                                                                        <ItemsControl.ItemsPanel>
+                                                                            <ItemsPanelTemplate>
+                                                                                <WrapPanel />
+                                                                            </ItemsPanelTemplate>
+                                                                        </ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="vm:ShipPaletteSwatch">
+                                                                                <Button Width="28" Height="28" Margin="2"
+                                                                                        Padding="0"
+                                                                                        Background="{Binding Brush}"
+                                                                                        ToolTip.Tip="{Binding Name}"
+                                                                                        Tag="{Binding $parent[ItemsControl].DataContext}"
+                                                                                        Click="OnColourSwatchClick" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </Flyout>
+                                                            </Button.Flyout>
+                                                        </Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="{loc:Locale starship.archive_move_btn}">
+                            <DockPanel Margin="8">
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                                            Spacing="6" Margin="0,8,0,0">
+                                    <Button Content="{loc:Locale starship.archive_import_btn}"
+                                            Command="{Binding ImportFromArchiveCommand}" />
+                                </StackPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="{loc:Locale starship.archive_empty}"
+                                           Classes="hint" Margin="0,0,0,8"
+                                           IsVisible="{Binding !ArchivedShips.Count}" />
+                                <ListBox ItemsSource="{Binding ArchivedShips}"
+                                         SelectedIndex="{Binding SelectedArchiveIndex}" />
+                            </DockPanel>
                         </TabItem>
                     </TabControl>
                 </DockPanel>

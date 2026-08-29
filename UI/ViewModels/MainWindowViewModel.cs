@@ -208,6 +208,19 @@ public partial class MainWindowViewModel : ViewModelBase
             SettlementDatabase.LoadFromFile(Path.Combine(jsonPath, "SettlementPerks.json"));
             WikiGuideDatabase.LoadFromFile(Path.Combine(jsonPath, "WikiGuide.json"));
 
+            // Eight databases the WinForms build loads were absent here, so the panels
+            // that read them had nothing to show: ship part customisation reported "no
+            // config" for every hull, companion accessories and pet battles were empty,
+            // and the ship colour palettes fell back to the default paint set.
+            CompanionAccessoryDatabase.LoadFromFile(Path.Combine(jsonPath, "Companion Accessories.json"));
+            ShipCustomisationDatabase.LoadFromFile(Path.Combine(jsonPath, "Ship Customisation.json"));
+            NmsColourPalette.LoadShipPalettes(Path.Combine(jsonPath, "Colour Palettes.json"));
+            PetBattleMoveDatabase.LoadFromFile(Path.Combine(jsonPath, "Pet Battle Moves.json"));
+            PetBattleMovesetDatabase.LoadFromFile(Path.Combine(jsonPath, "Pet Battle Movesets.json"));
+            PetBiomeAffinityMap.LoadFromFile(Path.Combine(jsonPath, "Game Table Globals.json"));
+            CompanionDatabase.LoadFromFile(Path.Combine(jsonPath, "Creature Species.json"));
+            CreaturePartDatabase.LoadFromFile(Path.Combine(jsonPath, "Creature Descriptors.json"));
+
             _wordDatabase = new WordDatabase();
             string wordsPath = Path.Combine(jsonPath, "Words.json");
             _wordDatabase.LoadFromFile(wordsPath);

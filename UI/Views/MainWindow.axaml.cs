@@ -67,10 +67,14 @@ public partial class MainWindow : Window
                 return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
             };
 
-            WirePanelFilePickers(_viewModel.Companion);
-            WirePanelFilePickers(_viewModel.Settlement);
-            WirePanelFilePickers(_viewModel.ByteBeat);
-            WirePanelFilePickers(_viewModel.Base);
+            // Every panel gets the pickers and the dialog service. Wiring only the few
+            // that needed them at the time left the rest unable to prompt at all.
+            var dialogs = new Dialogs.DialogService(() => this);
+            foreach (var panel in _viewModel.Panels)
+            {
+                WirePanelFilePickers(panel);
+                panel.Dialogs = dialogs;
+            }
 
             _viewModel.Base.ShowObjectPickerFunc = async (items) =>
             {
