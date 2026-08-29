@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
@@ -26,6 +27,9 @@ public partial class AccountViewModel : PanelViewModelBase
     private JsonObject? _accountData;
     private string? _accountFilePath;
     private GameItemDatabase? _database;
+
+    /// <summary>The loaded save, needed by the consistency check.</summary>
+    private JsonObject? _saveData;
     private string? _saveDirectory;
     private bool _rewardsDbLoaded;
 
@@ -33,7 +37,7 @@ public partial class AccountViewModel : PanelViewModelBase
     private readonly List<(string Id, string Name)> _twitchRewardsDb = new();
     private readonly List<(string Id, string Name)> _platformRewardsDb = new();
 
-    [ObservableProperty] private string _statusText = "Account rewards not loaded";
+    [ObservableProperty] private string _statusText = UiStrings.Get("account.status_not_loaded");
     [ObservableProperty] private ObservableCollection<RewardRowViewModel> _seasonRewards = new();
     [ObservableProperty] private ObservableCollection<RewardRowViewModel> _twitchRewards = new();
     [ObservableProperty] private ObservableCollection<RewardRowViewModel> _platformRewards = new();
@@ -122,6 +126,7 @@ public partial class AccountViewModel : PanelViewModelBase
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
         _database = database;
+        _saveData = saveData;
 
         if (!_rewardsDbLoaded)
         {
@@ -157,6 +162,53 @@ public partial class AccountViewModel : PanelViewModelBase
         foreach (var row in rewards)
             result.Add((row.RewardId, row.IsUnlocked));
         return result;
+    }
+
+    /// <summary>
+    /// Reports rewards whose Redeemed* and Known* entries disagree, which is what leaves
+    /// an unlocked reward the game will not hand over.
+    /// </summary>
+    [RelayCommand]
+    private async Task CheckConsistencyAsync()
+    {
+        if (Dialogs is null) return;
+
+        string title = UiStrings.Get("account.consistency_check");
+
+        if (_saveData is null)
+        {
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("account.consistency_no_save"));
+            return;
+        }
+
+        var issues = AccountLogic.CheckConsistencyStructured(_saveData, _database);
+        if (issues.Count == 0)
+        {
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("account.consistency_ok"));
+            return;
+        }
+
+        // Each line names the reward and the array its entry is missing from, which is
+        // what a user needs in order to decide whether to fix it.
+        var report = new System.Text.StringBuilder();
+        foreach (var issue in issues.Take(40))
+        {
+            report.Append(string.IsNullOrEmpty(issue.Name) ? issue.Id : issue.Name)
+                  .Append("  -  ")
+                  .AppendLine(issue.Description);
+        }
+        if (issues.Count > 40)
+            report.AppendLine("...");
+
+        if (await Dialogs.ConfirmAsync(title,
+                UiStrings.Format("account.consistency_found",
+                    issues.Count.ToString(CultureInfo.CurrentCulture)) + "\n\n" + report,
+                Services.DialogIcon.Warning))
+        {
+            AccountLogic.SyncKnownArraysForChangedRewards(_saveData,
+                issues.Select(i => (i.Id, true)).ToList(), _database);
+            await Dialogs.ShowMessageAsync(title, UiStrings.Get("account.consistency_ok"));
+        }
     }
 
     [RelayCommand]

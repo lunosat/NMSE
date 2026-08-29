@@ -7,6 +7,15 @@
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+                <!-- Redeemed* and Known* can disagree, which leaves an unlocked reward
+                     the game will not hand over. -->
+                <Button Content="{loc:Locale account.consistency_check}"
+                        Command="{Binding CheckConsistencyCommand}" />
+                <TextBlock Text="{loc:Locale account.twitch_warning}" Classes="hint"
+                           VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="700" />
+            </StackPanel>
+
             <TextBlock Text="{loc:Locale tab.account_rewards}" Classes="sectionHeader"
                        DockPanel.Dock="Top" Margin="0,0,0,4" />
 

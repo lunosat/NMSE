@@ -13,6 +13,7 @@
   "account.consistency_all_removed": "All items have been removed from their current arrays.",
   "account.consistency_check": "Check Consistency",
   "account.consistency_col_issue": "Issue",
+  "account.consistency_found": "{0} inconsistencies found. Fix them?",
   "account.consistency_issues_found": "{0} inconsistency(ies) found:",
   "account.consistency_missing_specials": "Redeemed but not in Known Specials.",
   "account.consistency_missing_products": "Redeemed but not in Known Products.",
