@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
@@ -286,6 +287,7 @@ public partial class MilestoneViewModel : PanelViewModelBase
         AddField("milestone.vr_snapturns", "^VR_SNAPTURNS", guild: false);
         AddField("milestone.pirate_freighters_seen", "^PIR_FREI_SEEN", guild: false);
 
+        BeginSection(Tab2Row2Column1, "milestone.section_disc_planets", "Discoveries (Planets)");
         AddField("milestone.disc_abandoned", "^DISC_ABAND", guild: false);
         AddField("milestone.disc_cold", "^DISC_P_COLD", guild: false);
         AddField("milestone.disc_dead", "^DISC_P_DEAD", guild: false);
@@ -315,6 +317,7 @@ public partial class MilestoneViewModel : PanelViewModelBase
         AddField("milestone.visit_water", "^VISIT_WATER", guild: false);
         AddField("milestone.visit_weird", "^VISIT_WEIRD", guild: false);
 
+        BeginSection(Tab2Row2Column2, "milestone.section_disc_creatures", "Discoveries (Creatures)");
         AddField("milestone.disc_cre_aggressive", "^DISC_CRE_AGGRO", guild: false);
         AddField("milestone.disc_cre_flying", "^DISC_CRE_AIR", guild: false);
         AddField("milestone.disc_cre_cave", "^DISC_CRE_CAVE", guild: false);
@@ -402,4 +405,7 @@ public partial class MilestoneViewModel : PanelViewModelBase
             MilestoneLogic.WriteStatEntryValue(entry, field.Value);
         }
     }
+
+    [RelayCommand] private Task GoToStatsJsonAsync() => GoToJsonAsync("PlayerStateData", "Stats");
+
 }

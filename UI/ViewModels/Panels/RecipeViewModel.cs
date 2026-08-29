@@ -158,4 +158,7 @@ public partial class RecipeViewModel : PanelViewModelBase
         }
         catch { }
     }
+
+    [RelayCommand] private Task GoToRecipeJsonAsync() => GoToJsonAsync("PlayerStateData", "KnownRefinerRecipes");
+
 }

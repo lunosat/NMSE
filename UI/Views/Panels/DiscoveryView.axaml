@@ -18,9 +18,10 @@
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                             <TextBox Text="{Binding TechFilter}" Watermark="{loc:Locale discovery.filter_items}" Width="250" />
                             <Button Content="X" Command="{Binding ClearTechFilterCommand}"
-                                    ToolTip.Tip="Clear filter" Width="30" />
+                                    ToolTip.Tip="{loc:Locale common.filter}" Width="30" />
+                            <Button Content="{}" Padding="6,2" Command="{Binding GoToTechJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                             <Button Content="{loc:Locale discovery.remove_selected}" Command="{Binding RemoveTechCommand}" />
-                            <Button Content="Add" Command="{Binding AddTechCommand}" />
+                            <Button Content="{loc:Locale discovery.add_technology}" Command="{Binding AddTechCommand}" />
                             <Button Content="{loc:Locale common.export}" Command="{Binding ExportTechCommand}" />
                             <Button Content="{loc:Locale common.import}" Command="{Binding ImportTechCommand}" />
                         </StackPanel>
@@ -45,9 +46,10 @@
                         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                             <TextBox Text="{Binding ProductFilter}" Watermark="{loc:Locale discovery.filter_items}" Width="250" />
                             <Button Content="X" Command="{Binding ClearProductFilterCommand}"
-                                    ToolTip.Tip="Clear filter" Width="30" />
+                                    ToolTip.Tip="{loc:Locale common.filter}" Width="30" />
+                            <Button Content="{}" Padding="6,2" Command="{Binding GoToProductJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                             <Button Content="{loc:Locale discovery.remove_selected}" Command="{Binding RemoveProductCommand}" />
-                            <Button Content="Add" Command="{Binding AddProductCommand}" />
+                            <Button Content="{loc:Locale discovery.add_product}" Command="{Binding AddProductCommand}" />
                             <Button Content="{loc:Locale common.export}" Command="{Binding ExportProductCommand}" />
                             <Button Content="{loc:Locale common.import}" Command="{Binding ImportProductCommand}" />
                         </StackPanel>
@@ -73,6 +75,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Content="{loc:Locale discovery.learn_all}" Command="{Binding LearnAllGlyphsCommand}" />
                                 <Button Content="{loc:Locale discovery.unlearn_all}" Command="{Binding UnlearnAllGlyphsCommand}" />
+                                <Button Content="{}" Padding="6,2" Command="{Binding GoToGlyphJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                             </StackPanel>
                             <ItemsControl ItemsSource="{Binding Glyphs}">
                                 <ItemsControl.ItemsPanel>
@@ -100,7 +103,11 @@
                 <!-- Fishing -->
                 <TabItem Header="{loc:Locale discovery.tab_fish}">
                     <DockPanel Margin="8">
-                        <TextBlock DockPanel.Dock="Top" Text="{loc:Locale discovery.tab_fish}" Classes="sectionHeader" Margin="0,0,0,8" />
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                            <TextBlock Text="{loc:Locale discovery.tab_fish}" Classes="sectionHeader"
+                                       VerticalAlignment="Center" />
+                            <Button Content="{}" Padding="6,2" Command="{Binding GoToFishJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+                        </StackPanel>
                         <DataGrid ItemsSource="{Binding FishEntries}"
                                   AutoGenerateColumns="False" IsReadOnly="True"
                                   SelectionMode="Single">
@@ -122,6 +129,7 @@
                                      Watermark="{loc:Locale discovery.filter_placeholder}" Width="250" />
                             <Button Content="{loc:Locale common.remove_selected}" Command="{Binding RemoveSpecialCommand}" />
                             <Button Content="{loc:Locale discovery.add_special}" Command="{Binding AddSpecialCommand}" />
+                            <Button Content="{}" Padding="6,2" Command="{Binding GoToSpecialJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
                         <DataGrid ItemsSource="{Binding KnownSpecials}" SelectedItem="{Binding SelectedSpecial}"
                                   AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
@@ -145,6 +153,7 @@
                                      Watermark="{loc:Locale discovery.filter_words}" Width="250" />
                             <Button Content="{loc:Locale discovery.learn_selected}" Command="{Binding LearnAllWordsCommand}" />
                             <Button Content="{loc:Locale discovery.unlearn_selected}" Command="{Binding UnlearnAllWordsCommand}" />
+                            <Button Content="{}" Padding="6,2" Command="{Binding GoToWordJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
                         <DataGrid ItemsSource="{Binding Words}" AutoGenerateColumns="False" SelectionMode="Single">
                             <DataGrid.Columns>
@@ -170,6 +179,7 @@
                                     Classes="primary" Command="{Binding TravelToSystemCommand}" />
                             <Button Content="{loc:Locale discovery.delete_selected}" Classes="danger"
                                     Command="{Binding DeleteLocationCommand}" />
+                            <Button Content="{}" Padding="6,2" Command="{Binding GoToLocationJsonCommand}" ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
                         </StackPanel>
                         <DataGrid ItemsSource="{Binding Locations}" SelectedItem="{Binding SelectedLocation}"
                                   AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">

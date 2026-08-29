@@ -259,7 +259,7 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         else
         {
             IsStatusSuccess = true;
-            StatusText = "Settings applied (no save path configured).";
+            StatusText = UiStrings.Get("export_config.status_applied_no_path");
         }
     }
 

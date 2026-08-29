@@ -32,7 +32,7 @@
                     <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale multitool.name}" VerticalAlignment="Center" />
                         <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ToolName}"
-                                 Watermark="Procedural - No Name Set" />
+                                 Watermark="{loc:Locale common.procedural_no_name}" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale common.type}" VerticalAlignment="Center" />
                         <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ToolTypes}"

@@ -471,6 +471,16 @@ public partial class DiscoveryViewModel : PanelViewModelBase
 
     [RelayCommand]
     private void ImportProduct() { /* TODO: import known products */ }
+
+    // Go to JSON — one target per tab, mirroring the buttons the WinForms panel put in
+    // each filter row.
+    [RelayCommand] private Task GoToTechJsonAsync() => GoToJsonAsync("PlayerStateData", "KnownTech");
+    [RelayCommand] private Task GoToProductJsonAsync() => GoToJsonAsync("PlayerStateData", "KnownProducts");
+    [RelayCommand] private Task GoToSpecialJsonAsync() => GoToJsonAsync("PlayerStateData", "KnownSpecials");
+    [RelayCommand] private Task GoToWordJsonAsync() => GoToJsonAsync("PlayerStateData", "KnownWordGroups");
+    [RelayCommand] private Task GoToGlyphJsonAsync() => GoToJsonAsync("PlayerStateData", "KnownPortalRunes");
+    [RelayCommand] private Task GoToLocationJsonAsync() => GoToJsonAsync("PlayerStateData", "TeleportEndpoints");
+    [RelayCommand] private Task GoToFishJsonAsync() => GoToJsonAsync("PlayerStateData", "FishingRecord");
 }
 
 public partial class DiscoveryItemViewModel : ObservableObject

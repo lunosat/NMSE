@@ -9,7 +9,7 @@
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
-                <TextBlock Text="{loc:Locale tab.exosuit}" Classes="sectionHeader"
+                <TextBlock Text="{loc:Locale exosuit.title}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
                 <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
                                Command="{Binding GoToInventoryJsonCommand}"

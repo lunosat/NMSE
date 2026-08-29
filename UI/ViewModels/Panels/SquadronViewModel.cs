@@ -149,7 +149,7 @@ public partial class SquadronViewModel : PanelViewModelBase
             {
                 PilotList.Add(new SquadronPilotViewModel
                 {
-                    DisplayText = $"Pilot {i + 1}",
+                    DisplayText = UiStrings.Format("squadron.pilot_format", i),
                     Index = i
                 });
             }
@@ -297,8 +297,17 @@ public partial class SquadronViewModel : PanelViewModelBase
         var vars = new Dictionary<string, string>
         {
             ["name"] = SelectedPilot?.DisplayText ?? "",
-            ["rank"] = RankIndex >= 0 && RankIndex < RankItems.Count ? RankItems[RankIndex] : "",
-            ["race"] = RaceIndex >= 0 && RaceIndex < RaceItems.Count ? RaceItems[RaceIndex] : "",
+            // The template substitutes internal names, not the localised labels the
+            // combo boxes show, so a file exported under one language still matches
+            // one exported under another.
+            ["race"] = RaceIndex >= 0 && RaceIndex < SquadronLogic.PilotRaces.Length
+                ? SquadronLogic.PilotRaces[RaceIndex]
+                : UiStrings.Get("common.unknown"),
+            ["type"] = ShipTypeIndex >= 0 && ShipTypeIndex < _shipTypeItemData.Length
+                ? _shipTypeItemData[ShipTypeIndex].InternalName
+                : UiStrings.Get("common.unknown"),
+            ["rank"] = RankIndex >= 0 && RankIndex < RankItems.Count ? RankItems[RankIndex] : "C",
+            ["seed"] = NpcSeed,
         };
 
         string? path = await SaveFilePickerFunc(UiStrings.Get("squadron.export"),
@@ -353,5 +362,38 @@ public partial class SquadronViewModel : PanelViewModelBase
     [RelayCommand]
     private Task GoToSquadronJsonAsync() => GoToJsonAsync("PlayerStateData", "SquadronPilots");
 
+
+
+    /// <summary>
+    /// Tooltips carry the section name, so they have to be formatted rather than
+    /// pulled straight from the table, and refreshed when the language changes.
+    /// </summary>
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToListTooltip));
+        OnPropertyChanged(nameof(GoToSelectedTooltip));
+        RaceItems = new List<string>(
+            SquadronLogic.PilotRaces.Select(SquadronLogic.GetLocalisedPilotRaceName));
+        ShipTypeItems = new List<string>(_shipTypeItemData.Select(i => i.DisplayName));
+        RefreshList();
+    }
+
+    public string GoToListTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("squadron.pilots_title"));
+
+    public string GoToSelectedTooltip =>
+        UiStrings.Format("goto_json.tooltip_section",
+            UiStrings.Get("squadron.pilots_title") + " " + UiStrings.Get("goto_json.nav_details"));
+
+    [RelayCommand] private Task GoToListJsonAsync() => GoToJsonAsync("PlayerStateData", "SquadronPilots");
+
+    [RelayCommand]
+    private Task GoToSelectedJsonAsync()
+    {
+        int idx = SelectedPilot?.Index ?? -1;
+        return idx < 0
+            ? Task.CompletedTask
+            : GoToJsonAsync("PlayerStateData", "SquadronPilots", $"[{idx}]");
+    }
 
 }

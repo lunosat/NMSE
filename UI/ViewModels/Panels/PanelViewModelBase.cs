@@ -33,6 +33,13 @@ public abstract class PanelViewModelBase : ViewModelBase
     protected Task GoToJsonAsync(params string[] pathSegments)
         => GoToJsonFunc?.Invoke(pathSegments) ?? Task.CompletedTask;
 
+    /// <summary>
+    /// Re-reads strings the panel formatted for itself. Views refresh their own
+    /// <c>{loc:Locale}</c> bindings when the language changes, but a value a view model
+    /// built — a count, a tooltip naming its section — has to be raised again by hand.
+    /// </summary>
+    public virtual void ApplyLocalisation() { }
+
     public virtual void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager) { }
     public virtual void SaveData(JsonObject saveData) { }
 }

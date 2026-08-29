@@ -7,8 +7,11 @@
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
-            <TextBlock Text="{loc:Locale bytebeat.title}" Classes="sectionHeader"
-                       DockPanel.Dock="Top" Margin="0,0,0,4" />
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+                <TextBlock Text="{loc:Locale bytebeat.title}" Classes="sectionHeader" VerticalAlignment="Center" />
+                <Button Content="{}" Padding="6,2" Command="{Binding GoToLibraryJsonCommand}"
+                        ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+            </StackPanel>
             <TextBlock Text="{Binding InfoText}" DockPanel.Dock="Top"
                        Opacity="0.7" Margin="0,0,0,12" />
 

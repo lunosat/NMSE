@@ -114,12 +114,17 @@
                                         <MenuItem Header="{loc:Locale inventory.ctx_sort_category}"
                                                   Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).SortByCategoryCommand}" />
                                         <Separator />
+                                        <!-- These move only the slot that was clicked; the
+                                             toolbar buttons move the whole inventory. -->
                                         <MenuItem Header="{loc:Locale inventory.ctx_auto_stack_chests}"
-                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackToChestsCommand}" />
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackSlotToChestsCommand}"
+                                                  CommandParameter="{Binding}" />
                                         <MenuItem Header="{loc:Locale inventory.ctx_auto_stack_starship}"
-                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackToStarshipCommand}" />
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackSlotToStarshipCommand}"
+                                                  CommandParameter="{Binding}" />
                                         <MenuItem Header="{loc:Locale inventory.ctx_auto_stack_freighter}"
-                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackToFreighterCommand}" />
+                                                  Command="{Binding #Root.((vm:InventoryGridViewModel)DataContext).AutoStackSlotToFreighterCommand}"
+                                                  CommandParameter="{Binding}" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
                                 <Border CornerRadius="4"

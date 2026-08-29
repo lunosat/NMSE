@@ -18,6 +18,11 @@
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
+            <TextBlock DockPanel.Dock="Top"
+                       Text="{loc:Locale export_config.title}"
+                       Classes="sectionHeader"
+                       Margin="0,0,0,8" />
+
             <!-- Description -->
             <TextBlock DockPanel.Dock="Top"
                        Text="{loc:Locale export_config.header}"

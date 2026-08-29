@@ -430,6 +430,35 @@ public partial class FrigateViewModel : PanelViewModelBase
     {
         SaveFrigateChanges();
     }
+
+    // Go to JSON. The tooltips name the section they open, so they are formatted here
+    // rather than bound straight to the string table.
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToListTooltip));
+        OnPropertyChanged(nameof(GoToSelectedTooltip));
+        OnPropertyChanged(nameof(GoToExpeditionsTooltip));
+    }
+
+    public string GoToListTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("frigate.title"));
+
+    public string GoToSelectedTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("frigate.info_header"));
+
+    public string GoToExpeditionsTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_expeditions"));
+
+    [RelayCommand] private Task GoToListJsonAsync() => GoToJsonAsync("PlayerStateData", "FleetFrigates");
+
+    [RelayCommand]
+    private Task GoToSelectedJsonAsync()
+    {
+        int idx = SelectedFrigate?.Index ?? -1;
+        return idx < 0
+            ? Task.CompletedTask
+            : GoToJsonAsync("PlayerStateData", "FleetFrigates", $"[{idx}]");
+    }
 }
 
 public partial class FrigateListItemViewModel : ObservableObject

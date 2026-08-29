@@ -854,9 +854,24 @@ public partial class InventoryGridViewModel : ObservableObject
 
     // ================================= Auto-stack ==================================
 
+    // The toolbar buttons move the whole inventory; the slot context menu moves only the
+    // slot that was right-clicked. Both go through the same bulk action, which takes an
+    // optional source filter.
     [RelayCommand] private Task AutoStackToChestsAsync() => AutoStackAsync(AutoStackTarget.Chests);
     [RelayCommand] private Task AutoStackToStarshipAsync() => AutoStackAsync(AutoStackTarget.Starship);
     [RelayCommand] private Task AutoStackToFreighterAsync() => AutoStackAsync(AutoStackTarget.Freighter);
+
+    [RelayCommand]
+    private Task AutoStackSlotToChestsAsync(InventorySlotViewModel? slot)
+        => AutoStackAsync(AutoStackTarget.Chests, slot);
+
+    [RelayCommand]
+    private Task AutoStackSlotToStarshipAsync(InventorySlotViewModel? slot)
+        => AutoStackAsync(AutoStackTarget.Starship, slot);
+
+    [RelayCommand]
+    private Task AutoStackSlotToFreighterAsync(InventorySlotViewModel? slot)
+        => AutoStackAsync(AutoStackTarget.Freighter, slot);
 
     private enum AutoStackTarget { Chests, Starship, Freighter }
 
@@ -864,19 +879,45 @@ public partial class InventoryGridViewModel : ObservableObject
     /// Moves what it can out of this inventory into the chosen destination, skipping
     /// pinned slots.
     /// </summary>
-    private async Task AutoStackAsync(AutoStackTarget target)
+    private async Task AutoStackAsync(AutoStackTarget target, InventorySlotViewModel? slot = null)
     {
         if (_currentInventory is null || PlayerState is null) return;
+
+        (int x, int y)? slotFilter = null;
+        string? itemFilter = null;
+
+        if (slot is not null)
+        {
+            var key = (slot.GridCol, slot.GridRow);
+
+            // A pinned slot is one the player asked to be left alone. Silently skipping
+            // it would look like the command did nothing, so say why.
+            if (_pinnedSlots.Contains(key))
+            {
+                if (Dialogs is not null)
+                {
+                    await Dialogs.ShowMessageAsync(UiStrings.Get("dialog.info"),
+                        UiStrings.Get("inventory.auto_stack_pinned_slot_blocked"));
+                }
+                return;
+            }
+
+            slotFilter = key;
+            itemFilter = slot.ItemId;
+        }
 
         int moved = 0, touched = 0;
         bool changed = target switch
         {
             AutoStackTarget.Chests => InventoryBulkActions.AutoStackCargoToChests(
-                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots),
+                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots,
+                slotFilter, itemFilter),
             AutoStackTarget.Starship => InventoryBulkActions.AutoStackCargoToStarship(
-                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots),
+                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots,
+                slotFilter, itemFilter),
             _ => InventoryBulkActions.AutoStackCargoToFreighter(
-                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots),
+                _currentInventory, PlayerState, out moved, out touched, _pinnedSlots,
+                slotFilter, itemFilter),
         };
 
         if (changed) LoadInventory(_currentInventory);

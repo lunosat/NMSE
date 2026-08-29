@@ -41,8 +41,11 @@
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
-            <TextBlock Text="{loc:Locale milestone.title}" Classes="sectionHeader"
-                       DockPanel.Dock="Top" Margin="0,0,0,12" />
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,12">
+                <TextBlock Text="{loc:Locale milestone.title}" Classes="sectionHeader" VerticalAlignment="Center" />
+                <Button Content="{}" Padding="6,2" Command="{Binding GoToStatsJsonCommand}"
+                        ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+            </StackPanel>
 
             <TabControl>
                 <!-- Tab 1: Main Stats -->

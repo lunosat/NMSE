@@ -7,6 +7,9 @@
              x:DataType="vm:FleetViewModel">
 
     <TabControl Margin="4">
+        <TabItem Header="{loc:Locale fleet.tab_freighter}">
+            <views:FreighterView DataContext="{Binding Freighter}" />
+        </TabItem>
         <TabItem Header="{loc:Locale fleet.tab_frigates}">
             <views:FrigateView DataContext="{Binding Frigates}" />
         </TabItem>

@@ -7,8 +7,15 @@
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
-            <TextBlock Text="{loc:Locale frigate.title}" Classes="sectionHeader"
-                       DockPanel.Dock="Top" Margin="0,0,0,4" />
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,4">
+                <TextBlock Text="{loc:Locale frigate.title}" Classes="sectionHeader" VerticalAlignment="Center" />
+                <Button Content="{}" Padding="6,2" Command="{Binding GoToListJsonCommand}"
+                        ToolTip.Tip="{Binding GoToListTooltip}" />
+                <Button Content="{}" Padding="6,2" Command="{Binding GoToSelectedJsonCommand}"
+                        ToolTip.Tip="{Binding GoToSelectedTooltip}" />
+                <Button Content="{}" Padding="6,2" Command="{Binding GoToExpeditionsJsonCommand}"
+                        ToolTip.Tip="{Binding GoToExpeditionsTooltip}" />
+            </StackPanel>
             <TextBlock Text="{Binding CountLabel}" DockPanel.Dock="Top" Margin="0,0,0,12"
                        Foreground="{DynamicResource NmseText1Brush}" />
 

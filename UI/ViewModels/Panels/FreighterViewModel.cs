@@ -91,8 +91,14 @@ public partial class FreighterViewModel : PanelViewModelBase
             Hyperdrive = data.Hyperdrive;
             FleetCoordination = data.FleetCoordination;
 
-            BaseItemsText = data.FreighterBase != null ? data.BaseItemCount.ToString(CultureInfo.InvariantCulture) : "N/A";
+            // Read-only count, so it is formatted for the reader's locale rather than
+            // round-tripped.
+            BaseItemsText = data.FreighterBase != null
+                ? data.BaseItemCount.ToString(CultureInfo.CurrentCulture)
+                : UiStrings.Get("common.na");
 
+            CargoGrid.MaxSupportedText = UiStrings.Format("common.max_supported", "10x12");
+            TechGrid.MaxSupportedText = UiStrings.Format("common.max_supported", "10x6");
             CargoGrid.LoadInventory(data.CargoInventory);
             TechGrid.LoadInventory(data.TechInventory);
 

@@ -68,7 +68,6 @@ public partial class MainWindowViewModel : ViewModelBase
     public ExosuitViewModel Exosuit { get; } = new();
     public MultitoolViewModel Multitool { get; } = new();
     public StarshipViewModel Starship { get; } = new();
-    public FreighterViewModel Freighter { get; } = new();
     public FleetViewModel Fleet { get; } = new();
     public ExocraftViewModel Exocraft { get; } = new();
     public CompanionViewModel Companion { get; } = new();
@@ -90,7 +89,6 @@ public partial class MainWindowViewModel : ViewModelBase
         new("tab.exosuit", "M21,16V14L13,9V3.5A1.5,1.5 0 0,0 11.5,2A1.5,1.5 0 0,0 10,3.5V9L2,14V16L10,13.5V19.5L8,21V22L11.5,21L15,22V21L13,19.5V13.5L21,16Z"),
         new("tab.multitools", "M22.7,19L13.6,9.9C14.5,7.6 14,4.9 12.1,3C10.1,1 7.1,0.6 4.7,1.7L8.5,5.5L5.5,8.5L1.7,4.7C0.6,7.1 1,10.1 3,12.1C4.9,14 7.6,14.5 9.9,13.6L19,22.7C19.4,23.1 20,23.1 20.4,22.7L22.6,20.5C23.1,20.1 23.1,19.4 22.7,19Z"),
         new("tab.starships", "M21,16V14L13,9V3.5A1.5,1.5 0 0,0 11.5,2A1.5,1.5 0 0,0 10,3.5V9L2,14V16L10,13.5V19.5L8,21V22L11.5,21L15,22V21L13,19.5V13.5L21,16Z"),
-        new("tab.freighter", "M20,8H17.19C16.74,7.22 15.94,6.63 15,6.28V4H9V6.28C8.06,6.63 7.26,7.22 6.81,8H4A2,2 0 0,0 2,10V14A2,2 0 0,0 4,16H5V20H19V16H20A2,2 0 0,0 22,14V10A2,2 0 0,0 20,8Z"),
         new("tab.fleet", "M3,6H21V18H3V6M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"),
         new("tab.exocraft", "M16,6L19,10H21C22.11,10 23,10.89 23,12V15H21A3,3 0 0,1 18,18A3,3 0 0,1 15,15H9A3,3 0 0,1 6,18A3,3 0 0,1 3,15H1V12C1,10.89 1.89,10 3,10L6,6H16Z"),
         new("tab.companions", "M4.5,9.5C5.33,9.5 6,10.17 6,11C6,11.83 5.33,12.5 4.5,12.5C3.67,12.5 3,11.83 3,11C3,10.17 3.67,9.5 4.5,9.5M9,5C10.1,5 11,5.9 11,7C11,8.1 10.1,9 9,9C7.9,9 7,8.1 7,7C7,5.9 7.9,5 9,5Z"),
@@ -111,7 +109,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         Panels = new ObservableCollection<PanelViewModelBase>
         {
-            MainStats, Exosuit, Multitool, Starship, Freighter, Fleet,
+            MainStats, Exosuit, Multitool, Starship, Fleet,
             Exocraft, Companion, Base, Discovery, Milestone,
             Settlement, ByteBeat, Account, ExportConfig, RawJson
         };
@@ -294,6 +292,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         UiStrings.Load(tag);
         NMSE.UI.Localization.LocaleManager.Instance.NotifyLanguageChanged();
+        foreach (var panel in Panels) panel.ApplyLocalisation();
         bool loaded = _localisationService.LoadLanguage(tag);
         if (loaded)
         {
@@ -948,6 +947,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             UiStrings.Load(tag);
             NMSE.UI.Localization.LocaleManager.Instance.NotifyLanguageChanged();
+        foreach (var panel in Panels) panel.ApplyLocalisation();
             bool loaded = _localisationService.LoadLanguage(tag);
             if (loaded)
             {

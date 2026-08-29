@@ -289,4 +289,7 @@ public partial class ByteBeatViewModel : PanelViewModelBase
                     UiStrings.Format("bytebeat.delete_failed", ex.Message), Services.DialogIcon.Error);
         }
     }
+
+    [RelayCommand] private Task GoToLibraryJsonAsync() => GoToJsonAsync("CommonStateData", "ByteBeatLibrary");
+
 }
