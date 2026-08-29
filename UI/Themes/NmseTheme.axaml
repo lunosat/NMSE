@@ -302,6 +302,72 @@
         <Setter Property="Background" Value="{DynamicResource NmseAccentBrush}" />
     </Style>
 
+    <!-- ============================ Popups and flyouts ============================ -->
+
+    <!-- ComboBox and menu popups render in a separate layer, so the selectors above
+         that are scoped to a container do not reach them. Without these the drop-downs
+         keep Semi's blue selection against the amber theme. -->
+    <Style Selector="ComboBoxItem">
+        <Setter Property="Foreground" Value="{DynamicResource NmseText0Brush}" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseBg3Brush}" />
+    </Style>
+
+    <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentMutedBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <!-- One selector per type: a comma-separated list resolves to their common base,
+         Control, which exposes neither Background nor BorderBrush. -->
+    <Style Selector="FlyoutPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseBg1Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <Style Selector="ContextMenu">
+        <Setter Property="Background" Value="{DynamicResource NmseBg1Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentMutedBrush}" />
+    </Style>
+
+    <!-- ========================== Secondary action buttons ======================== -->
+
+    <!-- The panels are dense with utility buttons - Fill Stack, Repair All Slots,
+         Import, Export. Semi renders these with a blue label, which reads as a link
+         and clashes with the amber. They become quiet outlined buttons instead, so
+         the amber stays reserved for the primary action. -->
+    <Style Selector="Button">
+        <Setter Property="Foreground" Value="{DynamicResource NmseText0Brush}" />
+    </Style>
+
+    <Style Selector="Button /template/ ContentPresenter">
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <Style Selector="Button:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseBg3Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseText0Brush}" />
+    </Style>
+
+    <!-- The primary rules are declared after these so they keep winning. -->
+    <Style Selector="Button.primary /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseOnAccentBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentHoverBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseOnAccentBrush}" />
+    </Style>
+
     <!-- ================================ Progress ================================= -->
 
     <Style Selector="ProgressBar">
