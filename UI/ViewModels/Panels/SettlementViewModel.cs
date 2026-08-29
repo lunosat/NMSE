@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
+using NMSE.Core.Utilities;
 
 namespace NMSE.UI.ViewModels.Panels;
 

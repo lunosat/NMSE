@@ -79,6 +79,9 @@ public class PortalGlyphStrip : Control
     public static readonly StyledProperty<double> GlyphSizeProperty =
         AvaloniaProperty.Register<PortalGlyphStrip, double>(nameof(GlyphSize), 22d);
 
+    public static readonly StyledProperty<IBrush?> ForegroundProperty =
+        AvaloniaProperty.Register<PortalGlyphStrip, IBrush?>(nameof(Foreground));
+
     public static readonly StyledProperty<IBrush> GlyphBackgroundProperty =
         AvaloniaProperty.Register<PortalGlyphStrip, IBrush>(
             nameof(GlyphBackground), new SolidColorBrush(Color.FromRgb(60, 60, 60)));
@@ -86,7 +89,8 @@ public class PortalGlyphStrip : Control
     static PortalGlyphStrip()
     {
         AffectsMeasure<PortalGlyphStrip>(PortalCodeProperty, GlyphSizeProperty);
-        AffectsRender<PortalGlyphStrip>(PortalCodeProperty, GlyphSizeProperty, GlyphBackgroundProperty);
+        AffectsRender<PortalGlyphStrip>(PortalCodeProperty, GlyphSizeProperty,
+            GlyphBackgroundProperty, ForegroundProperty);
     }
 
     /// <summary>The portal address to draw, normally 12 hex digits.</summary>
@@ -101,6 +105,13 @@ public class PortalGlyphStrip : Control
     {
         get => GetValue(GlyphSizeProperty);
         set => SetValue(GlyphSizeProperty, value);
+    }
+
+    /// <summary>Brush for the fallback character drawn when a glyph is missing.</summary>
+    public IBrush? Foreground
+    {
+        get => GetValue(ForegroundProperty);
+        set => SetValue(ForegroundProperty, value);
     }
 
     /// <summary>Fill painted behind each glyph.</summary>
@@ -151,10 +162,4 @@ public class PortalGlyphStrip : Control
         }
     }
 
-    /// <summary>Brush used for the fallback character when a glyph is missing.</summary>
-    public IBrush? Foreground
-    {
-        get => GetValue(TextElement.ForegroundProperty);
-        set => SetValue(TextElement.ForegroundProperty, value);
-    }
 }

@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
+using System.Globalization;
 
 namespace NMSE.UI.ViewModels.Panels;
 
@@ -214,7 +215,7 @@ public partial class ByteBeatViewModel : PanelViewModelBase
         var vars = new Dictionary<string, string>
         {
             ["name"] = song.GetString("Name") ?? "song",
-            ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()
+            ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
         };
         string? path = await SaveFilePickerFunc("Export Song", cfg.ByteBeatExt.TrimStart('.'),
             ExportConfig.BuildDialogFilter(cfg.ByteBeatExt, "ByteBeat songs"));

@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using NMSE.UI.ViewModels.Controls;
 using NMSE.UI.Views.Dialogs;
+using System.Globalization;
 
 namespace NMSE.UI.Views.Controls;
 
@@ -82,7 +83,7 @@ public partial class InventoryGridControl : UserControl
             e.Pointer.Capture(null);
 
         var data = new DataTransfer();
-        data.Add(DataTransferItem.Create(SlotFormat, _dragSourceSlot.SlotIndex.ToString()));
+        data.Add(DataTransferItem.Create(SlotFormat, _dragSourceSlot.SlotIndex.ToString(CultureInfo.InvariantCulture)));
 
         await DragDrop.DoDragDropAsync(e, data, DragDropEffects.Move);
 

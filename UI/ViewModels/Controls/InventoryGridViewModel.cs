@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
+using NMSE.Core.Utilities;
 
 namespace NMSE.UI.ViewModels.Controls;
 
@@ -1084,7 +1085,7 @@ public partial class InventoryGridViewModel : ObservableObject
             return true;
         if (itemType.Equals("Upgrades", StringComparison.OrdinalIgnoreCase))
         {
-            string baseId = itemId.StartsWith("^") ? itemId[1..] : itemId;
+            string baseId = itemId.StartsWith("^", StringComparison.Ordinal) ? itemId[1..] : itemId;
             var hashIdx = baseId.IndexOf('#');
             if (hashIdx >= 0) baseId = baseId[..hashIdx];
             return !baseId.EndsWith("INV_TOKEN", StringComparison.OrdinalIgnoreCase);

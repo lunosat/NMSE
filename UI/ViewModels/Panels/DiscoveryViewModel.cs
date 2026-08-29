@@ -50,7 +50,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     private void LoadKnownItems(JsonObject playerState, string arrayName, ObservableCollection<DiscoveryItemViewModel> target)
     {
         target.Clear();
-        var ids = DiscoveryLogic.LoadKnownItemIds(playerState, arrayName);
+        var ids = CatalogueLogic.LoadKnownItemIds(playerState, arrayName);
         foreach (var id in ids)
         {
             var dbItem = _database?.GetItem(id);
@@ -66,7 +66,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     private void LoadGlyphs(JsonObject playerState)
     {
         Glyphs.Clear();
-        int runesBitfield = DiscoveryLogic.LoadGlyphBitfield(playerState);
+        int runesBitfield = CatalogueLogic.LoadGlyphBitfield(playerState);
         for (int i = 0; i < 16; i++)
         {
             int mask = 1 << i;
@@ -165,7 +165,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
     private static void SaveKnownItems(JsonObject playerState, string arrayName, ObservableCollection<DiscoveryItemViewModel> items)
     {
         var ids = items.Select(i => i.Id).ToList();
-        DiscoveryLogic.SaveKnownItemIds(playerState, arrayName, ids);
+        CatalogueLogic.SaveKnownItemIds(playerState, arrayName, ids);
     }
 
     private void SaveGlyphs(JsonObject playerState)
@@ -176,7 +176,7 @@ public partial class DiscoveryViewModel : PanelViewModelBase
             if (Glyphs[i].IsKnown)
                 runesBitfield |= (1 << i);
         }
-        DiscoveryLogic.SaveGlyphBitfield(playerState, runesBitfield);
+        CatalogueLogic.SaveGlyphBitfield(playerState, runesBitfield);
     }
 
     [RelayCommand]

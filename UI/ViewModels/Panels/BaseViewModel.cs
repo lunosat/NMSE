@@ -5,6 +5,7 @@ using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.UI.ViewModels.Controls;
+using System.Globalization;
 
 namespace NMSE.UI.ViewModels.Panels;
 
@@ -260,7 +261,7 @@ public partial class BaseViewModel : PanelViewModelBase
                 if (objs != null) objectCount = objs.Length;
             }
             catch { }
-            BaseItemCount = objectCount.ToString();
+            BaseItemCount = objectCount.ToString(CultureInfo.InvariantCulture);
         }
         catch { }
     }
@@ -304,7 +305,7 @@ public partial class BaseViewModel : PanelViewModelBase
                 if (objects != null) objectCount = objects.Length;
             }
             catch { }
-            BaseItemCount = objectCount.ToString();
+            BaseItemCount = objectCount.ToString(CultureInfo.InvariantCulture);
         }
         catch { }
     }

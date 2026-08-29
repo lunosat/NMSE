@@ -9,6 +9,9 @@ using NMSE.Data;
 using NMSE.IO;
 using NMSE.Models;
 using NMSE.UI.ViewModels.Panels;
+using NMSE.Core.Utilities;
+using System.Globalization;
+using NMSE.UI.Util;
 
 namespace NMSE.UI.ViewModels;
 
@@ -219,7 +222,7 @@ public partial class MainWindowViewModel : ViewModelBase
             if (Directory.Exists(iconsPath))
             {
                 _iconManager = new IconManager(iconsPath);
-                CoordinateHelper.SetGlyphBasePath(iconsPath);
+                GlyphImageCache.SetBasePath(iconsPath);
 
                 var db = _database;
                 var iconMgr = _iconManager;
@@ -356,7 +359,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     string? testData = MemoryDatManager.ExtractSlotData(memoryDatPath, i);
                     if (testData != null && testData.Length > MinimumSlotDataLength)
                     {
-                        _platformSlotIdentifiers.Add(i.ToString());
+                        _platformSlotIdentifiers.Add(i.ToString(CultureInfo.InvariantCulture));
                         _saveSlotFiles.Add(new List<string> { memoryDatPath });
                         bool isAuto = i % 2 == 1;
                         SaveSlots.Add($"PS4 Slot {i / 2 + 1}{(isAuto ? " (Auto)" : " (Manual)")}");
@@ -516,7 +519,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_ps4MemoryDatPath != null && _platformSlotIdentifiers != null
             && slotIndex >= 0 && slotIndex < _platformSlotIdentifiers.Count)
         {
-            int memSlot = int.Parse(_platformSlotIdentifiers[slotIndex]);
+            int memSlot = int.Parse(_platformSlotIdentifiers[slotIndex], CultureInfo.InvariantCulture);
             await LoadSaveDataInternalAsync(() => SaveFileManager.LoadPS4MemoryDatSave(_ps4MemoryDatPath, memSlot),
                 _ps4MemoryDatPath, UiStrings.Format("status.loading_ps4", memSlot));
             return;
@@ -590,7 +593,7 @@ public partial class MainWindowViewModel : ViewModelBase
             IsProgressVisible = false;
 
             IsSaveLoaded = true;
-            StatusText = UiStrings.Format("status.loaded_save", Path.GetFileName(filePath), loadTimer.ElapsedMilliseconds.ToString("N0"));
+            StatusText = UiStrings.Format("status.loaded_save", Path.GetFileName(filePath), loadTimer.ElapsedMilliseconds.ToString("N0", CultureInfo.InvariantCulture));
             HasUnsavedChanges = false;
         }
         catch (Exception ex)
@@ -809,7 +812,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             StatusText = UiStrings.Get("update.checking");
-            var currentVersion = new Version(int.Parse(BuildInfo.VerMajor), int.Parse(BuildInfo.VerMinor), int.Parse(BuildInfo.VerPatch));
+            var currentVersion = new Version(int.Parse(BuildInfo.VerMajor, CultureInfo.InvariantCulture), int.Parse(BuildInfo.VerMinor, CultureInfo.InvariantCulture), int.Parse(BuildInfo.VerPatch, CultureInfo.InvariantCulture));
             var update = await UpdateService.CheckForUpdateAsync(currentVersion);
             if (update == null)
             {
@@ -938,7 +941,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             await Task.Delay(2000);
-            var currentVersion = new Version(int.Parse(BuildInfo.VerMajor), int.Parse(BuildInfo.VerMinor), int.Parse(BuildInfo.VerPatch));
+            var currentVersion = new Version(int.Parse(BuildInfo.VerMajor, CultureInfo.InvariantCulture), int.Parse(BuildInfo.VerMinor, CultureInfo.InvariantCulture), int.Parse(BuildInfo.VerPatch, CultureInfo.InvariantCulture));
             var update = await UpdateService.CheckForUpdateAsync(currentVersion);
             if (update != null)
             {

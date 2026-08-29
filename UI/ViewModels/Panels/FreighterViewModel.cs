@@ -5,6 +5,8 @@ using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.UI.ViewModels.Controls;
+using NMSE.Core.Utilities;
+using System.Globalization;
 
 namespace NMSE.UI.ViewModels.Panels;
 
@@ -83,7 +85,7 @@ public partial class FreighterViewModel : PanelViewModelBase
             Hyperdrive = data.Hyperdrive;
             FleetCoordination = data.FleetCoordination;
 
-            BaseItemsText = data.FreighterBase != null ? data.BaseItemCount.ToString() : "N/A";
+            BaseItemsText = data.FreighterBase != null ? data.BaseItemCount.ToString(CultureInfo.InvariantCulture) : "N/A";
 
             CargoGrid.LoadInventory(data.CargoInventory);
             TechGrid.LoadInventory(data.TechInventory);

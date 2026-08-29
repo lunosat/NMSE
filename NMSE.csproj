@@ -47,6 +47,10 @@
 			<PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
 		</PackageReference>
 		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+		<!-- Avalonia.FreeDesktop pulls 0.21.2, which is affected by GHSA-xrw6-gwf8-vvr9
+		     (spoofed D-Bus signals / fd exhaustion). This is the transport behind the XDG
+		     portal file dialogs on Linux, so pin the patched build of the same line. -->
+		<PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
 	</ItemGroup>
 
 	<!-- Game data, icons and localisation are read from disk at runtime. -->

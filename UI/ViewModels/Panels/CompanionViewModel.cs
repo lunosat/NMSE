@@ -5,6 +5,7 @@ using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
 using NMSE.Core.Utilities;
+using System.Globalization;
 
 namespace NMSE.UI.ViewModels.Panels;
 
@@ -152,24 +153,24 @@ public partial class CompanionViewModel : PanelViewModelBase
             }
             catch { CreatureType = ""; }
 
-            try { Scale = comp.GetDouble("Scale").ToString(); } catch { Scale = ""; }
-            try { Trust = comp.GetDouble("Trust").ToString(); } catch { Trust = ""; }
+            try { Scale = comp.GetDouble("Scale").ToString("G17", CultureInfo.InvariantCulture); } catch { Scale = ""; }
+            try { Trust = comp.GetDouble("Trust").ToString("G17", CultureInfo.InvariantCulture); } catch { Trust = ""; }
             try { HasFur = comp.GetBool("HasFur"); } catch { HasFur = false; }
 
             try
             {
                 var traits = comp.GetArray("Traits");
-                Helpfulness = traits != null && traits.Length > 0 ? traits.GetDouble(0).ToString() : "0";
-                Aggression = traits != null && traits.Length > 1 ? traits.GetDouble(1).ToString() : "0";
-                Independence = traits != null && traits.Length > 2 ? traits.GetDouble(2).ToString() : "0";
+                Helpfulness = traits != null && traits.Length > 0 ? traits.GetDouble(0).ToString("G17", CultureInfo.InvariantCulture) : "0";
+                Aggression = traits != null && traits.Length > 1 ? traits.GetDouble(1).ToString("G17", CultureInfo.InvariantCulture) : "0";
+                Independence = traits != null && traits.Length > 2 ? traits.GetDouble(2).ToString("G17", CultureInfo.InvariantCulture) : "0";
             }
             catch { Helpfulness = "0"; Aggression = "0"; Independence = "0"; }
 
             try
             {
                 var moods = comp.GetArray("Moods");
-                Hungry = moods != null && moods.Length > 0 ? moods.GetDouble(0).ToString() : "0";
-                Lonely = moods != null && moods.Length > 1 ? moods.GetDouble(1).ToString() : "0";
+                Hungry = moods != null && moods.Length > 0 ? moods.GetDouble(0).ToString("G17", CultureInfo.InvariantCulture) : "0";
+                Lonely = moods != null && moods.Length > 1 ? moods.GetDouble(1).ToString("G17", CultureInfo.InvariantCulture) : "0";
             }
             catch { Hungry = "0"; Lonely = "0"; }
 

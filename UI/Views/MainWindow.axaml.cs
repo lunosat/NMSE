@@ -242,13 +242,13 @@ public partial class MainWindow : Window
             foreach (var part in filterDesc.Split('|'))
             {
                 var trimmed = part.Trim();
-                if (trimmed.StartsWith("*.")) patterns.Add(trimmed);
+                if (trimmed.StartsWith("*.", StringComparison.Ordinal)) patterns.Add(trimmed);
                 else if (trimmed.Contains("*."))
                 {
                     foreach (var token in trimmed.Split(';'))
                     {
                         var t = token.Trim();
-                        if (t.StartsWith("*.")) patterns.Add(t);
+                        if (t.StartsWith("*.", StringComparison.Ordinal)) patterns.Add(t);
                     }
                 }
             }

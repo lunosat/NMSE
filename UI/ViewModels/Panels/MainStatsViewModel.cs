@@ -6,6 +6,8 @@ using NMSE.Core;
 using NMSE.Data;
 using NMSE.IO;
 using NMSE.Models;
+using NMSE.Core.Utilities;
+using System.Globalization;
 
 namespace NMSE.UI.ViewModels.Panels;
 
@@ -200,7 +202,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
 
             double dist = CoordinateHelper.GetDistanceToCenter(vx, vy, vz);
             DistanceToCenter = $"{dist:F0} ly";
-            JumpsToCenter = CoordinateHelper.GetJumpsToCenter(dist, CoordinateHelper.DefaultHyperdriveRange).ToString();
+            JumpsToCenter = CoordinateHelper.GetJumpsToCenter(dist, CoordinateHelper.DefaultHyperdriveRange).ToString(CultureInfo.InvariantCulture);
 
             try
             {
@@ -251,7 +253,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
                         catch { }
                     }
                 }
-                PlanetsInSystem = count.ToString();
+                PlanetsInSystem = count.ToString(CultureInfo.InvariantCulture);
             }
             catch { PlanetsInSystem = "0"; }
 
@@ -400,7 +402,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
 
         double dist = CoordinateHelper.GetDistanceToCenter(VoxelX, VoxelY, VoxelZ);
         DistanceToCenter = $"{dist:F0} ly";
-        JumpsToCenter = CoordinateHelper.GetJumpsToCenter(dist, CoordinateHelper.DefaultHyperdriveRange).ToString();
+        JumpsToCenter = CoordinateHelper.GetJumpsToCenter(dist, CoordinateHelper.DefaultHyperdriveRange).ToString(CultureInfo.InvariantCulture);
     }
 
     public override void SaveData(JsonObject saveData)
@@ -689,7 +691,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
                 TitleRows.Add(new TitleRowViewModel
                 {
                     TitleId = title.Id,
-                    TitleName = string.Format(title.Name, PlayerName),
+                    TitleName = string.Format(CultureInfo.InvariantCulture, title.Name, PlayerName),
                     Description = title.UnlockDescription,
                     IsUnlocked = unlockedSet.Contains(title.Id)
                 });

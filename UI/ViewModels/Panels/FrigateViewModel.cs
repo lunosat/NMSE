@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
+using System.Globalization;
 
 namespace NMSE.UI.ViewModels.Panels;
 
@@ -171,8 +172,8 @@ public partial class FrigateViewModel : PanelViewModelBase
             try { TimesDamaged = frigate.GetInt("NumberOfTimesDamaged"); } catch { TimesDamaged = 0; }
 
             int levelUp = FrigateLogic.GetLevelUpIn(TotalExpeditions);
-            LevelUpIn = levelUp >= 0 ? levelUp.ToString() : "MAX";
-            LevelsRemaining = FrigateLogic.GetLevelUpsRemaining(TotalExpeditions).ToString();
+            LevelUpIn = levelUp >= 0 ? levelUp.ToString(CultureInfo.InvariantCulture) : "MAX";
+            LevelsRemaining = FrigateLogic.GetLevelUpsRemaining(TotalExpeditions).ToString(CultureInfo.InvariantCulture);
 
             int state = FrigateLogic.GetFrigateState(frigate, item.Index, _expeditions);
             StateText = state >= 0 && state < FrigateLogic.FrigateStateKeys.Length
