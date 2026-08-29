@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NMSE.UI.ViewModels.Panels"
              xmlns:loc="using:NMSE.UI.Localization"
+             xmlns:views="using:NMSE.UI.Views.Panels"
              xmlns:util="using:NMSE.UI.Util"
              x:Class="NMSE.UI.Views.Panels.MainStatsView"
              x:DataType="vm:MainStatsViewModel">
@@ -132,8 +133,9 @@
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="{loc:Locale player.section_edit_coords}" Classes="sectionHeader" />
                                     <Grid ColumnDefinitions="160,200" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,8,0,0">
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale player.galaxy}" VerticalAlignment="Center" />
-                                        <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding GalaxyIndex}" Minimum="0" Maximum="255" FormatString="F0" />
+                                        <!-- The game numbers galaxies from one; the save stores them from zero. -->
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale player.galaxy_range}" VerticalAlignment="Center" />
+                                        <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding GalaxyNumber}" Minimum="1" Maximum="257" FormatString="F0" />
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale player.voxel_x}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding VoxelX}" Minimum="-2048" Maximum="2047" FormatString="F0" Margin="0,4,0,0" />
@@ -147,7 +149,7 @@
                                         <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale player.solar_system}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding SolarSystemIndex}" Minimum="0" Maximum="4095" FormatString="F0" Margin="0,4,0,0" />
 
-                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale player.planet_index}" VerticalAlignment="Center" Margin="0,4,0,0" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale player.planet_range}" VerticalAlignment="Center" Margin="0,4,0,0" />
                                         <NumericUpDown Grid.Row="5" Grid.Column="1" Value="{Binding PlanetIndex}" Minimum="0" Maximum="15" FormatString="F0" Margin="0,4,0,0" />
                                     </Grid>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
@@ -232,6 +234,10 @@
                 </TabItem>
 
                 <!-- Save Utilities Tab -->
+                <TabItem Header="{loc:Locale multiplayer.title}">
+                    <views:MultiplayerView DataContext="{Binding Multiplayer}" />
+                </TabItem>
+
                 <TabItem Header="{loc:Locale player.tab_save_utils}">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Spacing="16" Margin="8">

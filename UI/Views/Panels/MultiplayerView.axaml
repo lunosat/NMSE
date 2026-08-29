@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NMSE.UI.ViewModels.Panels"
+             xmlns:loc="using:NMSE.UI.Localization"
+             x:Class="NMSE.UI.Views.Panels.MultiplayerView"
+             x:DataType="vm:MultiplayerViewModel">
+
+    <UserControl.Resources>
+        <!-- Several settings are a flag paired with a seed, stored as [active, seed]. -->
+        <DataTemplate x:Key="SeededFlagTemplate" x:DataType="vm:SeededFlagViewModel">
+            <Grid ColumnDefinitions="260,90,*" Margin="0,3">
+                <TextBlock Grid.Column="0" Text="{Binding Label}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource NmseText1Brush}" />
+                <CheckBox Grid.Column="1" IsChecked="{Binding IsActive}"
+                          Content="{loc:Locale multiplayer.active}" />
+                <TextBox Grid.Column="2" Text="{Binding Seed}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Classes="card" Padding="16" Margin="4">
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,12">
+                <TextBlock Text="{loc:Locale multiplayer.title}" Classes="sectionHeader" />
+                <TextBlock Text="{loc:Locale multiplayer.experimental_warning}" Classes="hint"
+                           TextWrapping="Wrap" />
+                <TextBlock Text="{loc:Locale multiplayer.enforced_warning}" Classes="hint"
+                           TextWrapping="Wrap" />
+                <!-- Nothing below is editable until this is ticked. -->
+                <CheckBox Content="{loc:Locale multiplayer.confirm_understanding}"
+                          IsChecked="{Binding IsAcknowledged}" />
+            </StackPanel>
+
+            <ScrollViewer IsEnabled="{Binding IsAcknowledged}">
+                <StackPanel Spacing="16">
+                    <Border Classes="card" Padding="12">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{loc:Locale multiplayer.section_team_configuration}"
+                                       Classes="sectionHeader" />
+                            <Grid ColumnDefinitions="260,*" Margin="0,4,0,0">
+                                <TextBlock Grid.Column="0" Text="{loc:Locale multiplayer.cached_player_community_team}"
+                                           VerticalAlignment="Center" />
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding TeamItems}"
+                                          SelectedIndex="{Binding CachedTeamIndex}"
+                                          HorizontalAlignment="Stretch" />
+                            </Grid>
+                            <CheckBox Content="{loc:Locale multiplayer.use_team_ship_seeds}"
+                                      IsChecked="{Binding UseTeamShipSeeds}" />
+                            <CheckBox Content="{loc:Locale multiplayer.use_team_ship_palettes}"
+                                      IsChecked="{Binding UseTeamShipPalettes}" />
+                            <CheckBox Content="{loc:Locale multiplayer.use_community_team_palettes}"
+                                      IsChecked="{Binding UseCommunityTeamPalettes}" />
+
+                            <TextBlock Text="{loc:Locale multiplayer.team_ship_seeds}" Classes="label"
+                                       Margin="0,8,0,0" />
+                            <ItemsControl ItemsSource="{Binding TeamShipSeeds}"
+                                          ItemTemplate="{StaticResource SeededFlagTemplate}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card" Padding="12">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{loc:Locale multiplayer.section_purchase_restrictions}"
+                                       Classes="sectionHeader" />
+                            <CheckBox Content="{loc:Locale multiplayer.never_allow_ship_purchases}"
+                                      IsChecked="{Binding NeverAllowShipPurchases}" />
+                            <CheckBox Content="{loc:Locale multiplayer.allow_only_corvette_ship_purchases}"
+                                      IsChecked="{Binding AllowOnlyCorvetteShipPurchases}" />
+                            <CheckBox Content="{loc:Locale multiplayer.never_allow_corvette_purchases}"
+                                      IsChecked="{Binding NeverAllowCorvettePurchases}" />
+                            <CheckBox Content="{loc:Locale multiplayer.allow_save_context_corvette_transfer}"
+                                      IsChecked="{Binding AllowSaveContextCorvetteTransfer}" />
+                            <CheckBox Content="{loc:Locale multiplayer.allow_save_context_ship_transfer}"
+                                      IsChecked="{Binding AllowSaveContextShipTransfer}" />
+                            <CheckBox Content="{loc:Locale multiplayer.allow_save_context_multitool_transfer}"
+                                      IsChecked="{Binding AllowSaveContextMultitoolTransfer}" />
+                            <CheckBox Content="{loc:Locale multiplayer.only_corvettes_spawn_when_player_teleports}"
+                                      IsChecked="{Binding OnlyCorvettesSpawnWhenPlayerTeleports}" />
+                            <CheckBox Content="{loc:Locale multiplayer.only_corvette_launcher_can_be_repaired}"
+                                      IsChecked="{Binding OnlyCorvetteLauncherCanBeRepaired}" />
+
+                            <ContentControl Content="{Binding BlockShipPurchases}"
+                                            ContentTemplate="{StaticResource SeededFlagTemplate}" />
+                            <ContentControl Content="{Binding BlockShipRepair}"
+                                            ContentTemplate="{StaticResource SeededFlagTemplate}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Classes="card" Padding="12">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="{loc:Locale multiplayer.section_player_setup}"
+                                       Classes="sectionHeader" />
+                            <Grid ColumnDefinitions="260,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6"
+                                  Margin="0,4,0,0">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale multiplayer.force_player_race}"
+                                           VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding RaceItems}"
+                                          SelectedIndex="{Binding ForceRaceIndex}" HorizontalAlignment="Stretch" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale multiplayer.persistent_poi}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding PersistentPoi}" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale multiplayer.intro_sequence_poi}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding IntroSequencePoi}" />
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Locale multiplayer.start_with_intro_quiz_id}"
+                                           VerticalAlignment="Center" />
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding StartWithIntroQuizId}" />
+                            </Grid>
+
+                            <ContentControl Content="{Binding WeaponSeed}"
+                                            ContentTemplate="{StaticResource SeededFlagTemplate}" />
+                            <ContentControl Content="{Binding ShipSeed}"
+                                            ContentTemplate="{StaticResource SeededFlagTemplate}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+    </Border>
+</UserControl>

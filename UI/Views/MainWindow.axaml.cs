@@ -57,11 +57,11 @@ public partial class MainWindow : Window
                 return files.Count > 0 ? files[0].TryGetLocalPath() : null;
             };
 
-            _viewModel.MainStats.PickFolderFunc = async () =>
+            _viewModel.MainStats.PickFolderFunc = async title =>
             {
                 var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
-                    Title = "Select Destination Directory",
+                    Title = title,
                     AllowMultiple = false
                 });
                 return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;

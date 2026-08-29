@@ -45,7 +45,17 @@ public partial class MainStatsViewModel : PanelViewModelBase
     [ObservableProperty] private int _currentPresetIndex = -1;
     [ObservableProperty] private int _easiestPresetIndex = -1;
     [ObservableProperty] private int _hardestPresetIndex = -1;
-    [ObservableProperty] private List<string> _presetItems = new(DifficultyPresets);
+    /// <summary>
+    /// Localisation keys for <see cref="DifficultyPresets"/>, in the same order. The save
+    /// stores the English name, so only the display side is translated.
+    /// </summary>
+    private static readonly string[] DifficultyPresetLocKeys =
+        { "player.preset_invalid", "player.preset_custom", "player.preset_normal",
+          "player.preset_creative", "player.preset_relaxed", "player.preset_survival",
+          "player.preset_permadeath" };
+
+    [ObservableProperty] private List<string> _presetItems =
+        new(DifficultyPresetLocKeys.Select(UiStrings.Get));
 
     [ObservableProperty] private string _galaxyDisplay = "";
     [ObservableProperty] private string _portalCode = "";
@@ -79,7 +89,14 @@ public partial class MainStatsViewModel : PanelViewModelBase
     [ObservableProperty] private int _destSlotIndex = 1;
     [ObservableProperty] private int _transferPlatformIndex;
     public List<string> SlotItems { get; } = Enumerable.Range(1, 15).Select(i => $"Slot {i}").ToList();
-    public List<string> PlatformItems { get; } = new() { "Steam", "GOG", "Xbox Game Pass", "PS4", "Switch" };
+    [ObservableProperty] private List<string> _platformItems = new(
+    [
+        UiStrings.Get("player.platform_steam"),
+        UiStrings.Get("player.platform_gog"),
+        UiStrings.Get("player.platform_xbox"),
+        UiStrings.Get("player.platform_ps4"),
+        UiStrings.Get("player.platform_switch"),
+    ]);
 
     // Guides
     [ObservableProperty] private ObservableCollection<GuideTopicViewModel> _guideTopics = new();
@@ -94,6 +111,9 @@ public partial class MainStatsViewModel : PanelViewModelBase
 
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
+        Multiplayer.Dialogs ??= Dialogs;
+        Multiplayer.LoadData(saveData, database, iconManager);
+
         _saveData = saveData;
         _iconManager = iconManager;
         try
@@ -276,7 +296,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
                 CoordinateHelper.SpaceBattleIntervalSeconds - (totalPlayTime - timeLastBattle),
                 CoordinateHelper.SpaceBattleIntervalSeconds));
             var ts = TimeSpan.FromSeconds(timeRemaining);
-            TimeToNextBattle = $"{(int)ts.TotalHours}h {ts.Minutes}m {ts.Seconds}s";
+            TimeToNextBattle = UiStrings.Format("player.time_format", (int)ts.TotalHours, ts.Minutes, ts.Seconds);
 
             int warpsLastBattle = 0;
             try { warpsLastBattle = playerState.GetInt("WarpsLastSpaceBattle"); } catch { }
@@ -316,6 +336,18 @@ public partial class MainStatsViewModel : PanelViewModelBase
         catch { }
     }
 
+    /// <summary>
+    /// The galaxy as the game numbers it: Euclid is 1, while the save stores 0. The
+    /// field edits this so the number matches what a player reads elsewhere.
+    /// </summary>
+    public int GalaxyNumber
+    {
+        get => GalaxyIndex + 1;
+        set => GalaxyIndex = value - 1;
+    }
+
+    partial void OnGalaxyIndexChanged(int value) => OnPropertyChanged(nameof(GalaxyNumber));
+
     [RelayCommand]
     private void ApplyCoordinates()
     {
@@ -340,13 +372,19 @@ public partial class MainStatsViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void ConvertPortalCode()
+    private async Task ConvertPortalCodeAsync()
     {
         string portalCode = PortalHexInput.Trim().ToUpperInvariant();
-        if (string.IsNullOrEmpty(portalCode) || portalCode.Length != 12) return;
 
-        if (!CoordinateHelper.PortalCodeToVoxel(portalCode, out int vx, out int vy, out int vz, out int si, out int pi))
+        if (portalCode.Length != 12
+            || !CoordinateHelper.PortalCodeToVoxel(portalCode, out int vx, out int vy, out int vz, out int si, out int pi))
+        {
+            // Silently doing nothing reads as a broken button, so say what is wrong.
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("player.invalid_portal_title"),
+                    UiStrings.Get("player.invalid_portal_format"), Services.DialogIcon.Warning);
             return;
+        }
 
         VoxelX = vx;
         VoxelY = vy;
@@ -356,7 +394,7 @@ public partial class MainStatsViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void CoordinateRoulette()
+    private async Task CoordinateRouletteAsync()
     {
         const string hexChars = "0123456789ABCDEF";
         var portalChars = new char[12];
@@ -366,6 +404,18 @@ public partial class MainStatsViewModel : PanelViewModelBase
         int galaxy = Random.Shared.Next(256);
 
         if (!CoordinateHelper.PortalCodeToVoxel(portalCode, out int vx, out int vy, out int vz, out int si, out int pi))
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("player.roulette_title"),
+                    UiStrings.Get("player.roulette_failed"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        // This moves the player somewhere at random, so it says where before it does it.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("player.roulette_title"),
+                UiStrings.Format("player.roulette_confirm", portalCode,
+                    GalaxyDatabase.GetGalaxyDisplayName(galaxy), galaxy)))
             return;
 
         GalaxyIndex = galaxy;
@@ -387,8 +437,8 @@ public partial class MainStatsViewModel : PanelViewModelBase
             _playerState.Set("TimeLastSpaceBattle", 0);
             _playerState.Set("WarpsLastSpaceBattle", 0);
             WarpsToNextBattle = 0;
-            TimeToNextBattle = "0h 0m 0s";
-            StatusText = "Space battle triggered - warp to trigger!";
+            TimeToNextBattle = UiStrings.Format("player.time_format", 0, 0, 0);
+            StatusText = UiStrings.Get("player.space_battle_triggered");
         }
         catch { }
     }
@@ -410,8 +460,29 @@ public partial class MainStatsViewModel : PanelViewModelBase
     [RelayCommand]
     private Task GoToPlayerJsonAsync() => GoToJsonAsync("PlayerStateData");
 
+    /// <summary>
+    /// The Swarm co-op settings, shown as a tab here as the panel did. It is not in the
+    /// shell's panel list, so this one forwards what it is given.
+    /// </summary>
+    public MultiplayerViewModel Multiplayer { get; } = new();
+
+    public override void ApplyLocalisation()
+    {
+        PresetItems = new List<string>(DifficultyPresetLocKeys.Select(UiStrings.Get));
+        PlatformItems = new List<string>(
+        [
+            UiStrings.Get("player.platform_steam"),
+            UiStrings.Get("player.platform_gog"),
+            UiStrings.Get("player.platform_xbox"),
+            UiStrings.Get("player.platform_ps4"),
+            UiStrings.Get("player.platform_switch"),
+        ]);
+    }
+
     public override void SaveData(JsonObject saveData)
     {
+        Multiplayer.SaveData(saveData);
+
         var playerState = saveData.GetObject("PlayerStateData");
         if (playerState == null) return;
 
@@ -571,16 +642,32 @@ public partial class MainStatsViewModel : PanelViewModelBase
         catch (Exception ex) { StatusText = UiStrings.Format("player.delete_slot_failed", ex.Message); }
     }
 
-    public Func<Task<string?>>? PickFolderFunc { get; set; }
+    public Func<string, Task<string?>>? PickFolderFunc { get; set; }
 
     [RelayCommand]
     private async Task TransferPlatform()
     {
         if (_saveFilePath == null) { StatusText = UiStrings.Get("player.no_save_loaded"); return; }
-        if (PickFolderFunc == null) return;
+        if (PickFolderFunc == null || TransferPlatformIndex < 0) return;
 
-        string? destDir = await PickFolderFunc();
+        if (DestSlotIndex < 0)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("player.transfer_label"),
+                    UiStrings.Get("player.transfer_select_dest"), Services.DialogIcon.Warning);
+            return;
+        }
+
+        string? destDir = await PickFolderFunc(UiStrings.Get("player.transfer_dest_folder"));
         if (string.IsNullOrEmpty(destDir)) return;
+
+        // This writes into another platform's save directory, so it names where before
+        // it goes ahead.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("player.transfer_cross_title"),
+                UiStrings.Format("player.transfer_cross_confirm",
+                    PlatformItems[TransferPlatformIndex], DestSlotIndex + 1, destDir)))
+            return;
 
         var destPlatform = TransferPlatformFromIndex(TransferPlatformIndex);
         try
