@@ -32,7 +32,10 @@ public partial class ExocraftViewModel : PanelViewModelBase
     [ObservableProperty] private ObservableCollection<ExocraftStationViewModel> _individualStations = new();
     [ObservableProperty] private ObservableCollection<ExocraftStationViewModel> _baseStations = new();
     [ObservableProperty] private ExocraftStationViewModel? _selectedStation;
-    [ObservableProperty] private string _stationDetails = "";
+    [ObservableProperty] private bool _hasStationSelection;
+    [ObservableProperty] private bool _isDeployed;
+    [ObservableProperty] private string _deployedStatus = "";
+
 
     private JsonArray? _baseBuildingObjects;
     private JsonArray? _persistentPlayerBases;
@@ -102,6 +105,42 @@ public partial class ExocraftViewModel : PanelViewModelBase
     [RelayCommand]
     private Task GoToVehicleJsonAsync() => GoToJsonAsync("PlayerStateData", "VehicleOwnership");
 
+    [RelayCommand]
+    private Task GoToVehicleCargoJsonAsync()
+    {
+        int idx = SelectedVehicleArrayIndex;
+        return idx < 0
+            ? Task.CompletedTask
+            : GoToJsonAsync("PlayerStateData", "VehicleOwnership", $"[{idx}]", "Inventory");
+    }
+
+    [RelayCommand]
+    private Task GoToBaseBuildingJsonAsync() => GoToJsonAsync("PlayerStateData", "BaseBuildingObjects");
+
+    [RelayCommand]
+    private Task GoToBaseStationsJsonAsync() => GoToJsonAsync("PlayerStateData", "PersistentPlayerBases");
+
+    public string GoToVehicleListTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("exocraft.title"));
+
+    public string GoToVehicleCargoTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("common.cargo"));
+
+    public string GoToBaseBuildingTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("exocraft.individual_stations"));
+
+    public string GoToBaseStationsTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_base_stations"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToVehicleListTooltip));
+        OnPropertyChanged(nameof(GoToVehicleCargoTooltip));
+        OnPropertyChanged(nameof(GoToBaseBuildingTooltip));
+        OnPropertyChanged(nameof(GoToBaseStationsTooltip));
+        OnIsDeployedChanged(IsDeployed);
+    }
+
     /// <summary>Reveals this data where it lives in the raw editor.</summary>
     [RelayCommand]
     private Task GoToStationsJsonAsync() => GoToJsonAsync("PlayerStateData", "BaseBuildingObjects");
@@ -154,8 +193,23 @@ public partial class ExocraftViewModel : PanelViewModelBase
                 IsPrimaryVehicle = (arrIdx == primaryIdx);
             }
             catch { IsPrimaryVehicle = false; }
+
+            // A vehicle with no Location is in storage, not standing in the world; only
+            // a deployed one can be recalled.
+            try
+            {
+                long location = 0;
+                try { location = vehicle.GetLong("Location"); } catch { }
+                IsDeployed = location != 0;
+            }
+            catch { IsDeployed = false; }
         }
         catch { }
+    }
+
+    partial void OnIsDeployedChanged(bool value)
+    {
+        DeployedStatus = UiStrings.Get(value ? "exocraft.status_deployed" : "exocraft.status_not_deployed");
     }
 
     private string GetSelectedVehicleInternalName()
@@ -317,7 +371,7 @@ public partial class ExocraftViewModel : PanelViewModelBase
                 {
                     var obj = objects.GetObject(o);
                     if (IsStation(obj))
-                        inBases.Add(new ExocraftStationViewModel(obj!, baseEntry, o));
+                        inBases.Add(new ExocraftStationViewModel(obj!, baseEntry, o, b));
                 }
             }
         }
@@ -331,12 +385,19 @@ public partial class ExocraftViewModel : PanelViewModelBase
         id.Contains("GARAGE", StringComparison.OrdinalIgnoreCase);
 
     partial void OnSelectedStationChanged(ExocraftStationViewModel? value)
-        => StationDetails = value?.Details ?? "";
+        => HasStationSelection = value is not null;
 
     [RelayCommand]
     private async Task DeleteStationAsync()
     {
-        if (Dialogs is null || SelectedStation is null) return;
+        if (Dialogs is null) return;
+
+        if (SelectedStation is null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Get("exocraft.no_station_selected"), Services.DialogIcon.Warning);
+            return;
+        }
 
         bool inBase = SelectedStation.OwningBase is not null;
         string message = inBase
@@ -371,9 +432,29 @@ public partial class ExocraftStationViewModel : ObservableObject
     public int Index { get; }
 
     public string DisplayName { get; }
-    public string Details { get; }
+    public string BaseName { get; }
+    public string Timestamp { get; }
+    public string GalacticAddress { get; }
+    public string RegionSeed { get; }
 
-    public ExocraftStationViewModel(JsonObject station, JsonObject? owningBase, int index)
+    /// <summary>
+    /// A station inside a base takes its coordinates from the base entry, which has no
+    /// region seed of its own, so the row is hidden rather than shown as unknown.
+    /// </summary>
+    public bool ShowRegionSeed { get; }
+
+    public string Position { get; }
+    public string Galaxy { get; }
+    public string PortalCode { get; }
+    public string PortalCodeDec { get; }
+    public string SignalBooster { get; }
+    public string VoxelX { get; }
+    public string VoxelY { get; }
+    public string VoxelZ { get; }
+    public string SolarSystem { get; }
+    public string Planet { get; }
+
+    public ExocraftStationViewModel(JsonObject station, JsonObject? owningBase, int index, int baseIndex = 0)
     {
         Station = station;
         OwningBase = owningBase;
@@ -383,39 +464,119 @@ public partial class ExocraftStationViewModel : ObservableObject
         string display = StarshipDatabase.GetDisplayName(objectId);
         DisplayName = string.IsNullOrEmpty(display) ? objectId : display;
 
-        var lines = new System.Text.StringBuilder();
-        string baseName = owningBase?.GetString("Name") is { Length: > 0 } n
-            ? n
-            : UiStrings.Get("exocraft.station_not_in_base");
-        lines.AppendLine(CultureInfo.CurrentCulture,
-            $"{UiStrings.Get("exocraft.station_base_name")} {baseName}");
+        BaseName = owningBase is null
+            ? UiStrings.Get("exocraft.station_not_in_base")
+            : owningBase.GetString("Name") is { Length: > 0 } named
+                ? named
+                : UiStrings.Format("base.fallback_base_name", baseIndex + 1);
 
         long timestamp = 0;
-        try { timestamp = station.GetInt("Timestamp"); } catch { }
-        if (timestamp > 0)
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_timestamp")} {timestamp.ToString(CultureInfo.InvariantCulture)}");
+        try { timestamp = station.GetLong("Timestamp"); }
+        catch { try { timestamp = station.GetInt("Timestamp"); } catch { } }
+        Timestamp = FormatTimestamp(timestamp);
 
-        var address = station.Get("UniverseAddress") ?? owningBase?.Get("GalacticAddress");
+        // A station in a base is positioned relative to that base, so the address that
+        // locates it belongs to the base entry, not to the object.
+        object? address = null;
+        try { address = owningBase is not null ? owningBase.Get("GalacticAddress") : station.Get("GalacticAddress"); }
+        catch { }
+        address ??= station.Get("UniverseAddress");
+
+        GalacticAddress = CoordinateHelper.NormalizeGalacticAddress(address);
+        PortalCode = ExtractPortalCode(GalacticAddress);
+
+        ShowRegionSeed = owningBase is null;
+        string? seed = null;
+        if (ShowRegionSeed)
+        {
+            try { seed = station.Get("RegionSeed")?.ToString(); } catch { }
+        }
+        RegionSeed = seed ?? UiStrings.Get("common.unknown");
+
+        JsonArray? positionArray = null;
+        try { positionArray = station.GetArray("Position"); } catch { }
+        Position = FormatPosition(positionArray);
+
+        // The galaxy comes from the address the station carries, not from wherever the
+        // player happens to be standing. A bare 12-digit portal code has none embedded.
+        int? realityIndex = GetRealityIndexFromAddress(GalacticAddress);
+        Galaxy = realityIndex is int ri
+            ? $"{GalaxyDatabase.GetGalaxyDisplayName(ri)} ({GalaxyDatabase.GetGalaxyType(ri)})"
+            : UiStrings.Get("exocraft.station_no_galaxy_info");
+
         var voxel = ExocraftLogic.ParseGalacticAddressToVoxel(address);
+        int vx = 0, vy = 0, vz = 0, si = 0, pi = 0;
         if (voxel is { } v)
         {
-            string hex = CoordinateHelper.VoxelToPortalCode(v.VoxelX, v.VoxelY, v.VoxelZ, v.SolarSystemIndex, v.PlanetIndex);
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_portal_code")} {hex}");
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_portal_code_dec")} {CoordinateHelper.PortalHexToDec(hex)}");
-            string booster = CoordinateHelper.VoxelToSignalBooster(v.VoxelX, v.VoxelY, v.VoxelZ, v.SolarSystemIndex);
-            lines.AppendLine(CultureInfo.CurrentCulture,
-                $"{UiStrings.Get("exocraft.station_signal_booster")} {booster}");
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_voxel_x")} {v.VoxelX.ToString(CultureInfo.InvariantCulture)}");
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_voxel_y")} {v.VoxelY.ToString(CultureInfo.InvariantCulture)}");
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_voxel_z")} {v.VoxelZ.ToString(CultureInfo.InvariantCulture)}");
-            lines.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get("exocraft.station_solar_system")} {v.SolarSystemIndex.ToString(CultureInfo.InvariantCulture)}");
-        }
-        else
-        {
-            lines.AppendLine(UiStrings.Get("exocraft.station_no_galaxy_info"));
+            vx = v.VoxelX; vy = v.VoxelY; vz = v.VoxelZ;
+            si = v.SolarSystemIndex; pi = v.PlanetIndex;
         }
 
-        Details = lines.ToString();
+        PortalCodeDec = CoordinateHelper.PortalHexToDec(PortalCode);
+        SignalBooster = CoordinateHelper.VoxelToSignalBooster(vx, vy, vz, si);
+        VoxelX = vx.ToString(CultureInfo.CurrentCulture);
+        VoxelY = vy.ToString(CultureInfo.CurrentCulture);
+        VoxelZ = vz.ToString(CultureInfo.CurrentCulture);
+        SolarSystem = si.ToString(CultureInfo.CurrentCulture);
+        Planet = pi.ToString(CultureInfo.CurrentCulture);
+    }
+
+    /// <summary>
+    /// Pulls the 12-hex-digit portal code out of a normalised address. A 14-digit
+    /// UniverseAddress carries a reality index in the middle, which is dropped here.
+    /// </summary>
+    private static string ExtractPortalCode(string galacticAddrHex)
+    {
+        if (string.IsNullOrEmpty(galacticAddrHex)
+            || !galacticAddrHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            return "";
+
+        string raw = galacticAddrHex[2..];
+        return raw.Length switch
+        {
+            12 => raw,
+            14 => string.Concat(raw.AsSpan(0, 4), raw.AsSpan(6, 8)),
+            _ => "",
+        };
+    }
+
+    /// <summary>
+    /// The galaxy index, which only the 14-digit form carries, at digits 4-5.
+    /// </summary>
+    private static int? GetRealityIndexFromAddress(string galacticAddrHex)
+    {
+        if (string.IsNullOrEmpty(galacticAddrHex)) return null;
+
+        string raw = galacticAddrHex.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
+            ? galacticAddrHex[2..]
+            : galacticAddrHex;
+
+        return raw.Length == 14
+            && int.TryParse(raw.AsSpan(4, 2), NumberStyles.HexNumber,
+                CultureInfo.InvariantCulture, out int reality)
+            ? reality
+            : null;
+    }
+
+    private static string FormatTimestamp(long timestamp)
+    {
+        if (timestamp <= 0) return UiStrings.Get("common.unknown");
+        try { return DateTimeOffset.FromUnixTimeSeconds(timestamp).LocalDateTime.ToString("g", CultureInfo.CurrentCulture); }
+        catch { return timestamp.ToString(CultureInfo.CurrentCulture); }
+    }
+
+    private static string FormatPosition(JsonArray? positionArray)
+    {
+        if (positionArray is null || positionArray.Length < 3)
+            return UiStrings.Get("common.unknown");
+
+        try
+        {
+            return $"X: {positionArray.GetDouble(0).ToString("F2", CultureInfo.CurrentCulture)}, "
+                 + $"Y: {positionArray.GetDouble(1).ToString("F2", CultureInfo.CurrentCulture)}, "
+                 + $"Z: {positionArray.GetDouble(2).ToString("F2", CultureInfo.CurrentCulture)}";
+        }
+        catch { return UiStrings.Get("common.unknown"); }
     }
 
     public override string ToString() => DisplayName;

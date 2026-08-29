@@ -12,101 +12,167 @@
                 <TextBlock Text="{loc:Locale exocraft.title}" Classes="sectionHeader"
                        VerticalAlignment="Center" />
                 <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
-                               Command="{Binding GoToVehicleJsonCommand}"
-                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+                        Command="{Binding GoToVehicleJsonCommand}"
+                        ToolTip.Tip="{Binding GoToVehicleListTooltip}" />
+                <Button Content="{}" Padding="6,2" Margin="4,0,0,0"
+                        Command="{Binding GoToVehicleCargoJsonCommand}"
+                        ToolTip.Tip="{Binding GoToVehicleCargoTooltip}" />
             </StackPanel>
 
-            <Grid ColumnDefinitions="280,16,*">
-                <!-- Left: Selection and options -->
-                <StackPanel Grid.Column="0" Spacing="8">
-                    <TextBlock Text="{loc:Locale exocraft.vehicle}" FontWeight="SemiBold" />
-                    <ComboBox ItemsSource="{Binding VehicleList}"
-                              SelectedIndex="{Binding SelectedVehicleIndex}"
-                              HorizontalAlignment="Stretch" />
-
-                    <Grid ColumnDefinitions="80,*" RowDefinitions="Auto" Margin="0,8,0,0">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale exocraft.name}" VerticalAlignment="Center" />
-                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding VehicleName}" />
-                    </Grid>
-
-                    <CheckBox Content="{loc:Locale exocraft.primary_vehicle}" IsChecked="{Binding IsPrimaryVehicle}"
-                              Margin="0,4,0,0" />
-
-                    <Separator Margin="0,8" />
-
-                    <TextBlock Text="{loc:Locale exocraft.global_options}" FontWeight="SemiBold" Margin="0,4,0,4" />
-                    <CheckBox Content="{loc:Locale exocraft.third_person}" IsChecked="{Binding ThirdPersonCamera}" />
-                    <CheckBox Content="{loc:Locale exocraft.minotaur_ai}" IsChecked="{Binding MinotaurAI}" />
-
-                    <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <Button Content="{loc:Locale exocraft.export}" Command="{Binding ExportCommand}" />
-                        <Button Content="{loc:Locale exocraft.import}" Command="{Binding ImportCommand}" />
+            <TabControl>
+                <TabItem Header="{loc:Locale exocraft.tab_exocrafts}">
+                <Grid ColumnDefinitions="280,16,*">
+                    <!-- Left: Selection and options -->
+                    <StackPanel Grid.Column="0" Spacing="8">
+                        <TextBlock Text="{loc:Locale exocraft.vehicle}" FontWeight="SemiBold" />
+                        <ComboBox ItemsSource="{Binding VehicleList}"
+                                  SelectedIndex="{Binding SelectedVehicleIndex}"
+                                  HorizontalAlignment="Stretch" />
+    
+                        <Grid ColumnDefinitions="80,*" RowDefinitions="Auto" Margin="0,8,0,0">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale exocraft.name}" VerticalAlignment="Center" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding VehicleName}" />
+                        </Grid>
+    
+                        <CheckBox Content="{loc:Locale exocraft.primary_vehicle}" IsChecked="{Binding IsPrimaryVehicle}"
+                                  Margin="0,4,0,0" />
+    
+                        <!-- A vehicle with no Location is sitting in storage rather than
+                             standing somewhere in the world. -->
+                        <TextBlock Text="{Binding DeployedStatus}" Margin="0,4,0,0"
+                                   Classes.deployed="{Binding IsDeployed}"
+                                   Foreground="{DynamicResource NmseText1Brush}">
+                            <TextBlock.Styles>
+                                <Style Selector="TextBlock.deployed">
+                                    <Setter Property="Foreground" Value="{DynamicResource NmseSuccessBrush}" />
+                                </Style>
+                            </TextBlock.Styles>
+                        </TextBlock>
+    
+                        <Separator Margin="0,8" />
+    
+                        <TextBlock Text="{loc:Locale exocraft.global_options}" FontWeight="SemiBold" Margin="0,4,0,4" />
+                        <CheckBox Content="{loc:Locale exocraft.third_person}" IsChecked="{Binding ThirdPersonCamera}" />
+                        <CheckBox Content="{loc:Locale exocraft.minotaur_ai}" IsChecked="{Binding MinotaurAI}" />
+    
+                        <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <Button Content="{loc:Locale exocraft.export}" Command="{Binding ExportCommand}" />
+                            <Button Content="{loc:Locale exocraft.import}" Command="{Binding ImportCommand}" />
+                        </StackPanel>
+    
+                        <!-- Clearing the deployed location is how the game marks a vehicle
+                             as not standing anywhere in the world. -->
+                        <Button Content="{loc:Locale exocraft.undeploy_title}" Margin="0,6,0,0"
+                                HorizontalAlignment="Stretch" Command="{Binding UndeployCommand}" />
+                        <TextBlock Text="{loc:Locale exocraft.supercharge_note}" Classes="hint"
+                                   TextWrapping="Wrap" Margin="0,8,0,0" />
                     </StackPanel>
+    
+                    <!-- Right: Inventories -->
+                    <DockPanel Grid.Column="2">
+                        <TabControl>
+                            <TabItem Header="{loc:Locale common.cargo}">
+                                <controls:InventoryGridControl DataContext="{Binding CargoGrid}" />
+                            </TabItem>
+                            <TabItem Header="{loc:Locale common.technology}">
+                                <controls:InventoryGridControl DataContext="{Binding TechGrid}" />
+                            </TabItem>
+    
+                        </TabControl>
+                    </DockPanel>
+                </Grid>
+                    </TabItem>
 
-                    <!-- Clearing the deployed location is how the game marks a vehicle
-                         as not standing anywhere in the world. -->
-                    <Button Content="{loc:Locale exocraft.undeploy_title}" Margin="0,6,0,0"
-                            HorizontalAlignment="Stretch" Command="{Binding UndeployCommand}" />
-                    <TextBlock Text="{loc:Locale exocraft.supercharge_note}" Classes="hint"
-                               TextWrapping="Wrap" Margin="0,8,0,0" />
-                </StackPanel>
+                    <!-- Summoning stations, which appear either loose in the world or
+                         as an object inside a base. -->
+                    <TabItem Header="{loc:Locale exocraft.tab_stations}">
+                        <Grid ColumnDefinitions="320,12,*" Margin="8">
+                            <DockPanel Grid.Column="0">
+                                <Button DockPanel.Dock="Bottom" Classes="danger" Margin="0,8,0,0"
+                                        HorizontalAlignment="Stretch"
+                                        Content="{loc:Locale exocraft.delete_station}"
+                                        Command="{Binding DeleteStationCommand}" />
+                                <TextBlock DockPanel.Dock="Top" Classes="label"
+                                           Text="{loc:Locale exocraft.individual_stations}" />
+                                <ListBox DockPanel.Dock="Top" MaxHeight="220"
+                                         ItemsSource="{Binding IndividualStations}"
+                                         SelectedItem="{Binding SelectedStation}"
+                                         Margin="0,4,0,10">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ExocraftStationViewModel">
+                                            <TextBlock Text="{Binding DisplayName}" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock DockPanel.Dock="Top" Classes="label"
+                                           Text="{loc:Locale exocraft.part_of_bases}" />
+                                <ListBox ItemsSource="{Binding BaseStations}"
+                                         SelectedItem="{Binding SelectedStation}" Margin="0,4,0,0">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ExocraftStationViewModel">
+                                            <TextBlock Text="{Binding DisplayName}" />
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </DockPanel>
 
-                <!-- Right: Inventories -->
-                <DockPanel Grid.Column="2">
-                    <TabControl>
-                        <TabItem Header="{loc:Locale exocraft.tab_cargo}">
-                            <controls:InventoryGridControl DataContext="{Binding CargoGrid}" />
-                        </TabItem>
-                        <TabItem Header="{loc:Locale exocraft.tab_tech}">
-                            <controls:InventoryGridControl DataContext="{Binding TechGrid}" />
-                        </TabItem>
-
-                        <!-- Summoning stations, which appear either loose in the world or
-                             as an object inside a base. -->
-                        <TabItem Header="{loc:Locale exocraft.tab_stations}">
-                            <Grid ColumnDefinitions="320,12,*" Margin="8">
-                                <DockPanel Grid.Column="0">
-                                    <Button DockPanel.Dock="Bottom" Classes="danger" Margin="0,8,0,0"
-                                            HorizontalAlignment="Stretch"
-                                            Content="{loc:Locale exocraft.delete_station}"
-                                            Command="{Binding DeleteStationCommand}" />
-                                    <TextBlock DockPanel.Dock="Top" Classes="label"
-                                               Text="{loc:Locale exocraft.individual_stations}" />
-                                    <ListBox DockPanel.Dock="Top" MaxHeight="220"
-                                             ItemsSource="{Binding IndividualStations}"
-                                             SelectedItem="{Binding SelectedStation}"
-                                             Margin="0,4,0,10">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:ExocraftStationViewModel">
-                                                <TextBlock Text="{Binding DisplayName}" />
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                    <TextBlock DockPanel.Dock="Top" Classes="label"
-                                               Text="{loc:Locale exocraft.part_of_bases}" />
-                                    <ListBox ItemsSource="{Binding BaseStations}"
-                                             SelectedItem="{Binding SelectedStation}" Margin="0,4,0,0">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:ExocraftStationViewModel">
-                                                <TextBlock Text="{Binding DisplayName}" />
-                                            </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
-                                </DockPanel>
-
-                                <DockPanel Grid.Column="2">
-                                    <TextBlock DockPanel.Dock="Top"
+                            <ScrollViewer Grid.Column="2" IsVisible="{Binding HasStationSelection}">
+                                <Grid ColumnDefinitions="170,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                                      Margin="0,0,8,0">
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{loc:Locale exocraft.station_name}" />
+                                    <SelectableTextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SelectedStation.DisplayName}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Locale exocraft.station_timestamp}" />
+                                    <SelectableTextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SelectedStation.Timestamp}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Locale exocraft.station_base_name}" />
+                                    <SelectableTextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SelectedStation.BaseName}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Locale exocraft.station_galactic_address}" />
+                                    <SelectableTextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SelectedStation.GalacticAddress}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale exocraft.station_region_seed}" IsVisible="{Binding SelectedStation.ShowRegionSeed}" />
+                                    <SelectableTextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SelectedStation.RegionSeed}"
+                                                         TextWrapping="Wrap" IsVisible="{Binding SelectedStation.ShowRegionSeed}" />
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="{loc:Locale exocraft.station_position}" />
+                                    <SelectableTextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SelectedStation.Position}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Margin="0,10,0,4"
                                                Text="{loc:Locale exocraft.station_coordinates}"
                                                Classes="sectionHeader" />
-                                    <TextBlock Text="{Binding StationDetails}" Classes="mono"
-                                               TextWrapping="Wrap" VerticalAlignment="Top" />
-                                </DockPanel>
-                            </Grid>
-                        </TabItem>
-                    </TabControl>
-                </DockPanel>
-            </Grid>
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="{loc:Locale exocraft.station_galaxy}" />
+                                    <SelectableTextBlock Grid.Row="7" Grid.Column="1" Text="{Binding SelectedStation.Galaxy}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="{loc:Locale exocraft.station_portal_code}" />
+                                    <SelectableTextBlock Grid.Row="8" Grid.Column="1" Text="{Binding SelectedStation.PortalCode}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="9" Grid.Column="0" Text="{loc:Locale exocraft.station_portal_code_dec}" />
+                                    <SelectableTextBlock Grid.Row="9" Grid.Column="1" Text="{Binding SelectedStation.PortalCodeDec}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="10" Grid.Column="0" Text="{loc:Locale exocraft.station_signal_booster}" />
+                                    <SelectableTextBlock Grid.Row="10" Grid.Column="1" Text="{Binding SelectedStation.SignalBooster}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="11" Grid.Column="0" Text="{loc:Locale exocraft.station_voxel_x}" />
+                                    <SelectableTextBlock Grid.Row="11" Grid.Column="1" Text="{Binding SelectedStation.VoxelX}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="12" Grid.Column="0" Text="{loc:Locale exocraft.station_voxel_y}" />
+                                    <SelectableTextBlock Grid.Row="12" Grid.Column="1" Text="{Binding SelectedStation.VoxelY}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="13" Grid.Column="0" Text="{loc:Locale exocraft.station_voxel_z}" />
+                                    <SelectableTextBlock Grid.Row="13" Grid.Column="1" Text="{Binding SelectedStation.VoxelZ}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="14" Grid.Column="0" Text="{loc:Locale exocraft.station_solar_system}" />
+                                    <SelectableTextBlock Grid.Row="14" Grid.Column="1" Text="{Binding SelectedStation.SolarSystem}"
+                                                         TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="15" Grid.Column="0" Text="{loc:Locale exocraft.station_planet}" />
+                                    <SelectableTextBlock Grid.Row="15" Grid.Column="1" Text="{Binding SelectedStation.Planet}"
+                                                         TextWrapping="Wrap" />
+                                </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+            </TabControl>
         </DockPanel>
     </Border>
 </UserControl>
