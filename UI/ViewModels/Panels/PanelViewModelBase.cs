@@ -22,6 +22,17 @@ public abstract class PanelViewModelBase : ViewModelBase
     /// </summary>
     public virtual IEnumerable<Controls.InventoryGridViewModel> Grids => [];
 
+    /// <summary>
+    /// Jumps to a path in the raw JSON editor. Assigned by the shell, which owns both
+    /// the navigation and the editor. Path segments are object keys and array indices,
+    /// e.g. "PlayerStateData", "ShipOwnership", "3".
+    /// </summary>
+    public Func<string[], Task>? GoToJsonFunc { get; set; }
+
+    /// <summary>Convenience wrapper so panels can call it without a null check each time.</summary>
+    protected Task GoToJsonAsync(params string[] pathSegments)
+        => GoToJsonFunc?.Invoke(pathSegments) ?? Task.CompletedTask;
+
     public virtual void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager) { }
     public virtual void SaveData(JsonObject saveData) { }
 }

@@ -755,6 +755,18 @@ public partial class CompanionViewModel : PanelViewModelBase
         catch { }
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToPetsJsonAsync() => GoToJsonAsync("PlayerStateData", "Pets");
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToEggsJsonAsync() => GoToJsonAsync("PlayerStateData", "Eggs");
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToBattleTeamJsonAsync() => GoToJsonAsync("PlayerStateData", "PetBattleTeam");
+
     public override void SaveData(JsonObject saveData)
     {
         SaveCompanionChanges();

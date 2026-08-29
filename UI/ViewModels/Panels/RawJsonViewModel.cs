@@ -452,15 +452,38 @@ public partial class RawJsonViewModel : PanelViewModelBase
         }
 
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var node = TreeNodes[0];
+        if (segments.Length == 0) return false;
 
-        foreach (string segment in segments)
+        // A save wraps the player state in a context object, so the first segment is
+        // usually one level below the root. Try the root, then each of its children.
+        var node = FindStart(TreeNodes[0], segments[0]);
+        if (node is null) return false;
+
+        foreach (string segment in segments.Skip(1))
         {
             node.Populate(1, 0);
             var next = node.Children.FirstOrDefault(c =>
                 string.Equals(c.Key, segment, StringComparison.Ordinal));
             if (next is null) return false;
             node = next;
+        }
+
+        static JsonTreeNodeViewModel? FindStart(JsonTreeNodeViewModel root, string key)
+        {
+            root.Populate(1, 0);
+
+            var direct = root.Children.FirstOrDefault(c =>
+                string.Equals(c.Key, key, StringComparison.Ordinal));
+            if (direct is not null) return direct;
+
+            foreach (var child in root.Children.Where(c => c.Kind == JsonNodeKind.Object))
+            {
+                child.Populate(1, 0);
+                var nested = child.Children.FirstOrDefault(c =>
+                    string.Equals(c.Key, key, StringComparison.Ordinal));
+                if (nested is not null) return nested;
+            }
+            return null;
         }
 
         node.ExpandAncestors();

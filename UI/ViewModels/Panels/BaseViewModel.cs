@@ -685,6 +685,14 @@ public partial class BaseViewModel : PanelViewModelBase
         }
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToBasesJsonAsync() => GoToJsonAsync("PlayerStateData", "PersistentPlayerBases");
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToWorkersJsonAsync() => GoToJsonAsync("PlayerStateData", "NPCWorkers");
+
     public override void SaveData(JsonObject saveData)
     {
         if (SelectedBase?.Data != null && !string.IsNullOrEmpty(BaseName))

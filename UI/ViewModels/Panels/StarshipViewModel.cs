@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
@@ -126,6 +127,10 @@ public partial class StarshipViewModel : PanelViewModelBase
         }
         catch { }
     }
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToShipJsonAsync() => GoToJsonAsync("PlayerStateData", "ShipOwnership", (_shipDataIndices.Count > SelectedShipIndex && SelectedShipIndex >= 0 ? _shipDataIndices[SelectedShipIndex] : 0).ToString(CultureInfo.InvariantCulture));
 
     public override void SaveData(JsonObject saveData)
     {

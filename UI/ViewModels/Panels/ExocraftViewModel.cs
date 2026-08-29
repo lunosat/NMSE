@@ -98,6 +98,14 @@ public partial class ExocraftViewModel : PanelViewModelBase
         catch { }
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToVehicleJsonAsync() => GoToJsonAsync("PlayerStateData", "VehicleOwnership");
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToStationsJsonAsync() => GoToJsonAsync("PlayerStateData", "BaseBuildingObjects");
+
     public override void SaveData(JsonObject saveData)
     {
         try

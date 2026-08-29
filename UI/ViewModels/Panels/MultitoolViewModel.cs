@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
@@ -98,6 +99,10 @@ public partial class MultitoolViewModel : PanelViewModelBase
         }
         catch { }
     }
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToToolJsonAsync() => GoToJsonAsync("PlayerStateData", "Multitools", (_toolDataIndices.Count > SelectedToolIndex && SelectedToolIndex >= 0 ? _toolDataIndices[SelectedToolIndex] : 0).ToString(CultureInfo.InvariantCulture));
 
     public override void SaveData(JsonObject saveData)
     {

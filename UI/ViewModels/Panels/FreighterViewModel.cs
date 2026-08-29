@@ -124,6 +124,10 @@ public partial class FreighterViewModel : PanelViewModelBase
         catch { }
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToFreighterJsonAsync() => GoToJsonAsync("PlayerStateData");
+
     public override void SaveData(JsonObject saveData)
     {
         try

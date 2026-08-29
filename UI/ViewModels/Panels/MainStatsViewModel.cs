@@ -406,6 +406,10 @@ public partial class MainStatsViewModel : PanelViewModelBase
         JumpsToCenter = CoordinateHelper.GetJumpsToCenter(dist, CoordinateHelper.DefaultHyperdriveRange).ToString(CultureInfo.InvariantCulture);
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToPlayerJsonAsync() => GoToJsonAsync("PlayerStateData");
+
     public override void SaveData(JsonObject saveData)
     {
         var playerState = saveData.GetObject("PlayerStateData");

@@ -8,7 +8,12 @@
     <Border Classes="card" Padding="16" Margin="4">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="16">
+                <StackPanel Orientation="Horizontal"  Margin="0,0,0,12">
                 <TextBlock Text="{loc:Locale settlement.title}" Classes="sectionHeader" />
+                <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
+                               Command="{Binding GoToSettlementsJsonCommand}"
+                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+            </StackPanel>
 
                 <!-- Settlement Selection -->
                 <Border Classes="card" Padding="12">

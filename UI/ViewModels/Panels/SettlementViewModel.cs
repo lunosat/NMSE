@@ -357,6 +357,10 @@ public partial class SettlementViewModel : PanelViewModelBase
             SelectedSettlementIndex = 0;
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToSettlementsJsonAsync() => GoToJsonAsync("PlayerStateData", "SettlementStatesV2");
+
     public override void SaveData(JsonObject saveData)
     {
         try

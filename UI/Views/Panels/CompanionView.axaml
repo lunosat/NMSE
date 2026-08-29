@@ -7,8 +7,13 @@
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
-            <TextBlock Text="{loc:Locale companion.title}" Classes="sectionHeader"
-                       DockPanel.Dock="Top" Margin="0,0,0,4" />
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Top" Margin="0,0,0,12">
+                <TextBlock Text="{loc:Locale companion.title}" Classes="sectionHeader"
+                       Margin="0,0,0,4" />
+                <Button Content="{}" Padding="6,2" Margin="8,0,0,0"
+                               Command="{Binding GoToPetsJsonCommand}"
+                               ToolTip.Tip="{loc:Locale goto_json.tooltip}" />
+            </StackPanel>
             <TextBlock Text="{Binding CountLabel}" DockPanel.Dock="Top" Margin="0,0,0,12"
                        Foreground="{DynamicResource NmseText1Brush}" />
 

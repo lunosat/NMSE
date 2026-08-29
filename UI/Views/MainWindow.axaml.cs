@@ -70,10 +70,12 @@ public partial class MainWindow : Window
             // Every panel gets the pickers and the dialog service. Wiring only the few
             // that needed them at the time left the rest unable to prompt at all.
             var dialogs = new Dialogs.DialogService(() => this);
+            _viewModel.Dialogs = dialogs;
             foreach (var panel in _viewModel.Panels)
             {
                 WirePanelFilePickers(panel);
                 panel.Dialogs = dialogs;
+                panel.GoToJsonFunc = _viewModel.GoToJsonCommand.ExecuteAsync;
             }
 
             _viewModel.Base.ShowObjectPickerFunc = async (items) =>

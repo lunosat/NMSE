@@ -418,6 +418,14 @@ public partial class FrigateViewModel : PanelViewModelBase
         ModelSeed = "0x" + BitConverter.ToString(bytes).Replace("-", "");
     }
 
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToFrigatesJsonAsync() => GoToJsonAsync("PlayerStateData", "FleetFrigates");
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToExpeditionsJsonAsync() => GoToJsonAsync("PlayerStateData", "FleetExpeditions");
+
     public override void SaveData(JsonObject saveData)
     {
         SaveFrigateChanges();

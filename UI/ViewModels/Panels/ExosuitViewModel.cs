@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
 using NMSE.Data;
 using NMSE.Models;
@@ -54,6 +55,10 @@ public partial class ExosuitViewModel : PanelViewModelBase
         }
         catch { }
     }
+
+    /// <summary>Reveals this data where it lives in the raw editor.</summary>
+    [RelayCommand]
+    private Task GoToInventoryJsonAsync() => GoToJsonAsync("PlayerStateData", "Inventory");
 
     public override void SaveData(JsonObject saveData)
     {

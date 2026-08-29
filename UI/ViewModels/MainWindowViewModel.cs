@@ -652,6 +652,28 @@ public partial class MainWindowViewModel : ViewModelBase
             Discovery.Recipe.SetDatabases(_recipeDatabase, _database);
     }
 
+    /// <summary>
+    /// Switches to the raw editor and reveals a path. Panels raise this so a value can be
+    /// inspected where it actually lives, which is the point of the editor.
+    /// </summary>
+    [RelayCommand]
+    private async Task GoToJsonAsync(string[] pathSegments)
+    {
+        if (_currentSaveData is null || Dialogs is null) return;
+
+        if (!await Dialogs.ConfirmAsync(UiStrings.Get("common.goto_json_title"),
+                UiStrings.Get("common.goto_json_confirm")))
+            return;
+
+        int rawJsonIndex = Panels.IndexOf(RawJson);
+        SelectedNavIndex = rawJsonIndex;   // this syncs the panels and refreshes the tree
+
+        RawJson.NavigateToPath(string.Join("/", pathSegments));
+    }
+
+    /// <summary>Modal dialogs, assigned by the shell alongside the panels'.</summary>
+    public Services.IDialogService? Dialogs { get; set; }
+
     private void SyncAllPanelData()
     {
         if (_currentSaveData == null) return;
