@@ -88,13 +88,114 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Race, timestamps and mission seed -->
+                <Border Classes="card" Padding="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{loc:Locale settlement.tab_stats_perks}" Classes="sectionHeader" />
+                        <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                            <TextBlock Grid.Row="0" Text="{loc:Locale settlement.race}" Classes="label" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" ItemsSource="{Binding AlienRaces}"
+                                      SelectedIndex="{Binding AlienRaceIndex}" HorizontalAlignment="Stretch" />
+                            <TextBlock Grid.Row="1" Text="{loc:Locale settlement.max_population}" Classes="label" />
+                            <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding MaxPopulation}"
+                                           Minimum="0" Maximum="175" FormatString="0" />
+                            <TextBlock Grid.Row="2" Text="{loc:Locale settlement.mission_seed}" Classes="label" />
+                            <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding MissionSeed}" Classes="mono" />
+                        </Grid>
+
+                        <!-- Timestamps are Unix seconds, shown raw so a value is never
+                             silently reinterpreted. -->
+                        <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                              RowSpacing="3" Margin="0,8,0,0">
+                            <TextBlock Grid.Row="0" Text="{loc:Locale settlement.last_decision}" Classes="label" />
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LastDecisionTime}" Classes="mono" />
+                            <TextBlock Grid.Row="1" Text="{loc:Locale settlement.last_alert_time}" Classes="label" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding LastAlertTime}" Classes="mono" />
+                            <TextBlock Grid.Row="2" Text="{loc:Locale settlement.last_bug_attack_time}" Classes="label" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding LastBugAttackTime}" Classes="mono" />
+                            <TextBlock Grid.Row="3" Text="{loc:Locale settlement.last_debt_time}" Classes="label" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastDebtTime}" Classes="mono" />
+                            <TextBlock Grid.Row="4" Text="{loc:Locale settlement.last_upkeep_time}" Classes="label" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LastUpkeepTime}" Classes="mono" />
+                            <TextBlock Grid.Row="5" Text="{loc:Locale settlement.last_population_time}" Classes="label" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding LastPopulationTime}" Classes="mono" />
+                            <TextBlock Grid.Row="6" Text="{loc:Locale settlement.mini_mission_start_time}" Classes="label" />
+                            <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding MiniMissionStartTime}" Classes="mono" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Perks -->
+                <Border Classes="card" Padding="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{loc:Locale settlement.perk}" Classes="sectionHeader" />
+                        <ItemsControl ItemsSource="{Binding Perks}" MaxHeight="240">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SettlementPerkViewModel">
+                                    <CheckBox Content="{Binding Name}" IsChecked="{Binding IsOwned}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Building states: the game packs construction progress, tier
+                     progression and arrival flags into one integer per building. -->
+                <Border Classes="card" Padding="12">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="{loc:Locale settlement.tab_building_states}" Classes="sectionHeader" />
+                        <TextBlock Text="{loc:Locale settlement.experimental_warning}" Classes="hint"
+                                   TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="240,*" Height="260">
+                            <ListBox ItemsSource="{Binding BuildingStates}"
+                                     SelectedItem="{Binding SelectedBuildingState}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:BuildingStateViewModel">
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6"
+                                        DataContext="{Binding SelectedBuildingState}"
+                                        IsVisible="{Binding $parent[StackPanel].DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                <Grid ColumnDefinitions="180,120" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="4">
+                                    <TextBlock Grid.Row="0" Text="{loc:Locale settlement.bs_editor_init_phases}" Classes="label" />
+                                    <NumericUpDown Grid.Row="0" Grid.Column="1" Value="{Binding InitPhases}"
+                                                   Minimum="0" Maximum="127" FormatString="0" />
+                                    <TextBlock Grid.Row="1" Text="{loc:Locale settlement.bs_editor_upgrade_phases}" Classes="label" />
+                                    <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding UpgradePhases}"
+                                                   Minimum="0" Maximum="1023" FormatString="0" />
+                                    <TextBlock Grid.Row="2" Text="{loc:Locale settlement.bs_editor_tier_heading}" Classes="label" />
+                                    <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding TierProgress}"
+                                                   Minimum="0" Maximum="63" FormatString="0" />
+                                    <TextBlock Grid.Row="3" Text="{loc:Locale settlement.bs_editor_raw_value}" Classes="label" />
+                                    <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding RawValue}"
+                                                   Minimum="-2147483648" Maximum="2147483647" FormatString="0" />
+                                </Grid>
+
+                                <TextBlock Text="{loc:Locale settlement.bs_editor_flags_heading}"
+                                           Classes="label" Margin="0,8,0,0" />
+                                <CheckBox Content="{loc:Locale settlement.bs_editor_class_active}"
+                                          IsChecked="{Binding ClassSystemActive}" />
+                                <CheckBox Content="{loc:Locale settlement.bs_editor_b_arrived}"
+                                          IsChecked="{Binding BArrived}" />
+                                <CheckBox Content="{loc:Locale settlement.bs_editor_a_arrived}"
+                                          IsChecked="{Binding AArrived}" />
+                                <CheckBox Content="{loc:Locale settlement.bs_editor_s_arrived}"
+                                          IsChecked="{Binding SArrived}" />
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- Actions -->
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Warning: Removing a settlement is irreversible"
-                               Foreground="#E05050" FontWeight="SemiBold" FontSize="12"
-                               Margin="0,0,0,4" />
+                    <TextBlock Text="{loc:Locale settlement.delete_warning}"
+                               Foreground="{DynamicResource NmseDangerBrush}" FontWeight="SemiBold"
+                               FontSize="12" Margin="0,0,0,4" TextWrapping="Wrap" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="{loc:Locale settlement.delete}" Command="{Binding DeleteSettlementCommand}" />
+                        <Button Content="{loc:Locale settlement.delete}" Classes="danger" Command="{Binding DeleteSettlementCommand}" />
                         <Button Content="{loc:Locale common.export}" Command="{Binding ExportSettlementCommand}" />
                         <Button Content="{loc:Locale common.import}" Command="{Binding ImportSettlementCommand}" />
                     </StackPanel>

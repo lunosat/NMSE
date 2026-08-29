@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NMSE.Core;
@@ -36,6 +37,29 @@ public partial class SettlementViewModel : PanelViewModelBase
 
     [ObservableProperty] private ObservableCollection<ProductionItemViewModel> _productionItems = new();
 
+    // --- Identity and timestamps ---------------------------------------------
+    [ObservableProperty] private ObservableCollection<string> _alienRaces = new(
+        SettlementLogic.AlienRaces.Select(r =>
+            SettlementLogic.AlienRaceLocKeys.TryGetValue(r, out var k) ? UiStrings.Get(k) : r));
+    [ObservableProperty] private int _alienRaceIndex = -1;
+
+    [ObservableProperty] private int _maxPopulation;
+    [ObservableProperty] private string _missionSeed = "";
+    [ObservableProperty] private string _lastDecisionTime = "";
+    [ObservableProperty] private string _lastAlertTime = "";
+    [ObservableProperty] private string _lastBugAttackTime = "";
+    [ObservableProperty] private string _lastDebtTime = "";
+    [ObservableProperty] private string _lastUpkeepTime = "";
+    [ObservableProperty] private string _lastPopulationTime = "";
+    [ObservableProperty] private string _miniMissionStartTime = "";
+
+    // --- Perks ---------------------------------------------------------------
+    [ObservableProperty] private ObservableCollection<SettlementPerkViewModel> _perks = new();
+
+    // --- Building states -----------------------------------------------------
+    [ObservableProperty] private ObservableCollection<BuildingStateViewModel> _buildingStates = new();
+    [ObservableProperty] private BuildingStateViewModel? _selectedBuildingState;
+
     partial void OnSelectedSettlementIndexChanged(int value)
     {
         if (value < 0 || value >= _filteredIndices.Count || _settlements == null)
@@ -63,6 +87,23 @@ public partial class SettlementViewModel : PanelViewModelBase
         BugAttack = sdata.Stats[7];
         DecisionTypeIndex = sdata.DecisionTypeIndex;
 
+        MaxPopulation = sdata.Population;
+        MissionSeed = sdata.MiniMissionSeed.ToString(CultureInfo.InvariantCulture);
+        AlienRaceIndex = Array.FindIndex(SettlementLogic.AlienRaces,
+            r => string.Equals(r, sdata.AlienRace, StringComparison.OrdinalIgnoreCase));
+
+        // Timestamps are Unix seconds; showing them raw keeps them editable through the
+        // raw editor without the panel silently reinterpreting a value.
+        LastDecisionTime = sdata.LastDecisionTime?.ToString("u", CultureInfo.InvariantCulture) ?? "";
+        LastAlertTime = sdata.LastAlertChangeTime.ToString(CultureInfo.InvariantCulture);
+        LastBugAttackTime = sdata.LastBugAttackChangeTime.ToString(CultureInfo.InvariantCulture);
+        LastDebtTime = sdata.LastDebtChangeTime.ToString(CultureInfo.InvariantCulture);
+        LastUpkeepTime = sdata.LastUpkeepDebtCheckTime.ToString(CultureInfo.InvariantCulture);
+        LastPopulationTime = sdata.LastPopulationChangeTime.ToString(CultureInfo.InvariantCulture);
+        MiniMissionStartTime = sdata.MiniMissionStartTime.ToString(CultureInfo.InvariantCulture);
+
+        LoadBuildingStates(sdata.BuildingStates);
+        LoadPerks(settlement);
         LoadProductionState(settlement);
     }
 
@@ -138,6 +179,61 @@ public partial class SettlementViewModel : PanelViewModelBase
         catch { InfoLabel = "Failed to load settlements."; }
     }
 
+    // ============================== Building states ================================
+
+    /// <summary>
+    /// Builds the per-building state rows. The game packs construction progress, tier
+    /// progression and arrival flags into one integer per building, so each row decodes
+    /// the fields it owns.
+    /// </summary>
+    private void LoadBuildingStates(int[] states)
+    {
+        var rows = new ObservableCollection<BuildingStateViewModel>();
+        for (int i = 0; i < states.Length; i++)
+            rows.Add(new BuildingStateViewModel(i, states[i]));
+
+        BuildingStates = rows;
+        SelectedBuildingState = rows.FirstOrDefault();
+    }
+
+    private int[] CollectBuildingStates() =>
+        BuildingStates.Select(b => b.RawValue).ToArray();
+
+    // ==================================== Perks ====================================
+
+    private void LoadPerks(JsonObject settlement)
+    {
+        var rows = new ObservableCollection<SettlementPerkViewModel>();
+
+        var owned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var array = settlement.GetArray("Perks");
+        if (array is not null)
+        {
+            for (int i = 0; i < array.Length; i++)
+            {
+                string id = (array.GetString(i) ?? "").TrimStart('^');
+                if (id.Length > 0) owned.Add(id);
+            }
+        }
+
+        foreach (var perk in SettlementDatabase.Perks)
+            rows.Add(new SettlementPerkViewModel(perk, owned.Contains(perk.Id)));
+
+        Perks = rows;
+    }
+
+    private void SavePerks(JsonObject settlement)
+    {
+        var array = settlement.GetArray("Perks");
+        if (array is null) return;
+
+        for (int i = array.Length - 1; i >= 0; i--) array.RemoveAt(i);
+        foreach (var perk in Perks.Where(p => p.IsOwned))
+            array.Add("^" + perk.Id);
+    }
+
+    // =================================== Deletion ==================================
+
     [RelayCommand]
     private void GenerateSeed()
     {
@@ -147,9 +243,15 @@ public partial class SettlementViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteSettlement()
+    private async Task DeleteSettlementAsync()
     {
         if (_settlements == null || SelectedSettlementIndex < 0 || _filteredIndices.Count == 0) return;
+
+        // Removing a settlement cannot be undone from the editor.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("settlement.delete_title"),
+                UiStrings.Get("settlement.delete_confirm"), Services.DialogIcon.Warning))
+            return;
 
         int selIdx = SelectedSettlementIndex;
         int dataIdx = _filteredIndices[selIdx];
@@ -285,7 +387,13 @@ public partial class SettlementViewModel : PanelViewModelBase
             saveValues.Stats[6] = Alert;
             saveValues.Stats[7] = BugAttack;
 
+            saveValues.Population = MaxPopulation;
+            saveValues.AlienRace = AlienRaceIndex >= 0 && AlienRaceIndex < SettlementLogic.AlienRaces.Length
+                ? SettlementLogic.AlienRaces[AlienRaceIndex] : "None";
+            saveValues.BuildingStates = CollectBuildingStates();
+
             SettlementLogic.SaveSettlementData(settlement, saveValues);
+            SavePerks(settlement);
 
             var prodArr = settlement.GetArray("ProductionState");
             if (prodArr != null)
@@ -307,4 +415,115 @@ public partial class ProductionItemViewModel : ObservableObject
     [ObservableProperty] private string _elementId = "";
     [ObservableProperty] private string _itemName = "";
     [ObservableProperty] private int _amount;
+}
+
+/// <summary>A settlement perk and whether this settlement has it.</summary>
+public partial class SettlementPerkViewModel : ObservableObject
+{
+    [ObservableProperty] private bool _isOwned;
+
+    public string Id { get; }
+    public string Name { get; }
+
+    public SettlementPerkViewModel(SettlementPerk perk, bool owned)
+    {
+        Id = perk.Id;
+        Name = string.IsNullOrEmpty(perk.Name) ? perk.Id : perk.Name;
+        IsOwned = owned;
+    }
+}
+
+/// <summary>
+/// One building's packed state. The game stores construction progress, tier progression
+/// and arrival flags in a single integer, so the row exposes the fields separately and
+/// writes them back into the same value.
+/// </summary>
+public partial class BuildingStateViewModel : ObservableObject
+{
+    private bool _updating;
+
+    [ObservableProperty] private int _initPhases;
+    [ObservableProperty] private int _upgradePhases;
+    [ObservableProperty] private int _tierProgress;
+    [ObservableProperty] private bool _classSystemActive;
+    [ObservableProperty] private bool _bArrived;
+    [ObservableProperty] private bool _aArrived;
+    [ObservableProperty] private bool _sArrived;
+    [ObservableProperty] private int _rawValue;
+
+    public int Index { get; }
+    public string Label { get; }
+
+    public BuildingStateViewModel(int index, int rawValue)
+    {
+        Index = index;
+        Label = UiStrings.Format("settlement.slot_label",
+            (index + 1).ToString(System.Globalization.CultureInfo.CurrentCulture));
+
+        _updating = true;
+        RawValue = rawValue;
+        Decode(rawValue);
+        _updating = false;
+    }
+
+    private void Decode(int value)
+    {
+        InitPhases = value & SettlementLogic.SettlementBuildingState.InitConstructionMask;
+        UpgradePhases = (value & SettlementLogic.SettlementBuildingState.UpgradeProgressMask) >> 10;
+        TierProgress = (value & SettlementLogic.SettlementBuildingState.TierProgressionMask) >> 20;
+        ClassSystemActive = Bit(value, SettlementLogic.SettlementBuildingState.Bit_ClassSystemActive);
+        BArrived = Bit(value, SettlementLogic.SettlementBuildingState.Bit_B_Arrived);
+        AArrived = Bit(value, SettlementLogic.SettlementBuildingState.Bit_A_Arrived);
+        SArrived = Bit(value, SettlementLogic.SettlementBuildingState.Bit_S_Arrived);
+    }
+
+    private static bool Bit(int value, int bit) => (value & (1 << bit)) != 0;
+
+    /// <summary>Rebuilds the packed value, leaving bits this row does not own untouched.</summary>
+    private void Encode()
+    {
+        if (_updating) return;
+
+        int value = RawValue;
+        value &= ~SettlementLogic.SettlementBuildingState.InitConstructionMask;
+        value |= InitPhases & SettlementLogic.SettlementBuildingState.InitConstructionMask;
+
+        value &= ~SettlementLogic.SettlementBuildingState.UpgradeProgressMask;
+        value |= (UpgradePhases << 10) & SettlementLogic.SettlementBuildingState.UpgradeProgressMask;
+
+        value &= ~SettlementLogic.SettlementBuildingState.TierProgressionMask;
+        value |= (TierProgress << 20) & SettlementLogic.SettlementBuildingState.TierProgressionMask;
+
+        void SetBit(int bit, bool on)
+        {
+            if (on) value |= 1 << bit;
+            else value &= ~(1 << bit);
+        }
+
+        SetBit(SettlementLogic.SettlementBuildingState.Bit_ClassSystemActive, ClassSystemActive);
+        SetBit(SettlementLogic.SettlementBuildingState.Bit_B_Arrived, BArrived);
+        SetBit(SettlementLogic.SettlementBuildingState.Bit_A_Arrived, AArrived);
+        SetBit(SettlementLogic.SettlementBuildingState.Bit_S_Arrived, SArrived);
+
+        _updating = true;
+        RawValue = value;
+        _updating = false;
+    }
+
+    partial void OnInitPhasesChanged(int value) => Encode();
+    partial void OnUpgradePhasesChanged(int value) => Encode();
+    partial void OnTierProgressChanged(int value) => Encode();
+    partial void OnClassSystemActiveChanged(bool value) => Encode();
+    partial void OnBArrivedChanged(bool value) => Encode();
+    partial void OnAArrivedChanged(bool value) => Encode();
+    partial void OnSArrivedChanged(bool value) => Encode();
+
+    /// <summary>Editing the packed value directly re-derives the fields.</summary>
+    partial void OnRawValueChanged(int value)
+    {
+        if (_updating) return;
+        _updating = true;
+        Decode(value);
+        _updating = false;
+    }
 }
