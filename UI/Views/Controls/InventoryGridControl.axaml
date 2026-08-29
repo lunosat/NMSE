@@ -47,6 +47,7 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:InventorySlotViewModel">
                             <Button Classes="slotButton"
+                                    ToolTip.Tip="{Binding Tooltip}"
                                     Width="80" Height="80"
                                     Padding="0"
                                     Background="Transparent"
@@ -281,12 +282,12 @@
                                 <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DetailItemId}" Margin="0,0,0,4"
                                          IsEnabled="{Binding IsSlotSelected}" />
 
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{loc:Locale inventory.amount}" Classes="label" Margin="0,0,8,4" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding DetailAmountLabel}" Classes="label" Margin="0,0,8,4" />
                                 <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding DetailAmount}"
                                                Minimum="0" Maximum="2147483647" FormatString="0"
                                                IsEnabled="{Binding IsSlotSelected}" Margin="0,0,0,4" />
 
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="{loc:Locale inventory.max}" Classes="label" Margin="0,0,8,4" />
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding DetailMaxLabel}" Classes="label" Margin="0,0,8,4" />
                                 <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding DetailMaxAmount}"
                                                Minimum="0" Maximum="2147483647" FormatString="0"
                                                IsEnabled="{Binding IsSlotSelected}" Margin="0,0,0,4" />

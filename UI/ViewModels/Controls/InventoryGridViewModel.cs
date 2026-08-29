@@ -29,6 +29,19 @@ public partial class InventorySlotViewModel : ObservableObject
     [ObservableProperty] private string _displayAmount = "";
     [ObservableProperty] private string _chargeDisplay = "";
     [ObservableProperty] private bool _showCharge;
+
+    /// <summary>Installed technology that holds a charge rather than a stack.</summary>
+    [ObservableProperty] private bool _isTechChargeable;
+
+    /// <summary>
+    /// What hovering the slot says. An empty slot names the action available on it,
+    /// which is how the WinForms grid told the user a right-click does something.
+    /// </summary>
+    public string Tooltip =>
+        !IsEnabled ? UiStrings.Format("inventory.tooltip_disabled", GridCol, GridRow)
+        : IsEmpty ? UiStrings.Format("inventory.tooltip_empty_slot", GridCol, GridRow)
+        : string.IsNullOrEmpty(Description) ? ItemName
+        : $"{ItemName}\n{Description}";
     [ObservableProperty] private int _gridRow;
     [ObservableProperty] private int _gridCol;
 
@@ -102,6 +115,13 @@ public partial class InventoryGridViewModel : ObservableObject
     // Detail panel
     [ObservableProperty] private string _detailItemName = "";
     [ObservableProperty] private string _detailItemId = "";
+
+    /// <summary>
+    /// Chargeable technology holds a charge level rather than a stack, so the two
+    /// numeric fields relabel themselves for it.
+    /// </summary>
+    [ObservableProperty] private string _detailAmountLabel = UiStrings.Get("inventory.amount");
+    [ObservableProperty] private string _detailMaxLabel = UiStrings.Get("inventory.max");
     [ObservableProperty] private string _detailPosition = "";
     [ObservableProperty] private string _detailType = "";
     [ObservableProperty] private string _detailCategory = "";
@@ -390,7 +410,7 @@ public partial class InventoryGridViewModel : ObservableObject
             }
         }
 
-        bool slotIsSupercharged = isSupercharged || slotData.GetBool("SuperCharged");
+        bool slotIsSupercharged = isSupercharged;
         bool isDamaged = damage > 0;
 
         bool isChargeable = resolvedItem?.IsChargeable ?? false;
@@ -483,6 +503,7 @@ public partial class InventoryGridViewModel : ObservableObject
             DisplayAmount = displayAmount,
             ChargeDisplay = chargeDisplay,
             ShowCharge = showCharge,
+            IsTechChargeable = isTechChargeable,
             GridRow = row,
             GridCol = col,
             ItemType = itemType,
@@ -666,6 +687,8 @@ public partial class InventoryGridViewModel : ObservableObject
             DetailPosition = slot.Position;
             DetailType = slot.ItemType;
             DetailCategory = slot.ItemCategory;
+            DetailAmountLabel = UiStrings.Get(slot.IsTechChargeable ? "inventory.charge" : "inventory.amount");
+            DetailMaxLabel = UiStrings.Get(slot.IsTechChargeable ? "inventory.max_charge" : "inventory.max");
             DetailAmount = slot.Amount;
             DetailMaxAmount = slot.MaxAmount;
             DetailDamageFactor = slot.DamageFactor;
@@ -675,6 +698,7 @@ public partial class InventoryGridViewModel : ObservableObject
         else
         {
             DetailItemName = UiStrings.Get("inventory.no_slot_selected");
+            DetailDescription = UiStrings.Get("inventory.hover_info");
         }
     }
 
@@ -735,9 +759,16 @@ public partial class InventoryGridViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveItem()
+    private async Task RemoveItemAsync()
     {
         if (SelectedSlot?.SlotData == null) return;
+
+        // Clearing a slot cannot be undone from here, so it is confirmed by name.
+        if (Dialogs is not null && !SelectedSlot.IsEmpty &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("inventory.remove_title"),
+                UiStrings.Format("inventory.remove_confirm", SelectedSlot.ItemName,
+                    SelectedSlot.GridCol, SelectedSlot.GridRow), Services.DialogIcon.Warning))
+            return;
 
         var slotData = SelectedSlot.SlotData;
         SetSlotItemId(slotData, "");
@@ -762,12 +793,7 @@ public partial class InventoryGridViewModel : ObservableObject
     [RelayCommand]
     private void SuperchargeSlot()
     {
-        if (SelectedSlot?.SlotData == null) return;
-
-        bool current = SelectedSlot.SlotData.GetBool("SuperCharged");
-        SelectedSlot.SlotData.Set("SuperCharged", !current);
-        RefreshSlotAtSelected(SelectedSlot.SlotData, SelectedSlot.SlotIndex);
-        RaiseDataModified();
+        if (SelectedSlot is not null) ToggleSupercharged(SelectedSlot);
     }
 
     [RelayCommand]
@@ -777,6 +803,93 @@ public partial class InventoryGridViewModel : ObservableObject
 
         SelectedSlot.SlotData.Set("DamageFactor", 0.0);
         RefreshSlotAtSelected(SelectedSlot.SlotData, SelectedSlot.SlotIndex);
+        RaiseDataModified();
+    }
+
+
+    // ============================== Supercharged slots ==============================
+
+    /// <summary>
+    /// The game records supercharged slots as TechBonus entries in the inventory's
+    /// SpecialSlots array, keyed by grid position. A SuperCharged flag on the slot
+    /// itself is not what it reads, so writing one has no effect in game.
+    /// </summary>
+    private const string TechBonusSlotType = "TechBonus";
+
+    private JsonArray? EnsureSpecialSlots()
+    {
+        if (_currentInventory is null) return null;
+
+        var special = _currentInventory.GetArray("SpecialSlots");
+        if (special is null)
+        {
+            special = new JsonArray();
+            _currentInventory.Set("SpecialSlots", special);
+        }
+        return special;
+    }
+
+    /// <summary>Index of the TechBonus entry at this position, or -1.</summary>
+    private static int FindSpecialSlot(JsonArray special, int x, int y)
+    {
+        for (int i = 0; i < special.Length; i++)
+        {
+            try
+            {
+                var entry = special.GetObject(i);
+                if (entry?.GetObject("Type")?.GetString("InventorySpecialSlotType") != TechBonusSlotType)
+                    continue;
+
+                var index = entry.GetObject("Index");
+                if (index is not null && index.GetInt("X") == x && index.GetInt("Y") == y)
+                    return i;
+            }
+            catch { }
+        }
+        return -1;
+    }
+
+    private static void AddSpecialSlot(JsonArray special, int x, int y)
+    {
+        var type = new JsonObject();
+        type.Add("InventorySpecialSlotType", TechBonusSlotType);
+
+        var index = new JsonObject();
+        index.Add("X", x);
+        index.Add("Y", y);
+
+        var entry = new JsonObject();
+        entry.Add("Type", type);
+        entry.Add("Index", index);
+        special.Add(entry);
+    }
+
+    /// <summary>Turns the supercharge on or off for one grid position.</summary>
+    private void SetSupercharged(int x, int y, bool on)
+    {
+        var special = EnsureSpecialSlots();
+        if (special is null) return;
+
+        int existing = FindSpecialSlot(special, x, y);
+        if (on)
+        {
+            if (existing < 0) AddSpecialSlot(special, x, y);
+        }
+        else if (existing >= 0)
+        {
+            special.RemoveAt(existing);
+        }
+    }
+
+    private void ToggleSupercharged(InventorySlotViewModel slot)
+    {
+        var special = EnsureSpecialSlots();
+        if (special is null) return;
+
+        SetSupercharged(slot.GridCol, slot.GridRow,
+            FindSpecialSlot(special, slot.GridCol, slot.GridRow) < 0);
+
+        LoadInventory(_currentInventory);
         RaiseDataModified();
     }
 
@@ -947,17 +1060,12 @@ public partial class InventoryGridViewModel : ObservableObject
     [RelayCommand]
     private void SuperchargeAllSlots()
     {
-        if (_slots == null) return;
-        for (int i = 0; i < _slots.Length; i++)
-        {
-            var slotData = _slots.GetObject(i);
-            if (slotData != null)
-            {
-                string itemId = ExtractItemId(slotData);
-                if (!string.IsNullOrEmpty(itemId))
-                    slotData.Set("SuperCharged", true);
-            }
-        }
+        if (EnsureSpecialSlots() is null) return;
+
+        // Only slots that hold something are worth supercharging.
+        foreach (var cell in SlotCells.Where(c => c.IsEnabled && !c.IsEmpty))
+            SetSupercharged(cell.GridCol, cell.GridRow, true);
+
         LoadInventory(_currentInventory);
         RaiseDataModified();
     }
@@ -1071,11 +1179,11 @@ public partial class InventoryGridViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RemoveItemAt(InventorySlotViewModel? slot)
+    private Task RemoveItemAtAsync(InventorySlotViewModel? slot)
     {
-        if (slot?.SlotData == null) return;
+        if (slot?.SlotData == null) return Task.CompletedTask;
         SelectSlot(slot);
-        RemoveItem();
+        return RemoveItemAsync();
     }
 
     [RelayCommand]
@@ -1094,6 +1202,14 @@ public partial class InventoryGridViewModel : ObservableObject
 
         if (slot.IsEnabled)
         {
+            // Disabling a filled slot would strand the item, so the panel refused it.
+            if (!slot.IsEmpty)
+            {
+                _ = Dialogs?.ShowMessageAsync(UiStrings.Get("inventory.cannot_disable_title"),
+                    UiStrings.Get("inventory.cannot_disable"), Services.DialogIcon.Warning);
+                return;
+            }
+
             // Disable: only if slot has no item
             if (slot.SlotData != null && !string.IsNullOrEmpty(slot.ItemId)
                 && slot.ItemId != "^" && slot.ItemId != "^YOURSLOTITEM")
@@ -1174,11 +1290,7 @@ public partial class InventoryGridViewModel : ObservableObject
     [RelayCommand]
     private void SuperchargeSlotAt(InventorySlotViewModel? slot)
     {
-        if (slot?.SlotData == null) return;
-        bool current = slot.SlotData.GetBool("SuperCharged");
-        slot.SlotData.Set("SuperCharged", !current);
-        LoadInventory(_currentInventory);
-        RaiseDataModified();
+        if (slot is not null) ToggleSupercharged(slot);
     }
 
     [RelayCommand]
@@ -1221,15 +1333,98 @@ public partial class InventoryGridViewModel : ObservableObject
     [RelayCommand]
     private async Task ExportInventory()
     {
-        if (ExportInventoryFunc != null)
-            await ExportInventoryFunc();
+        // A panel may still supply its own handler; otherwise the grid does the work.
+        if (ExportInventoryFunc != null) { await ExportInventoryFunc(); return; }
+        if (Dialogs is null || SaveFilePickerFunc is null) return;
+
+        if (_currentInventory is null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.export_title"),
+                UiStrings.Get("inventory.no_inventory_export"));
+            return;
+        }
+
+        string? path = await SaveFilePickerFunc(UiStrings.Get("inventory.export_title"),
+            "json", ExportFileName);
+        if (path is null) return;
+
+        try
+        {
+            // skipReverseMapping keeps the readable key names, so an exported inventory
+            // can be read and edited outside the app.
+            File.WriteAllText(path, JsonParser.Serialize(_currentInventory, true, skipReverseMapping: true));
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.export_error_title"),
+                UiStrings.Format("inventory.export_error", ex.Message), Services.DialogIcon.Error);
+        }
     }
+
+    /// <summary>Suggested filename for an export; panels set it per inventory.</summary>
+    public string ExportFileName { get; set; } = "inventory.json";
+
+    /// <summary>File pickers, supplied by the panel that hosts this grid.</summary>
+    public Func<string, string, string, Task<string?>>? SaveFilePickerFunc { get; set; }
+    public Func<string, string, Task<string?>>? OpenFilePickerFunc { get; set; }
 
     [RelayCommand]
     private async Task ImportInventory()
     {
-        if (ImportInventoryFunc != null)
-            await ImportInventoryFunc();
+        if (ImportInventoryFunc != null) { await ImportInventoryFunc(); return; }
+        if (Dialogs is null || OpenFilePickerFunc is null) return;
+
+        if (_currentInventory is null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.import_title"),
+                UiStrings.Get("inventory.no_inventory_import"));
+            return;
+        }
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("inventory.import_title"), ".json");
+        if (path is null) return;
+
+        try
+        {
+            var imported = JsonParser.ParseObject(File.ReadAllText(path));
+
+            // Accepts a bare inventory as well as the wrappers other editors write.
+            var inventory = InventoryImportHelper.FindInventoryObject(imported);
+            var slots = inventory?.GetArray("Slots");
+            if (inventory is null || slots is null)
+            {
+                await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.import_error_title"),
+                    UiStrings.Get("inventory.import_bad_format"), Services.DialogIcon.Error);
+                return;
+            }
+
+            _currentInventory.Set("Slots", slots);
+
+            if (inventory.GetArray("ValidSlotIndices") is { } valid)
+                _currentInventory.Set("ValidSlotIndices", valid);
+            if (inventory.GetArray("SpecialSlots") is { } special)
+                _currentInventory.Set("SpecialSlots", special);
+
+            // The grid's shape travels with the slots when the file carries it.
+            try
+            {
+                int w = inventory.GetInt("Width"), h = inventory.GetInt("Height");
+                if (w > 0 && h > 0)
+                {
+                    _currentInventory.Set("Width", w);
+                    _currentInventory.Set("Height", h);
+                }
+            }
+            catch { }
+
+            LoadInventory(_currentInventory);
+            RaiseDataModified();
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("inventory.import_error_title"),
+                UiStrings.Format("inventory.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     /// <summary>

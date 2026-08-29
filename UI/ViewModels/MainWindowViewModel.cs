@@ -641,6 +641,8 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 grid.PlayerState = playerState;
                 grid.Dialogs = panel.Dialogs;
+                grid.SaveFilePickerFunc ??= panel.SaveFilePickerFunc;
+                grid.OpenFilePickerFunc ??= panel.OpenFilePickerFunc;
             }
         }
 
