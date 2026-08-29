@@ -41,6 +41,35 @@ public partial class CompanionViewModel : PanelViewModelBase
     [ObservableProperty] private string _customSpeciesName = "";
     [ObservableProperty] private bool _eggModified;
     [ObservableProperty] private bool _hasBeenSummoned;
+    [ObservableProperty] private bool _allowUnmodifiedReroll;
+
+    /// <summary>Whether the pet slot this companion sits in has been bought.</summary>
+    [ObservableProperty] private bool _slotUnlocked;
+
+    // Timestamps the game keeps for a companion, edited as dates rather than raw
+    // Unix seconds.
+    [ObservableProperty] private DateTimeOffset _birthTime = DateTimeOffset.Now;
+    [ObservableProperty] private DateTimeOffset _lastEggTime = DateTimeOffset.Now;
+    [ObservableProperty] private DateTimeOffset _lastTrustIncreaseTime = DateTimeOffset.Now;
+    [ObservableProperty] private DateTimeOffset _lastTrustDecreaseTime = DateTimeOffset.Now;
+
+    /// <summary>
+    /// The UA value, which some saves store as a hex string and others as a number. The
+    /// checkbox records which, so a round trip writes back the form it found.
+    /// </summary>
+    [ObservableProperty] private string _ua = "0";
+    [ObservableProperty] private bool _uaIsHex;
+
+    // Battle affinity, and which affinities it beats and loses to.
+    [ObservableProperty] private string _battleAffinity = "";
+    [ObservableProperty] private string _battleWeak = "";
+    [ObservableProperty] private string _battleStrong = "";
+
+    /// <summary>Shown in place of the accessory list when the creature has no slots.</summary>
+    [ObservableProperty] private string _accessoryNote = "";
+
+    /// <summary>The species this creature id resolves to, or the id marked unrecognised.</summary>
+    [ObservableProperty] private string _species = "";
     [ObservableProperty] private string _boneScaleSeed = "";
     [ObservableProperty] private string _colourBaseSeed = "";
 
@@ -68,6 +97,109 @@ public partial class CompanionViewModel : PanelViewModelBase
     // --- Slots -----------------------------------------------------------------
     [ObservableProperty] private string _totalSlotsLabel = "";
 
+    /// <summary>Reads a Unix timestamp, falling back to now when the save has none.</summary>
+    private static DateTimeOffset ReadTime(JsonObject companion, string key)
+    {
+        try { return DateTimeOffset.FromUnixTimeSeconds(companion.GetLong(key)).ToLocalTime(); }
+        catch { return DateTimeOffset.Now; }
+    }
+
+    private static void WriteTime(JsonObject companion, string key, DateTimeOffset value)
+    {
+        try { companion.Set(key, value.ToUnixTimeSeconds()); } catch { }
+    }
+
+    /// <summary>Whether the given pet slot has been bought.</summary>
+    private bool IsSlotUnlocked(int slotIndex)
+    {
+        try
+        {
+            var slots = _playerState?.GetArray("UnlockedPetSlots");
+            return slots is not null && slotIndex >= 0 && slotIndex < slots.Length
+                && slots.GetBool(slotIndex);
+        }
+        catch { return false; }
+    }
+
+    // ============================== Creature builder ===============================
+
+    /// <summary>The part groups for the selected creature, in the order they apply.</summary>
+    public ObservableCollection<DescriptorGroupViewModel> DescriptorGroups { get; } = new();
+
+    /// <summary>Shown when the creature type has no part data to offer.</summary>
+    [ObservableProperty] private string _descriptorSummary = "";
+    [ObservableProperty] private bool _hasDescriptorGroups;
+
+    /// <summary>
+    /// Rebuilds the part pickers. Choosing a part can expose further groups beneath it,
+    /// so this runs again after every change rather than once when the creature loads.
+    /// </summary>
+    private void LoadDescriptors(JsonObject companion)
+    {
+        DescriptorGroups.Clear();
+
+        var current = CompanionDescriptorIo.Read(companion);
+        var entry = CreaturePartDatabase.GetForCreatureId(companion.GetString("CreatureID"));
+
+        if (entry is null)
+        {
+            HasDescriptorGroups = false;
+            DescriptorSummary = current.Count > 0
+                ? UiStrings.Format("companion.raw_descriptors", current.Count) + string.Join(", ", current)
+                : UiStrings.Get("companion.no_part_data");
+            return;
+        }
+
+        HasDescriptorGroups = true;
+        DescriptorSummary = "";
+
+        foreach (var group in CreaturePartDatabase.GetFlatGroups(entry, current))
+        {
+            var vm = new DescriptorGroupViewModel(group, current);
+            vm.SelectionChanged += _ => WriteDescriptors();
+            DescriptorGroups.Add(vm);
+        }
+    }
+
+    /// <summary>
+    /// Writes the chosen parts back and rebuilds the groups, since the new selection may
+    /// expose or hide others.
+    /// </summary>
+    private void WriteDescriptors()
+    {
+        var comp = SelectedCompanion?.CompanionData;
+        if (comp is null) return;
+
+        CompanionDescriptorIo.Write(comp,
+            DescriptorGroups.Select(g => g.SelectedId).OfType<string>());
+
+        LoadDescriptors(comp);
+    }
+
+    /// <summary>
+    /// Rolls a new descriptor id without touching the parts, which is what makes the
+    /// game re-derive the creature from them.
+    /// </summary>
+    [RelayCommand]
+    private void RegenerateDescriptorId() => WriteDescriptors();
+
+    /// <summary>Opens the community Creature Builder, which edits the same descriptors.</summary>
+    [RelayCommand]
+    private void OpenCreatureBuilder()
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = CreatureBuilderUrl,
+                UseShellExecute = true,
+            });
+        }
+        catch { }
+    }
+
+    private const string CreatureBuilderUrl = "https://nmscd.com/CreatureBuilder/";
+
     partial void OnSelectedCompanionChanged(CompanionEntryViewModel? value)
     {
         HasSelection = value != null;
@@ -92,7 +224,7 @@ public partial class CompanionViewModel : PanelViewModelBase
             LoadSlots(playerState.GetArray("Pets"), "Pet");
             LoadSlots(playerState.GetArray("Eggs"), "Egg");
 
-            CountLabel = $"Total slots: {Companions.Count}";
+            CountLabel = UiStrings.Format("companion.total_slots", Companions.Count);
 
             if (Companions.Count > 0)
                 SelectedCompanion = Companions[0];
@@ -137,7 +269,19 @@ public partial class CompanionViewModel : PanelViewModelBase
                     IsOccupied = occupied
                 });
             }
-            catch { }
+            catch
+            {
+                // A slot the parser cannot read still occupies an index, so it is listed
+                // rather than skipped, which would shift every slot after it.
+                string errLabel = UiStrings.Format("companion.error_format", prefix, i);
+                Companions.Add(new CompanionEntryViewModel
+                {
+                    Label = errLabel,
+                    Source = prefix,
+                    OriginalIndex = i,
+                    IsOccupied = true,
+                });
+            }
         }
     }
 
@@ -153,6 +297,18 @@ public partial class CompanionViewModel : PanelViewModelBase
 
             CreatureId = comp.GetString("CreatureID") ?? "";
             CompanionName = comp.GetString("CustomName") ?? "";
+            LoadDescriptors(comp);
+
+            // A creature the databases do not know still has an id worth showing, marked
+            // so it is not mistaken for a recognised species.
+            string stripped = CreatureId.TrimStart('^');
+            var known = CompanionDatabase.Entries.FirstOrDefault(e =>
+                string.Equals(e.Id.TrimStart('^'), stripped, StringComparison.OrdinalIgnoreCase));
+            Species = known is not null
+                ? known.Species
+                : string.IsNullOrEmpty(stripped)
+                    ? ""
+                    : UiStrings.Format("companion.unrecognised_species", stripped);
 
             try
             {
@@ -217,6 +373,31 @@ public partial class CompanionViewModel : PanelViewModelBase
 
             try { EggModified = comp.GetBool("EggModified"); } catch { EggModified = false; }
             try { HasBeenSummoned = comp.GetBool("HasBeenSummoned"); } catch { HasBeenSummoned = false; }
+            try { AllowUnmodifiedReroll = comp.GetBool("AllowUnmodifiedReroll"); } catch { AllowUnmodifiedReroll = false; }
+
+            BirthTime = ReadTime(comp, "BirthTime");
+            LastEggTime = ReadTime(comp, "LastEggTime");
+            LastTrustIncreaseTime = ReadTime(comp, "LastTrustIncreaseTime");
+            LastTrustDecreaseTime = ReadTime(comp, "LastTrustDecreaseTime");
+
+            // UA is a hex string in some saves and a number in others.
+            try
+            {
+                if (comp.GetValue("UA") is string hex
+                    && hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                {
+                    UaIsHex = true;
+                    Ua = hex;
+                }
+                else
+                {
+                    UaIsHex = false;
+                    Ua = comp.GetLong("UA").ToString(CultureInfo.InvariantCulture);
+                }
+            }
+            catch { UaIsHex = false; Ua = "0"; }
+
+            SlotUnlocked = IsSlotUnlocked(entry.OriginalIndex);
 
             try
             {
@@ -250,6 +431,24 @@ public partial class CompanionViewModel : PanelViewModelBase
         comp.Set("HasFur", HasFur);
         comp.Set("EggModified", EggModified);
         comp.Set("HasBeenSummoned", HasBeenSummoned);
+        comp.Set("AllowUnmodifiedReroll", AllowUnmodifiedReroll);
+
+        WriteTime(comp, "BirthTime", BirthTime);
+        WriteTime(comp, "LastEggTime", LastEggTime);
+        WriteTime(comp, "LastTrustIncreaseTime", LastTrustIncreaseTime);
+        WriteTime(comp, "LastTrustDecreaseTime", LastTrustDecreaseTime);
+
+        // Written back in whichever form the save used.
+        try
+        {
+            if (UaIsHex) comp.Set("UA", Ua);
+            else if (long.TryParse(Ua, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ua))
+                comp.Set("UA", ua);
+        }
+        catch { }
+
+        if (_playerState is not null && SelectedCompanion is { } sel)
+            CompanionLogic.SetSlotUnlocked(_playerState, sel.OriginalIndex, SlotUnlocked);
 
         if (NumericParseHelper.TryParseDouble(Scale, out double scaleVal)) comp.Set("Scale", scaleVal);
         if (NumericParseHelper.TryParseDouble(Trust, out double trustVal)) comp.Set("Trust", trustVal);
@@ -361,6 +560,34 @@ public partial class CompanionViewModel : PanelViewModelBase
         }
         MoveSlots = slots;
 
+        // Affinity comes from the creature and the biome it was found in, and decides
+        // which other affinities it beats and loses to.
+        string gameAffinity = "";
+        try
+        {
+            string creatureId = companion.GetString("CreatureID") ?? "";
+            string biome = companion.GetObject("Biome")?.GetString("Biome") ?? "";
+            string affinity = PetBiomeAffinityMap.ResolveAffinity(creatureId, biome);
+
+            BattleAffinity = string.IsNullOrEmpty(affinity)
+                ? ""
+                : PetBiomeAffinityMap.GetAffinityDisplayName(affinity);
+            gameAffinity = PetBiomeAffinityMap.GetAffinityGameName(affinity);
+        }
+        catch { BattleAffinity = ""; }
+
+        var matchup = PetBiomeAffinityMap.GetAffinityMatchup(gameAffinity);
+        if (matchup is { } m)
+        {
+            BattleWeak = PetBiomeAffinityMap.FormatAffinityList(m.Weak);
+            BattleStrong = PetBiomeAffinityMap.FormatAffinityList(m.Strong);
+        }
+        else
+        {
+            BattleWeak = UiStrings.Get("common.na");
+            BattleStrong = UiStrings.Get("common.na");
+        }
+
         try { UseStatOverrides = companion.GetBool("PetBattlerUseCoreStatClassOverrides"); }
         catch { UseStatOverrides = false; }
 
@@ -406,6 +633,7 @@ public partial class CompanionViewModel : PanelViewModelBase
     partial void OnHealthClassIndexChanged(int value) => UpdateDerivedBattleValues();
     partial void OnAgilityClassIndexChanged(int value) => UpdateDerivedBattleValues();
     partial void OnCombatClassIndexChanged(int value) => UpdateDerivedBattleValues();
+    partial void OnUseStatOverridesChanged(bool value) => UpdateDerivedBattleValues();
     partial void OnTreatsHealthChanged(int value) => UpdateDerivedBattleValues();
     partial void OnTreatsAgilityChanged(int value) => UpdateDerivedBattleValues();
     partial void OnTreatsCombatChanged(int value) => UpdateDerivedBattleValues();
@@ -415,7 +643,11 @@ public partial class CompanionViewModel : PanelViewModelBase
         string C(int i) => i >= 0 && i < CompanionBattleIo.StatClasses.Length
             ? CompanionBattleIo.StatClasses[i] : "C";
 
-        AverageClass = CompanionBattleIo.AverageClass(C(HealthClassIndex), C(AgilityClassIndex), C(CombatClassIndex));
+        // Without the override the game derives the class from the creature itself, so
+        // there is no fixed average to show.
+        AverageClass = UseStatOverrides
+            ? CompanionBattleIo.AverageClass(C(HealthClassIndex), C(AgilityClassIndex), C(CombatClassIndex))
+            : UiStrings.Get("common.procedural");
 
         // The genes level is what the treats already eaten add up to.
         int eaten = TreatsHealth + TreatsAgility + TreatsCombat;
@@ -524,6 +756,7 @@ public partial class CompanionViewModel : PanelViewModelBase
     {
         AccessorySlots = new ObservableCollection<AccessorySlotViewModel>();
         HasAccessories = false;
+        AccessoryNote = UiStrings.Get("companion.no_accessories");
 
         if (entry.CompanionData is not { } companion || entry.Source != "Pet") return;
 
@@ -614,7 +847,7 @@ public partial class CompanionViewModel : PanelViewModelBase
         if (SelectedCompanion is not { Source: "Pet" } entry ||
             entry.CompanionData is not { } pet) return;
 
-        string title = UiStrings.Get("companion.induce_egg");
+        string title = UiStrings.Get("companion.place_egg_in_exosuit");
 
         var eggs = _playerState.GetArray("Eggs");
         if (eggs is null || eggs.Length == 0)
@@ -676,7 +909,7 @@ public partial class CompanionViewModel : PanelViewModelBase
     private async Task PlaceEggInExosuitAsync(int eggSlot)
     {
         if (Dialogs is null || _playerState is null) return;
-        string title = UiStrings.Get("companion.induce_egg");
+        string title = UiStrings.Get("companion.place_egg_in_exosuit");
 
         var inventory = _playerState.GetObject("Inventory");
         var slots = inventory?.GetArray("Slots");
@@ -722,11 +955,19 @@ public partial class CompanionViewModel : PanelViewModelBase
         if (SelectedCompanion?.CompanionData == null || SaveFilePickerFunc == null) return;
         SaveCompanionChanges();
         var cfg = ExportConfig.Instance;
-        string? path = await SaveFilePickerFunc("Export Companion", cfg.CompanionExt.TrimStart('.'),
-            ExportConfig.BuildDialogFilter(cfg.CompanionExt, "Companion files"));
+        var vars = new Dictionary<string, string> { ["name"] = CompanionName };
+        string? path = await SaveFilePickerFunc(UiStrings.Get("common.export"),
+            cfg.CompanionExt.TrimStart('.'),
+            ExportConfig.BuildFileName(cfg.CompanionTemplate, cfg.CompanionExt, vars));
         if (string.IsNullOrEmpty(path)) return;
+
         try { CompanionLogic.ExportCompanion(SelectedCompanion.CompanionData, path); }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("companion.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
@@ -734,25 +975,41 @@ public partial class CompanionViewModel : PanelViewModelBase
     {
         if (_playerState == null || OpenFilePickerFunc == null) return;
         var cfg = ExportConfig.Instance;
-        string? path = await OpenFilePickerFunc("Import Companion",
-            ExportConfig.BuildImportFilter(cfg.CompanionExt, "Companion files", ".pet", ".cmp"));
+        string? path = await OpenFilePickerFunc(UiStrings.Get("common.import"), cfg.CompanionExt);
         if (string.IsNullOrEmpty(path)) return;
+
         try
         {
             var pets = _playerState.GetArray("Pets");
             var eggs = _playerState.GetArray("Eggs");
             var target = pets ?? eggs;
-            if (target == null) return;
 
+            if (target is null)
+            {
+                if (Dialogs is not null)
+                    await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                        UiStrings.Get("companion.no_arrays_found"), Services.DialogIcon.Error);
+                return;
+            }
+
+            // A companion file may not fit the array it was aimed at — an egg into Pets,
+            // say — so the other one is tried before giving up.
             try { CompanionLogic.ImportCompanion(target, path); }
             catch (InvalidOperationException)
             {
                 var fallback = target == pets ? eggs : pets;
-                if (fallback != null) CompanionLogic.ImportCompanion(fallback, path);
-                else return;
+                if (fallback is null) throw;
+                CompanionLogic.ImportCompanion(fallback, path);
             }
+
+            LoadData(_saveData!, _database!, null);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("companion.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     /// <summary>Reveals this data where it lives in the raw editor.</summary>
@@ -766,6 +1023,39 @@ public partial class CompanionViewModel : PanelViewModelBase
     /// <summary>Reveals this data where it lives in the raw editor.</summary>
     [RelayCommand]
     private Task GoToBattleTeamJsonAsync() => GoToJsonAsync("PlayerStateData", "PetBattleTeam");
+
+    /// <summary>Opens the selected companion where it lives, in Pets or in Eggs.</summary>
+    [RelayCommand]
+    private Task GoToSelectedJsonAsync()
+    {
+        if (SelectedCompanion is not { } entry) return Task.CompletedTask;
+
+        string array = string.Equals(entry.Source, "Egg", StringComparison.OrdinalIgnoreCase)
+            ? "Eggs" : "Pets";
+        return GoToJsonAsync("PlayerStateData", array, $"[{entry.OriginalIndex}]");
+    }
+
+    // The tooltips name the section they open, so they are formatted rather than bound.
+    public string GoToPetsTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_pets"));
+
+    public string GoToEggsTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_eggs"));
+
+    public string GoToBattleTeamTooltip =>
+        UiStrings.Format("goto_json.tooltip_section", UiStrings.Get("goto_json.nav_battle_team"));
+
+    public string GoToSelectedTooltip =>
+        UiStrings.Format("goto_json.tooltip_section",
+            UiStrings.Get("goto_json.nav_pets") + " " + UiStrings.Get("goto_json.nav_details"));
+
+    public override void ApplyLocalisation()
+    {
+        OnPropertyChanged(nameof(GoToPetsTooltip));
+        OnPropertyChanged(nameof(GoToEggsTooltip));
+        OnPropertyChanged(nameof(GoToBattleTeamTooltip));
+        OnPropertyChanged(nameof(GoToSelectedTooltip));
+    }
 
     public override void SaveData(JsonObject saveData)
     {

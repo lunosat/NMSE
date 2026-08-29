@@ -87,15 +87,34 @@ public partial class BattleMoveSlotViewModel : ObservableObject
             sb.AppendLine(CultureInfo.CurrentCulture,
                 $"{UiStrings.Get("companion.battle_move_detail_stat")} {move.LocalisedDescription}");
 
+        // The first phase's effect is what the move reads as at a glance, so it is
+        // named before the per-phase breakdown.
+        if (move.Phases.Count > 0)
+        {
+            var first = move.Phases[0];
+            sb.AppendLine(CultureInfo.CurrentCulture,
+                $"{UiStrings.Get("companion.battle_move_detail_effect")} {WithEmoji(first)}");
+        }
+
         for (int i = 0; i < move.Phases.Count; i++)
         {
             var phase = move.Phases[i];
+            string prefix = UiStrings.Format("companion.battle_move_detail_phase",
+                (i + 1).ToString(CultureInfo.CurrentCulture));
+
             sb.AppendLine(CultureInfo.CurrentCulture,
-                $"{UiStrings.Format("companion.battle_move_detail_phase", (i + 1).ToString(CultureInfo.CurrentCulture))} " +
-                $"{phase}");
+                $"{prefix} {UiStrings.Get("companion.battle_move_detail_effect")} {WithEmoji(phase)}");
+            sb.AppendLine(CultureInfo.CurrentCulture,
+                $"{prefix} {UiStrings.Get("companion.battle_move_detail_strength")} {phase.StrengthDisplay}");
         }
 
         return sb.ToString().TrimEnd();
+
+        /// <summary>The effect name, prefixed by its emoji when the phase has one.</summary>
+        static string WithEmoji(PetBattleMovePhase phase) =>
+            string.IsNullOrEmpty(phase.EffectEmoji)
+                ? phase.EffectDisplay
+                : $"{phase.EffectEmoji} {phase.EffectDisplay}";
     }
 }
 
