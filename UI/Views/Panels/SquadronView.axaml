@@ -16,7 +16,10 @@
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="6" Margin="0,8,0,0">
                 <Button Content="{loc:Locale common.export}" Command="{Binding ExportCommand}" />
                 <Button Content="{loc:Locale common.import}" Command="{Binding ImportCommand}" />
-                <Button Content="{loc:Locale common.delete}" Command="{Binding DeletePilotCommand}" />
+                <Button Content="{loc:Locale squadron.export}" Command="{Binding ExportCommand}" />
+                <Button Content="{loc:Locale squadron.import}" Command="{Binding ImportCommand}" />
+                <Button Content="{loc:Locale common.delete}" Classes="danger"
+                        Command="{Binding DeletePilotCommand}" />
             </StackPanel>
 
             <Border Classes="card" Padding="4">

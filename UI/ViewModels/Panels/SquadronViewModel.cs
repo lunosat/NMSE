@@ -16,7 +16,7 @@ public partial class SquadronPilotViewModel : ObservableObject
     public override string ToString() => DisplayText;
 }
 
-public partial class SquadronViewModel : ObservableObject
+public partial class SquadronViewModel : PanelViewModelBase
 {
     private JsonArray? _pilots;
     private JsonArray? _unlockedSlots;
@@ -94,6 +94,7 @@ public partial class SquadronViewModel : ObservableObject
             _unlockedSlots.Set(idx, value);
     }
 
+    /// <summary>Hosted by the Fleet panel, which forwards the save data.</summary>
     public void LoadData(JsonObject saveData)
     {
         PilotList.Clear();
@@ -229,9 +230,15 @@ public partial class SquadronViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void DeletePilot()
+    private async Task DeletePilotAsync()
     {
         if (SelectedPilot?.Data == null) return;
+
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("squadron.delete_title"),
+                UiStrings.Get("squadron.delete_confirm"), Services.DialogIcon.Warning))
+            return;
+
         SquadronLogic.DeletePilot(SelectedPilot.Data);
         RefreshList();
         HasSelection = false;
@@ -273,8 +280,72 @@ public partial class SquadronViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Export() { /* TODO: implement squadron export */ }
+    private async Task ExportAsync()
+    {
+        if (Dialogs is null || SaveFilePickerFunc is null) return;
+
+        var pilot = SelectedPilot?.Data;
+        if (pilot is null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("squadron.export"),
+                UiStrings.Get("squadron.no_pilots"));
+            return;
+        }
+
+        var config = ExportConfig.Instance;
+        var vars = new Dictionary<string, string>
+        {
+            ["name"] = SelectedPilot?.DisplayText ?? "",
+            ["rank"] = RankIndex >= 0 && RankIndex < RankItems.Count ? RankItems[RankIndex] : "",
+            ["race"] = RaceIndex >= 0 && RaceIndex < RaceItems.Count ? RaceItems[RaceIndex] : "",
+        };
+
+        string? path = await SaveFilePickerFunc(UiStrings.Get("squadron.export"),
+            config.SquadronExt.TrimStart('.'),
+            ExportConfig.BuildFileName(config.SquadronTemplate, config.SquadronExt, vars));
+        if (path is null) return;
+
+        try
+        {
+            pilot.ExportToFile(path);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("common.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
 
     [RelayCommand]
-    private void Import() { /* TODO: implement squadron import */ }
+    private async Task ImportAsync()
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null) return;
+
+        var pilot = SelectedPilot?.Data;
+        if (pilot is null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("squadron.import_title"),
+                UiStrings.Get("squadron.no_empty_slot"));
+            return;
+        }
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("squadron.import_title"),
+            ExportConfig.Instance.SquadronExt);
+        if (path is null) return;
+
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
+            foreach (string name in imported.Names())
+                pilot.Set(name, imported.Get(name));
+
+            RefreshList();
+            if (SelectedPilot is not null) LoadPilotDetails(SelectedPilot);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("common.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
 }

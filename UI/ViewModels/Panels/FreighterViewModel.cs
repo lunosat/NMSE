@@ -13,6 +13,9 @@ namespace NMSE.UI.ViewModels.Panels;
 public partial class FreighterViewModel : PanelViewModelBase
 {
     private JsonObject? _playerState;
+
+    /// <summary>The save's freighter base, kept so backup and restore can target it.</summary>
+    private JsonObject? _freighterBase;
     private GameItemDatabase? _database;
     private IconManager? _iconManager;
 
@@ -71,6 +74,7 @@ public partial class FreighterViewModel : PanelViewModelBase
             RefreshCrewRaceItems();
 
             var data = FreighterLogic.LoadFreighterData(_playerState);
+            _freighterBase = data.FreighterBase;
 
             FreighterName = data.Name;
 
@@ -231,11 +235,91 @@ public partial class FreighterViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void Export() { /* TODO: implement freighter export */ }
+    private async Task BackupBaseAsync()
+    {
+        if (Dialogs is null) return;
 
-    [RelayCommand]
-    private void Import() { /* TODO: implement freighter import */ }
+        if (_freighterBase is null)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("freighter.backup_title"),
+                UiStrings.Get("freighter.backup_no_base"));
+            return;
+        }
 
+        if (SaveFilePickerFunc is null) return;
+
+        var config = ExportConfig.Instance;
+        var vars = new Dictionary<string, string>
+        {
+            ["freighter_name"] = FreighterName,
+            ["type"] = SelectedTypeIndex >= 0 && SelectedTypeIndex < FreighterTypes.Count
+                ? FreighterTypes[SelectedTypeIndex] : "",
+            ["class"] = SelectedClassIndex >= 0 && SelectedClassIndex < FreighterClasses.Count
+                ? FreighterClasses[SelectedClassIndex] : "",
+        };
+
+        string? path = await SaveFilePickerFunc(UiStrings.Get("freighter.backup_title"),
+            config.FreighterExt.TrimStart('.'),
+            ExportConfig.BuildFileName(config.FreighterTemplate, config.FreighterExt, vars));
+        if (path is null) return;
+
+        try
+        {
+            _freighterBase.ExportToFile(path);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("freighter.backup_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
+
+    /// <summary>
+    /// Restores a freighter base backup over the save's existing freighter base. The
+    /// base is matched by type and version rather than by index, which shifts.
+    /// </summary>
     [RelayCommand]
-    private void Delete() { /* TODO: implement freighter delete */ }
+    private async Task RestoreBaseAsync()
+    {
+        if (Dialogs is null || OpenFilePickerFunc is null || _playerState is null) return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("freighter.restore_title"),
+            ExportConfig.Instance.FreighterExt);
+        if (path is null) return;
+
+        try
+        {
+            var imported = JsonObject.ImportFromFile(path);
+            var bases = _playerState.GetArray("PersistentPlayerBases");
+            if (bases is null) return;
+
+            for (int i = 0; i < bases.Length; i++)
+            {
+                var candidate = bases.GetObject(i);
+                var baseType = candidate?.GetObject("BaseType");
+                if (baseType is null) continue;
+                if (baseType.GetString("PersistentBaseTypes") != "FreighterBase") continue;
+                if (candidate!.GetInt("BaseVersion") < 3) continue;
+
+                foreach (string name in imported.Names())
+                    candidate.Set(name, imported.Get(name));
+
+                _freighterBase = candidate;
+                BaseItemsText = (candidate.GetArray("Objects")?.Length ?? 0)
+                    .ToString(CultureInfo.InvariantCulture);
+
+                await Dialogs.ShowMessageAsync(UiStrings.Get("freighter.restore_title"),
+                    UiStrings.Get("freighter.restore_success"));
+                return;
+            }
+
+            await Dialogs.ShowMessageAsync(UiStrings.Get("freighter.restore_title"),
+                UiStrings.Get("freighter.restore_no_slot"), Services.DialogIcon.Warning);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                UiStrings.Format("freighter.restore_failed", ex.Message), Services.DialogIcon.Error);
+        }
+    }
 }

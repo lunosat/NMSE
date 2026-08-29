@@ -83,10 +83,11 @@
                             </Grid>
 
                             <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
+                            <!-- The freighter itself is not deletable; what can be backed up
+                                 and restored is its base, which is a separate save entry. -->
                             <StackPanel Orientation="Horizontal" Spacing="4">
-                                <Button Content="{loc:Locale common.export}" Command="{Binding ExportCommand}" />
-                                <Button Content="{loc:Locale common.import}" Command="{Binding ImportCommand}" />
-                                <Button Content="{loc:Locale common.delete}" Command="{Binding DeleteCommand}" />
+                                <Button Content="{loc:Locale freighter.export}" Command="{Binding BackupBaseCommand}" />
+                                <Button Content="{loc:Locale freighter.import}" Command="{Binding RestoreBaseCommand}" />
                             </StackPanel>
                         </StackPanel>
 

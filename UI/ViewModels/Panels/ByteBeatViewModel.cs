@@ -246,30 +246,47 @@ public partial class ByteBeatViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteSong()
+    private async Task DeleteSongAsync()
     {
         int idx = SelectedSongIndex;
-        if (idx < 0 || _mySongs == null || idx >= _mySongs.Length) return;
+        if (idx < 0 || _mySongs is null || idx >= _mySongs.Length)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("bytebeat.delete_title"),
+                    UiStrings.Get("bytebeat.no_song_selected"));
+            return;
+        }
+
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("bytebeat.delete_title"),
+                UiStrings.Get("bytebeat.delete_confirm"), Services.DialogIcon.Warning))
+            return;
 
         try
         {
+            // The slot stays in place and is blanked; the library is a fixed-size array.
             var song = _mySongs.GetObject(idx);
             song.Set("Name", "");
             song.Set("AuthorUsername", "");
             song.Set("AuthorOnlineID", "");
             song.Set("AuthorPlatform", "");
-            var dataArr = song.GetArray("Data");
-            if (dataArr != null)
+
+            var data = song.GetArray("Data");
+            if (data is not null)
             {
-                for (int i = 0; i < dataArr.Length; i++)
-                    dataArr.Set(i, "");
+                for (int i = 0; i < data.Length; i++)
+                    data.Set(i, "");
             }
 
             _previousSongIndex = -1;
             RefreshSongList();
-            if (idx < SongList.Count)
-                SelectedSongIndex = idx;
+            if (idx < SongList.Count) SelectedSongIndex = idx;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("bytebeat.delete_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 }

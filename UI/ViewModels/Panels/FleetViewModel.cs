@@ -12,8 +12,23 @@ public partial class FleetViewModel : PanelViewModelBase
     public FrigateViewModel Frigates { get; } = new();
     public SquadronViewModel Squadron { get; } = new();
 
+    /// <summary>
+    /// The two hosted panels are not in the shell's panel list, so the services it
+    /// assigns to this one have to be passed down.
+    /// </summary>
+    private void ForwardServices()
+    {
+        foreach (var child in new PanelViewModelBase[] { Frigates, Squadron })
+        {
+            child.Dialogs ??= Dialogs;
+            child.SaveFilePickerFunc ??= SaveFilePickerFunc;
+            child.OpenFilePickerFunc ??= OpenFilePickerFunc;
+        }
+    }
+
     public override void LoadData(JsonObject saveData, GameItemDatabase database, IconManager? iconManager)
     {
+        ForwardServices();
         Frigates.LoadData(saveData, database, iconManager);
         Squadron.LoadData(saveData);
     }

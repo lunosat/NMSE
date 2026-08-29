@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -27,9 +28,14 @@ public partial class RecipeViewModel : PanelViewModelBase
     [ObservableProperty] private RecipeRowViewModel? _selectedRecipe;
     [ObservableProperty] private string _searchText = "";
     [ObservableProperty] private int _selectedFilterIndex;
-    [ObservableProperty] private string _detailText = "Select a recipe to see details.";
+    [ObservableProperty] private string _detailText = UiStrings.Get("recipe.details_placeholder");
 
-    public string[] FilterOptions { get; } = ["All", "Refining", "Cooking"];
+    public string[] FilterOptions { get; } =
+    [
+        UiStrings.Get("recipe.filter_all"),
+        UiStrings.Get("recipe.type_refining"),
+        UiStrings.Get("recipe.type_cooking"),
+    ];
 
     partial void OnSearchTextChanged(string value) => PopulateGrid();
     partial void OnSelectedFilterIndexChanged(int value) => PopulateGrid();
@@ -38,7 +44,7 @@ public partial class RecipeViewModel : PanelViewModelBase
     {
         if (value?.Source == null)
         {
-            DetailText = "Select a recipe to see details.";
+            DetailText = UiStrings.Get("recipe.details_placeholder");
             return;
         }
 
@@ -46,9 +52,12 @@ public partial class RecipeViewModel : PanelViewModelBase
         var parts = new List<string>();
 
         if (!string.IsNullOrEmpty(recipe.RecipeName))
-            parts.Add($"Recipe: {recipe.RecipeName}");
-        parts.Add($"Type: {(recipe.Cooking ? "Cooking" : "Refining")}");
-        parts.Add($"Time: {recipe.TimeToMake}s");
+            parts.Add(UiStrings.Format("recipe.detail_recipe", recipe.RecipeName));
+
+        parts.Add(UiStrings.Format("recipe.detail_type",
+            UiStrings.Get(recipe.Cooking ? "recipe.type_cooking" : "recipe.type_refining")));
+        parts.Add(UiStrings.Format("recipe.detail_time",
+            recipe.TimeToMake.ToString(CultureInfo.CurrentCulture)));
 
         if (recipe.Ingredients.Length > 0)
         {
@@ -57,13 +66,14 @@ public partial class RecipeViewModel : PanelViewModelBase
                 string name = _itemDb?.GetItem(i.Id)?.Name ?? i.Id;
                 return $"{i.Amount}x {name} ({i.Id})";
             });
-            parts.Add($"Ingredients: {string.Join(", ", ingNames)}");
+            parts.Add(UiStrings.Format("recipe.detail_ingredients", string.Join(", ", ingNames)));
         }
 
         if (recipe.Result != null)
         {
             string resultName = _itemDb?.GetItem(recipe.Result.Id)?.Name ?? recipe.Result.Id;
-            parts.Add($"Result: {recipe.Result.Amount}x {resultName} ({recipe.Result.Id})");
+            parts.Add(UiStrings.Format("recipe.detail_result",
+                recipe.Result.Amount.ToString(CultureInfo.CurrentCulture), resultName, recipe.Result.Id));
         }
 
         DetailText = string.Join("  |  ", parts);
