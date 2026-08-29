@@ -1,0 +1,292 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Component styling for the NMSE theme. Layered over Semi.Avalonia: Semi
+        supplies control templates and interaction states, and these selectors
+        repaint them with the tokens in NmseTokens.axaml.
+    -->
+
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://NMSE/UI/Themes/NmseTokens.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Styles.Resources>
+
+    <!-- =============================== Window shell =============================== -->
+
+    <!-- Without an explicit Background the window inherits a transparent visual under
+         XWayland, so the desktop shows through the content area. -->
+    <Style Selector="Window">
+        <Setter Property="Background" Value="{DynamicResource NmseBg0Brush}" />
+        <Setter Property="FontFamily" Value="{DynamicResource NmseUiFont}" />
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontMd}" />
+        <Setter Property="TransparencyLevelHint" Value="None" />
+    </Style>
+
+    <Style Selector="Menu">
+        <Setter Property="Background" Value="{DynamicResource NmseChromeBrush}" />
+    </Style>
+
+    <Style Selector="Border.toolbar">
+        <Setter Property="Background" Value="{DynamicResource NmseChromeBrush}" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <Style Selector="Border.statusBar">
+        <Setter Property="Background" Value="{DynamicResource NmseChromeBrush}" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <!-- ================================= Sidebar ================================== -->
+
+    <Style Selector="Border.sidebar">
+        <Setter Property="Background" Value="{DynamicResource NmseSidebarBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,1,0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <Style Selector="Border.sidebar ListBox">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Border.sidebar ListBoxItem">
+        <Setter Property="Padding" Value="10,9" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText1Brush}" />
+    </Style>
+
+    <Style Selector="Border.sidebar ListBoxItem:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseBg3Brush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseText0Brush}" />
+    </Style>
+
+    <!-- Selection reads as an amber spine on the leading edge, echoing the game's HUD
+         rather than filling the row. -->
+    <Style Selector="Border.sidebar ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentMutedBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="BorderThickness" Value="2,0,0,0" />
+    </Style>
+
+    <Style Selector="Border.sidebar ListBoxItem:selected PathIcon">
+        <Setter Property="Foreground" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.navToggle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText1Brush}" />
+        <Setter Property="Padding" Value="8" />
+    </Style>
+
+    <Style Selector="Button.navToggle:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseBg3Brush}" />
+    </Style>
+
+    <!-- Collapsed, the toggle is the only thing in the rail and centres; expanded, it
+         sits at the trailing edge so the labels below start at a consistent left edge. -->
+    <Style Selector="Button.navToggle.expanded">
+        <Setter Property="HorizontalContentAlignment" Value="Right" />
+    </Style>
+
+    <!-- ============================== Panel content =============================== -->
+
+    <Style Selector="Border.card">
+        <Setter Property="Background" Value="{DynamicResource NmseBg1Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusMd}" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <!-- Section headings use the game face, upper case and letterspaced. It is a
+         display font: legible at heading size, too wide for body copy. -->
+    <Style Selector="TextBlock.sectionHeader">
+        <Setter Property="FontFamily" Value="{DynamicResource NmseDisplayFont}" />
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontLg}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+
+    <Style Selector="TextBlock.panelTitle">
+        <Setter Property="FontFamily" Value="{DynamicResource NmseDisplayFont}" />
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontXl}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText0Brush}" />
+        <Setter Property="Margin" Value="0,0,0,14" />
+    </Style>
+
+    <Style Selector="TextBlock.label">
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontSm}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText1Brush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.hint">
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontXs}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText2Brush}" />
+    </Style>
+
+    <!-- Portal addresses and glyph codes -->
+    <Style Selector="TextBlock.glyphs">
+        <Setter Property="FontFamily" Value="{DynamicResource NmseGlyphFont}" />
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.mono">
+        <Setter Property="FontFamily" Value="{DynamicResource NmseMonoFont}" />
+    </Style>
+
+    <Style Selector="TextBox.mono">
+        <Setter Property="FontFamily" Value="{DynamicResource NmseMonoFont}" />
+    </Style>
+
+    <!-- ================================= Inputs ================================== -->
+
+    <Style Selector="TextBox">
+        <Setter Property="Background" Value="{DynamicResource NmseBg2Brush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText0Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
+    </Style>
+
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <Style Selector="ComboBox">
+        <Setter Property="Background" Value="{DynamicResource NmseBg2Brush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText0Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
+    </Style>
+
+    <Style Selector="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource NmseText0Brush}" />
+    </Style>
+
+    <!-- ================================= Buttons ================================= -->
+
+    <Style Selector="Button">
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
+    </Style>
+
+    <!-- The one call to action per screen: Load, Save, Apply -->
+    <Style Selector="Button.primary /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseOnAccentBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+    </Style>
+
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentHoverBrush}" />
+    </Style>
+
+    <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentPressedBrush}" />
+    </Style>
+
+    <Style Selector="Button.danger /template/ ContentPresenter">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource NmseDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseDangerBrush}" />
+    </Style>
+
+    <!-- ============================== Inventory grid ============================= -->
+
+    <Style Selector="Border.inventorySlot">
+        <Setter Property="Background" Value="{DynamicResource NmseSlotBgBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseSlotBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
+        <Setter Property="Width" Value="72" />
+        <Setter Property="Height" Value="72" />
+        <Setter Property="Margin" Value="2" />
+    </Style>
+
+    <Style Selector="Button.slotButton">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="2" />
+        <Setter Property="Width" Value="80" />
+        <Setter Property="Height" Value="80" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    </Style>
+
+    <Style Selector="Button.slotButton /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseSlotBgBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseSlotBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{DynamicResource NmseRadiusSm}" />
+    </Style>
+
+    <Style Selector="Button.slotButton:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseSlotHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <Style Selector="Button.slotButton:pressed /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseSlotSelectedBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.slotAmount">
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontXs}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseSlotAmountBrush}" />
+    </Style>
+
+    <!-- ================================ Data grid ================================ -->
+
+    <Style Selector="DataGrid">
+        <Setter Property="Background" Value="{DynamicResource NmseBg1Brush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NmseBorderBrush}" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource NmseBorderBrush}" />
+    </Style>
+
+    <Style Selector="DataGridColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource NmseBg2Brush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NmseText1Brush}" />
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontSm}" />
+    </Style>
+
+    <Style Selector="DataGridRow:selected /template/ Rectangle#BackgroundRectangle">
+        <Setter Property="Fill" Value="{DynamicResource NmseAccentMutedBrush}" />
+    </Style>
+
+    <!-- ================================== Tabs =================================== -->
+
+    <Style Selector="TabItem">
+        <Setter Property="Foreground" Value="{DynamicResource NmseText1Brush}" />
+        <Setter Property="FontSize" Value="{DynamicResource NmseFontMd}" />
+    </Style>
+
+    <Style Selector="TabItem:selected">
+        <Setter Property="Foreground" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <!-- ================================ Progress ================================= -->
+
+    <Style Selector="ProgressBar">
+        <Setter Property="Foreground" Value="{DynamicResource NmseAccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource NmseBg2Brush}" />
+    </Style>
+
+</Styles>

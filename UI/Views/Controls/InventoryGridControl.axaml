@@ -11,7 +11,7 @@
     <Grid RowDefinitions="Auto,*">
         <!-- Resize / Import / Export toolbar -->
         <Border Grid.Row="0" Padding="8,4"
-                Background="{DynamicResource SemiColorBackground2}"
+                Background="{DynamicResource NmseBg2Brush}"
                 CornerRadius="4" Margin="0,0,0,4">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <TextBlock Text="{loc:Locale inventory.width}" Classes="label" />
@@ -21,7 +21,7 @@
                 <NumericUpDown Value="{Binding ResizeHeight}" Minimum="1" Maximum="20" Width="72"
                                FormatString="0" />
                 <Button Content="{loc:Locale inventory.resize}" Command="{Binding ResizeInventoryCommand}" />
-                <Rectangle Width="1" Height="20" Fill="{DynamicResource SemiColorBorder}" Margin="4,0" />
+                <Rectangle Width="1" Height="20" Fill="{DynamicResource NmseBorderBrush}" Margin="4,0" />
                 <Button Content="{loc:Locale common.import}" Command="{Binding ImportInventoryCommand}" />
                 <Button Content="{loc:Locale common.export}" Command="{Binding ExportInventoryCommand}" />
                 <TextBlock Text="{Binding MaxSupportedText}" Classes="label" Margin="8,0,0,0"
@@ -105,13 +105,13 @@
                                     </ContextMenu>
                                 </Button.ContextMenu>
                                 <Border CornerRadius="4"
-                                        Background="{DynamicResource SemiColorBackground1}"
-                                        BorderBrush="{DynamicResource SemiColorBorder}"
+                                        Background="{DynamicResource NmseBg1Brush}"
+                                        BorderBrush="{DynamicResource NmseBorderBrush}"
                                         BorderThickness="1"
                                         Opacity="{Binding SlotOpacity}">
                                     <Panel>
                                         <Border IsVisible="{Binding IsEmpty}"
-                                                Background="{DynamicResource SemiColorBackground2}"
+                                                Background="{DynamicResource NmseBg2Brush}"
                                                 CornerRadius="3" Opacity="0.5" />
 
                                         <Border IsVisible="{Binding IsDamaged}"
@@ -128,7 +128,7 @@
                                         <!-- Item name (top, scrolling, below icons) -->
                                         <ctrl:MarqueeTextBlock Text="{Binding ItemName}"
                                                               FontSize="10"
-                                                              Foreground="{DynamicResource SemiColorText0}"
+                                                              Foreground="{DynamicResource NmseText0Brush}"
                                                               IsVisible="{Binding !IsEmpty}"
                                                               HorizontalAlignment="Stretch"
                                                               VerticalAlignment="Top"
@@ -173,7 +173,7 @@
                                         <!-- Amount display (bottom-right) -->
                                         <TextBlock Text="{Binding DisplayAmount}"
                                                    FontSize="10" FontWeight="Bold"
-                                                   Foreground="{DynamicResource SemiColorText0}"
+                                                   Foreground="{DynamicResource NmseText0Brush}"
                                                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                                    Margin="0,0,3,2" />
 
@@ -187,7 +187,7 @@
 
                                         <!-- Selection border -->
                                         <Border IsVisible="{Binding IsSelected}"
-                                                BorderBrush="{DynamicResource SemiColorPrimary}"
+                                                BorderBrush="{DynamicResource NmseAccentBrush}"
                                                 BorderThickness="2" CornerRadius="3"
                                                 IsHitTestVisible="False" />
                                     </Panel>
@@ -200,7 +200,7 @@
 
             <!-- Detail Panel (collapsible) -->
             <Border Grid.Column="1"
-                    Background="{DynamicResource SemiColorBackground2}"
+                    Background="{DynamicResource NmseBg2Brush}"
                     CornerRadius="4" Padding="0"
                     Width="{Binding DetailPanelWidth}">
                 <DockPanel>
@@ -226,7 +226,7 @@
                         <StackPanel Margin="12,4,12,8" Spacing="6">
                             <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
                                 <Border Width="56" Height="56" CornerRadius="4"
-                                        Background="{DynamicResource SemiColorBackground1}">
+                                        Background="{DynamicResource NmseBg1Brush}">
                                     <Image Source="{Binding DetailIcon}" Stretch="Uniform" Margin="4" />
                                 </Border>
                                 <StackPanel VerticalAlignment="Center" Spacing="2">
@@ -235,16 +235,16 @@
                                             Background="Transparent" BorderThickness="0"
                                             Padding="0" Cursor="Hand">
                                         <TextBlock Text="{Binding DetailItemName}" FontSize="14" FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource SemiColorPrimary}"
+                                                   Foreground="{DynamicResource NmseAccentBrush}"
                                                    TextWrapping="Wrap" MaxWidth="200"
                                                    TextDecorations="Underline" />
                                     </Button>
                                     <TextBlock Text="{Binding DetailPosition}" FontSize="11"
-                                               Foreground="{DynamicResource SemiColorText2}" />
+                                               Foreground="{DynamicResource NmseText1Brush}" />
                                 </StackPanel>
                             </StackPanel>
 
-                            <Rectangle Height="1" Fill="{DynamicResource SemiColorBorder}" Margin="0,4" />
+                            <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,4" />
 
                             <Grid ColumnDefinitions="70,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto"
                                   Margin="0,2,0,0">
@@ -280,10 +280,10 @@
                                     Margin="0,4,0,0" />
 
                             <TextBlock Text="{Binding DetailDescription}" TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SemiColorText2}"
+                                       Foreground="{DynamicResource NmseText1Brush}"
                                        FontSize="11" MaxWidth="260" Margin="0,2,0,0" />
 
-                            <Rectangle Height="1" Fill="{DynamicResource SemiColorBorder}" Margin="0,6" />
+                            <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,6" />
 
                             <TextBlock Text="{loc:Locale inventory.label_quick_actions}" FontWeight="SemiBold" FontSize="12" />
                             <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">
@@ -303,7 +303,7 @@
                                         IsEnabled="{Binding IsSlotSelected}" />
                             </WrapPanel>
 
-                            <Rectangle Height="1" Fill="{DynamicResource SemiColorBorder}" Margin="0,6" />
+                            <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,6" />
 
                             <TextBlock Text="{loc:Locale inventory.label_bulk_actions}" FontWeight="SemiBold" FontSize="12" />
                             <WrapPanel Orientation="Horizontal" Margin="0,4,0,0">

@@ -1,0 +1,206 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        NMSE design tokens.
+
+        The palette takes its cue from the No Man's Sky HUD: a warm near-black
+        ground rather than a neutral grey, with amber carrying every interactive
+        accent. Hazard and rarity hues are kept close to the in-game ones so an
+        item's class reads the same here as it does in the game.
+
+        Both variants define every key. A token that exists in only one variant
+        renders as a missing-resource box in the other, so the two lists below are
+        deliberately symmetrical.
+    -->
+    <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ============================ DARK (default) ============================ -->
+        <ResourceDictionary x:Key="Dark">
+            <!-- Surfaces: warm blacks, each step ~4% lighter than the last -->
+            <Color x:Key="NmseBg0">#0E0B09</Color>   <!-- window ground -->
+            <Color x:Key="NmseBg1">#16120F</Color>   <!-- panels, cards -->
+            <Color x:Key="NmseBg2">#1F1A15</Color>   <!-- inputs, raised rows -->
+            <Color x:Key="NmseBg3">#2B241D</Color>   <!-- hover -->
+            <Color x:Key="NmseChrome">#12100E</Color><!-- toolbar, status bar -->
+            <Color x:Key="NmseSidebar">#0B0908</Color>
+
+            <!-- Text -->
+            <Color x:Key="NmseText0">#F4EDE4</Color> <!-- primary -->
+            <Color x:Key="NmseText1">#B8AC9C</Color> <!-- secondary -->
+            <Color x:Key="NmseText2">#7A7065</Color> <!-- disabled / hints -->
+
+            <!-- Amber accent -->
+            <Color x:Key="NmseAccent">#FF9E33</Color>
+            <Color x:Key="NmseAccentHover">#FFB458</Color>
+            <Color x:Key="NmseAccentPressed">#E0821A</Color>
+            <Color x:Key="NmseAccentMuted">#4A3116</Color>
+            <Color x:Key="NmseOnAccent">#1A1005</Color>
+
+            <!-- Lines -->
+            <Color x:Key="NmseBorder">#332A22</Color>
+            <Color x:Key="NmseBorderStrong">#4A3E33</Color>
+
+            <!-- Status -->
+            <Color x:Key="NmseSuccess">#5FD38D</Color>
+            <Color x:Key="NmseWarning">#FFC24B</Color>
+            <Color x:Key="NmseDanger">#FF6B5B</Color>
+            <Color x:Key="NmseInfo">#5FB8D3</Color>
+
+            <!-- Inventory grid -->
+            <Color x:Key="NmseSlotBg">#1A1512</Color>
+            <Color x:Key="NmseSlotBorder">#3A3026</Color>
+            <Color x:Key="NmseSlotHover">#2A231C</Color>
+            <Color x:Key="NmseSlotSelected">#5C3D14</Color>
+            <Color x:Key="NmseSlotDeactivated">#3D1714</Color>
+            <Color x:Key="NmseSlotAmount">#F4EDE4</Color>
+
+            <!-- Technology adjacency, matching the in-game bonus colours -->
+            <Color x:Key="NmseAdjGreen">#4FD16B</Color>
+            <Color x:Key="NmseAdjBlue">#4F9BD1</Color>
+            <Color x:Key="NmseAdjYellow">#E8C64A</Color>
+            <Color x:Key="NmseAdjPurple">#A96FD1</Color>
+
+            <!-- Item classes -->
+            <Color x:Key="NmseClassS">#F2C14E</Color>
+            <Color x:Key="NmseClassA">#B57BD6</Color>
+            <Color x:Key="NmseClassB">#5FA8E8</Color>
+            <Color x:Key="NmseClassC">#77B36B</Color>
+
+            <!-- Raw JSON editor -->
+            <Color x:Key="NmseCodeBg">#0B0908</Color>
+            <Color x:Key="NmseCodeText">#E6DED3</Color>
+            <Color x:Key="NmseCodeKey">#FFB458</Color>
+            <Color x:Key="NmseCodeString">#9FD17E</Color>
+            <Color x:Key="NmseCodeNumber">#6FC3DF</Color>
+            <Color x:Key="NmseCodeLiteral">#C08FE0</Color>
+            <Color x:Key="NmseCodePunct">#8A7E70</Color>
+            <Color x:Key="NmseCodeGutterBg">#100D0B</Color>
+            <Color x:Key="NmseCodeGutterText">#5C5348</Color>
+            <Color x:Key="NmseCodeCurrentLine">#1B1611</Color>
+            <Color x:Key="NmseCodeSelection">#3D2F1C</Color>
+        </ResourceDictionary>
+
+        <!-- ================================ LIGHT ================================ -->
+        <ResourceDictionary x:Key="Light">
+            <Color x:Key="NmseBg0">#FAF7F2</Color>
+            <Color x:Key="NmseBg1">#FFFFFF</Color>
+            <Color x:Key="NmseBg2">#F1EBE1</Color>
+            <Color x:Key="NmseBg3">#E5DCCE</Color>
+            <Color x:Key="NmseChrome">#F3EEE6</Color>
+            <Color x:Key="NmseSidebar">#EFE9DF</Color>
+
+            <Color x:Key="NmseText0">#1F1A15</Color>
+            <Color x:Key="NmseText1">#5C5348</Color>
+            <Color x:Key="NmseText2">#8F8577</Color>
+
+            <!-- Darker amber: the dark-variant tone fails contrast on a light ground -->
+            <Color x:Key="NmseAccent">#B26A00</Color>
+            <Color x:Key="NmseAccentHover">#CC7A0A</Color>
+            <Color x:Key="NmseAccentPressed">#8F5400</Color>
+            <Color x:Key="NmseAccentMuted">#F5E3CB</Color>
+            <Color x:Key="NmseOnAccent">#FFFFFF</Color>
+
+            <Color x:Key="NmseBorder">#DED5C7</Color>
+            <Color x:Key="NmseBorderStrong">#C2B6A4</Color>
+
+            <Color x:Key="NmseSuccess">#1F7A4D</Color>
+            <Color x:Key="NmseWarning">#9C6A00</Color>
+            <Color x:Key="NmseDanger">#C0392B</Color>
+            <Color x:Key="NmseInfo">#1F6E88</Color>
+
+            <Color x:Key="NmseSlotBg">#FFFFFF</Color>
+            <Color x:Key="NmseSlotBorder">#D6CCBC</Color>
+            <Color x:Key="NmseSlotHover">#F3EADC</Color>
+            <Color x:Key="NmseSlotSelected">#F7DFB6</Color>
+            <Color x:Key="NmseSlotDeactivated">#F2CFC9</Color>
+            <Color x:Key="NmseSlotAmount">#1F1A15</Color>
+
+            <Color x:Key="NmseAdjGreen">#2E8B45</Color>
+            <Color x:Key="NmseAdjBlue">#2A6FA8</Color>
+            <Color x:Key="NmseAdjYellow">#9A7B0C</Color>
+            <Color x:Key="NmseAdjPurple">#7A45A8</Color>
+
+            <Color x:Key="NmseClassS">#9A7405</Color>
+            <Color x:Key="NmseClassA">#7A45A8</Color>
+            <Color x:Key="NmseClassB">#2A6FA8</Color>
+            <Color x:Key="NmseClassC">#3F7A33</Color>
+
+            <Color x:Key="NmseCodeBg">#FFFFFF</Color>
+            <Color x:Key="NmseCodeText">#1F1A15</Color>
+            <Color x:Key="NmseCodeKey">#8F5400</Color>
+            <Color x:Key="NmseCodeString">#2E7A1F</Color>
+            <Color x:Key="NmseCodeNumber">#1F6E88</Color>
+            <Color x:Key="NmseCodeLiteral">#7A45A8</Color>
+            <Color x:Key="NmseCodePunct">#7A7065</Color>
+            <Color x:Key="NmseCodeGutterBg">#F3EEE6</Color>
+            <Color x:Key="NmseCodeGutterText">#9C9284</Color>
+            <Color x:Key="NmseCodeCurrentLine">#FBF3E4</Color>
+            <Color x:Key="NmseCodeSelection">#F7E1BE</Color>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!--
+        Brushes resolve their Color by DynamicResource, so a theme-variant switch
+        repaints them without the controls having to rebind.
+    -->
+    <SolidColorBrush x:Key="NmseBg0Brush"        Color="{DynamicResource NmseBg0}" />
+    <SolidColorBrush x:Key="NmseBg1Brush"        Color="{DynamicResource NmseBg1}" />
+    <SolidColorBrush x:Key="NmseBg2Brush"        Color="{DynamicResource NmseBg2}" />
+    <SolidColorBrush x:Key="NmseBg3Brush"        Color="{DynamicResource NmseBg3}" />
+    <SolidColorBrush x:Key="NmseChromeBrush"     Color="{DynamicResource NmseChrome}" />
+    <SolidColorBrush x:Key="NmseSidebarBrush"    Color="{DynamicResource NmseSidebar}" />
+
+    <SolidColorBrush x:Key="NmseText0Brush"      Color="{DynamicResource NmseText0}" />
+    <SolidColorBrush x:Key="NmseText1Brush"      Color="{DynamicResource NmseText1}" />
+    <SolidColorBrush x:Key="NmseText2Brush"      Color="{DynamicResource NmseText2}" />
+
+    <SolidColorBrush x:Key="NmseAccentBrush"        Color="{DynamicResource NmseAccent}" />
+    <SolidColorBrush x:Key="NmseAccentHoverBrush"   Color="{DynamicResource NmseAccentHover}" />
+    <SolidColorBrush x:Key="NmseAccentPressedBrush" Color="{DynamicResource NmseAccentPressed}" />
+    <SolidColorBrush x:Key="NmseAccentMutedBrush"   Color="{DynamicResource NmseAccentMuted}" />
+    <SolidColorBrush x:Key="NmseOnAccentBrush"      Color="{DynamicResource NmseOnAccent}" />
+
+    <SolidColorBrush x:Key="NmseBorderBrush"       Color="{DynamicResource NmseBorder}" />
+    <SolidColorBrush x:Key="NmseBorderStrongBrush" Color="{DynamicResource NmseBorderStrong}" />
+
+    <SolidColorBrush x:Key="NmseSuccessBrush" Color="{DynamicResource NmseSuccess}" />
+    <SolidColorBrush x:Key="NmseWarningBrush" Color="{DynamicResource NmseWarning}" />
+    <SolidColorBrush x:Key="NmseDangerBrush"  Color="{DynamicResource NmseDanger}" />
+    <SolidColorBrush x:Key="NmseInfoBrush"    Color="{DynamicResource NmseInfo}" />
+
+    <SolidColorBrush x:Key="NmseSlotBgBrush"          Color="{DynamicResource NmseSlotBg}" />
+    <SolidColorBrush x:Key="NmseSlotBorderBrush"      Color="{DynamicResource NmseSlotBorder}" />
+    <SolidColorBrush x:Key="NmseSlotHoverBrush"       Color="{DynamicResource NmseSlotHover}" />
+    <SolidColorBrush x:Key="NmseSlotSelectedBrush"    Color="{DynamicResource NmseSlotSelected}" />
+    <SolidColorBrush x:Key="NmseSlotDeactivatedBrush" Color="{DynamicResource NmseSlotDeactivated}" />
+    <SolidColorBrush x:Key="NmseSlotAmountBrush"      Color="{DynamicResource NmseSlotAmount}" />
+
+    <SolidColorBrush x:Key="NmseAdjGreenBrush"  Color="{DynamicResource NmseAdjGreen}" />
+    <SolidColorBrush x:Key="NmseAdjBlueBrush"   Color="{DynamicResource NmseAdjBlue}" />
+    <SolidColorBrush x:Key="NmseAdjYellowBrush" Color="{DynamicResource NmseAdjYellow}" />
+    <SolidColorBrush x:Key="NmseAdjPurpleBrush" Color="{DynamicResource NmseAdjPurple}" />
+
+    <SolidColorBrush x:Key="NmseClassSBrush" Color="{DynamicResource NmseClassS}" />
+    <SolidColorBrush x:Key="NmseClassABrush" Color="{DynamicResource NmseClassA}" />
+    <SolidColorBrush x:Key="NmseClassBBrush" Color="{DynamicResource NmseClassB}" />
+    <SolidColorBrush x:Key="NmseClassCBrush" Color="{DynamicResource NmseClassC}" />
+
+    <!-- Type. GeoSans is the game's own face; Inter carries the dense data views,
+         where GeoSans' wide caps cost too much horizontal room. -->
+    <FontFamily x:Key="NmseDisplayFont">avares://NMSE/Resources/app/NMSGeoSans_Kerned.ttf#NMS GeoSans</FontFamily>
+    <FontFamily x:Key="NmseGlyphFont">avares://NMSE/Resources/app/NMS_Glyphs_Mono.ttf#NMS Glyphs</FontFamily>
+    <FontFamily x:Key="NmseUiFont">Inter, Noto Sans, sans-serif</FontFamily>
+    <FontFamily x:Key="NmseMonoFont">JetBrains Mono, Noto Sans Mono, DejaVu Sans Mono, monospace</FontFamily>
+
+    <x:Double x:Key="NmseFontXs">11</x:Double>
+    <x:Double x:Key="NmseFontSm">12</x:Double>
+    <x:Double x:Key="NmseFontMd">13</x:Double>
+    <x:Double x:Key="NmseFontLg">15</x:Double>
+    <x:Double x:Key="NmseFontXl">19</x:Double>
+
+    <CornerRadius x:Key="NmseRadiusSm">3</CornerRadius>
+    <CornerRadius x:Key="NmseRadiusMd">5</CornerRadius>
+    <CornerRadius x:Key="NmseRadiusLg">8</CornerRadius>
+
+</ResourceDictionary>

@@ -4,21 +4,11 @@
              x:Class="NMSE.App"
              RequestedThemeVariant="Dark">
     <Application.Styles>
-        <semi:SemiTheme Locale="zh-CN" />
+        <!-- Semi supplies the control templates and interaction states; the NMSE
+             theme below repaints them. Locale is left at default so Semi does not
+             force a font stack of its own over the one in NmseTokens. -->
+        <semi:SemiTheme />
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
-        <StyleInclude Source="avares://NMSE/UI/Styles/AppStyles.axaml" />
+        <StyleInclude Source="avares://NMSE/UI/Themes/NmseTheme.axaml" />
     </Application.Styles>
-
-    <Application.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.ThemeDictionaries>
-                <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="SemiColorNavBackground" Color="#F0F0F0" />
-                    <SolidColorBrush x:Key="SemiColorBackground1" Color="#F5F5F5" />
-                    <SolidColorBrush x:Key="SemiColorBackground2" Color="#EAEAEA" />
-                    <SolidColorBrush x:Key="SemiColorFill0" Color="#E0E0E0" />
-                </ResourceDictionary>
-            </ResourceDictionary.ThemeDictionaries>
-        </ResourceDictionary>
-    </Application.Resources>
 </Application>

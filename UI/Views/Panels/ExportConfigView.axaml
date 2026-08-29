@@ -10,7 +10,7 @@
             <Grid ColumnDefinitions="160,*" Margin="0,3">
                 <TextBlock Grid.Column="0" Text="{Binding Label, StringFormat='{}{0}:'}"
                            VerticalAlignment="Center"
-                           Foreground="{DynamicResource SemiColorText2}" />
+                           Foreground="{DynamicResource NmseText1Brush}" />
                 <TextBox Grid.Column="1" Text="{Binding Value}" />
             </Grid>
         </DataTemplate>
@@ -22,19 +22,19 @@
             <TextBlock DockPanel.Dock="Top"
                        Text="{loc:Locale export_config.header}"
                        TextWrapping="Wrap"
-                       Foreground="{DynamicResource SemiColorText2}"
+                       Foreground="{DynamicResource NmseText1Brush}"
                        Margin="0,0,0,12" />
 
             <!-- Buttons + Status -->
             <Border DockPanel.Dock="Bottom"
-                    Background="{DynamicResource SemiColorBackground2}"
+                    Background="{DynamicResource NmseBg2Brush}"
                     CornerRadius="6" Padding="12,8" Margin="0,8,0,0">
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <Button Content="{loc:Locale export_config.save_settings}" Command="{Binding SaveSettingsCommand}" />
                     <Button Content="{loc:Locale export_config.reset_defaults}" Command="{Binding ResetDefaultsCommand}" />
                     <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center"
                                FontSize="12" Margin="8,0,0,0"
-                               Foreground="{DynamicResource SemiColorPrimary}" />
+                               Foreground="{DynamicResource NmseAccentBrush}" />
                 </StackPanel>
             </Border>
 
@@ -61,12 +61,12 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
                         <StackPanel Spacing="8">
                             <TextBlock Text="{loc:Locale export_config.help_heading}" FontWeight="Bold" FontSize="14"
-                                       Foreground="{DynamicResource SemiColorPrimary}" />
+                                       Foreground="{DynamicResource NmseAccentBrush}" />
                             <TextBlock Text="{x:Static vm:ExportConfigViewModel.HelpText}"
                                        FontFamily="Consolas, Courier New, monospace"
                                        FontSize="12"
                                        TextWrapping="Wrap"
-                                       Foreground="{DynamicResource SemiColorText2}" />
+                                       Foreground="{DynamicResource NmseText1Brush}" />
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

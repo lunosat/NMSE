@@ -12,23 +12,23 @@
 
             <!-- Filter / Search Bar -->
             <Border DockPanel.Dock="Top"
-                    Background="{DynamicResource SemiColorBackground2}"
+                    Background="{DynamicResource NmseBg2Brush}"
                     CornerRadius="6" Padding="12,8" Margin="0,0,0,8">
                 <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                     <TextBlock Text="{loc:Locale recipe.type_filter}" VerticalAlignment="Center"
-                               Foreground="{DynamicResource SemiColorText2}" />
+                               Foreground="{DynamicResource NmseText1Brush}" />
                     <ComboBox ItemsSource="{Binding FilterOptions}"
                               SelectedIndex="{Binding SelectedFilterIndex}"
                               Width="120" />
 
                     <TextBlock Text="{loc:Locale recipe.search_label}" VerticalAlignment="Center"
-                               Foreground="{DynamicResource SemiColorText2}" />
+                               Foreground="{DynamicResource NmseText1Brush}" />
                     <TextBox Text="{Binding SearchText}" Width="200" Watermark="{loc:Locale recipe.filter_placeholder}" />
 
                     <Button Content="{loc:Locale recipe.clear}" Command="{Binding ClearFiltersCommand}" />
 
                     <Rectangle Width="1" Height="20"
-                               Fill="{DynamicResource SemiColorBorder}" />
+                               Fill="{DynamicResource NmseBorderBrush}" />
 
                     <Button Content="{loc:Locale recipe.nms_recipes_web}" Command="{Binding OpenNmsRecipesCommand}" />
                 </StackPanel>
@@ -36,10 +36,10 @@
 
             <!-- Detail bar -->
             <Border DockPanel.Dock="Bottom"
-                    Background="{DynamicResource SemiColorBackground2}"
+                    Background="{DynamicResource NmseBg2Brush}"
                     CornerRadius="6" Padding="12,8" Margin="0,8,0,0">
                 <TextBlock Text="{Binding DetailText}" TextWrapping="Wrap"
-                           Foreground="{DynamicResource SemiColorText2}"
+                           Foreground="{DynamicResource NmseText1Brush}"
                            FontSize="12" />
             </Border>
 
@@ -53,7 +53,7 @@
                       SelectionMode="Single"
                       GridLinesVisibility="Horizontal"
                       BorderThickness="1"
-                      BorderBrush="{DynamicResource SemiColorBorder}"
+                      BorderBrush="{DynamicResource NmseBorderBrush}"
                       CornerRadius="6">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="{loc:Locale recipe.col_ingredients}" Binding="{Binding Inputs}" Width="3*" />

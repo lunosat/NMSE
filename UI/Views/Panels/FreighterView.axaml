@@ -82,7 +82,7 @@
                                 </DockPanel>
                             </Grid>
 
-                            <Rectangle Height="1" Fill="{DynamicResource SemiColorBorder}" Margin="0,12,0,8" />
+                            <Rectangle Height="1" Fill="{DynamicResource NmseBorderBrush}" Margin="0,12,0,8" />
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <Button Content="{loc:Locale common.export}" Command="{Binding ExportCommand}" />
                                 <Button Content="{loc:Locale common.import}" Command="{Binding ImportCommand}" />

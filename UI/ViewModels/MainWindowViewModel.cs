@@ -218,6 +218,13 @@ public partial class MainWindowViewModel : ViewModelBase
             string uiLangDir = Path.Combine(basePath, "Resources", "ui", "lang");
             UiStrings.SetDirectory(uiLangDir);
 
+            // Load the string table before anything below formats a message with it.
+            // ApplyStartupLanguage() runs after LoadDatabase() and used to be the first
+            // load, so every UiStrings.Format() here resolved to the raw key, and the
+            // item total silently omitted UiStrings.TotalKeyCount because it was still 0.
+            // Loading the same tag twice is harmless.
+            UiStrings.Load(AppConfig.Instance.Language);
+
             string iconsPath = Path.Combine(basePath, "Resources", "images");
             if (Directory.Exists(iconsPath))
             {

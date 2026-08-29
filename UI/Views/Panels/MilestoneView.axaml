@@ -9,7 +9,7 @@
         <DataTemplate x:Key="MilestoneSectionTemplate" x:DataType="vm:MilestoneSection">
             <StackPanel Margin="0,0,0,12">
                 <TextBlock Text="{Binding Title}" FontWeight="Bold" FontSize="13"
-                           Foreground="{DynamicResource SemiColorPrimary}"
+                           Foreground="{DynamicResource NmseAccentBrush}"
                            Margin="0,0,0,6"
                            IsVisible="{Binding Title, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <ItemsControl ItemsSource="{Binding Fields}">
@@ -18,7 +18,7 @@
                             <Grid ColumnDefinitions="160,120" Margin="0,2">
                                 <TextBlock Grid.Column="0" Text="{Binding Label}"
                                            VerticalAlignment="Center"
-                                           Foreground="{DynamicResource SemiColorText2}" />
+                                           Foreground="{DynamicResource NmseText1Brush}" />
                                 <NumericUpDown Grid.Column="1"
                                                Value="{Binding Value}"
                                                Minimum="-2147483648"

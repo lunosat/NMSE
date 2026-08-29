@@ -30,8 +30,8 @@
                                 <DataTemplate x:DataType="vm:DiscoveryItemViewModel">
                                     <Grid ColumnDefinitions="*,120,180">
                                         <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Category}" Foreground="{DynamicResource SemiColorText2}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Id}" Foreground="{DynamicResource SemiColorText2}" FontSize="11" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Category}" Foreground="{DynamicResource NmseText1Brush}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Id}" Foreground="{DynamicResource NmseText1Brush}" FontSize="11" />
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -57,8 +57,8 @@
                                 <DataTemplate x:DataType="vm:DiscoveryItemViewModel">
                                     <Grid ColumnDefinitions="*,120,180">
                                         <TextBlock Grid.Column="0" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                        <TextBlock Grid.Column="1" Text="{Binding Category}" Foreground="{DynamicResource SemiColorText2}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Id}" Foreground="{DynamicResource SemiColorText2}" FontSize="11" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Category}" Foreground="{DynamicResource NmseText1Brush}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Id}" Foreground="{DynamicResource NmseText1Brush}" FontSize="11" />
                                     </Grid>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>

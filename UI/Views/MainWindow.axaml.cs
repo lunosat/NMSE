@@ -297,7 +297,7 @@ public partial class MainWindow : Window
                     new TextBlock
                     {
                         Text = MainWindowViewModel.GitHubCreatorUrl,
-                        Foreground = this.TryFindResource("SemiColorLink", ActualThemeVariant, out var linkRes) && linkRes is Avalonia.Media.IBrush linkBrush
+                        Foreground = this.TryFindResource("NmseAccentBrush", ActualThemeVariant, out var linkRes) && linkRes is Avalonia.Media.IBrush linkBrush
                             ? linkBrush
                             : Avalonia.Media.Brushes.CornflowerBlue,
                         Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand)

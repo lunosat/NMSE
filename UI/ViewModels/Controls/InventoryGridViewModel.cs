@@ -45,7 +45,7 @@ public partial class InventorySlotViewModel : ObservableObject
     [ObservableProperty] private bool _hasClassMiniIcon;
     [ObservableProperty] private string _elementSymbol = "";
     [ObservableProperty] private bool _hasElementSymbol;
-    [ObservableProperty] private string _slotBackground = "SemiColorBackground1";
+    [ObservableProperty] private string _slotBackground = "NmseSlotBgBrush";
     [ObservableProperty] private double _slotOpacity = 1.0;
     [ObservableProperty] private string _superchargeColor = "#FFD700";
     [ObservableProperty] private string _superchargeBorderColor = "#FFD700";
@@ -438,7 +438,7 @@ public partial class InventoryGridViewModel : ObservableObject
         }
 
         // Slot background color based on state
-        string slotBg = "SemiColorBackground1";
+        string slotBg = "NmseSlotBgBrush";
         double slotOpacity = 1.0;
         if (!isEnabled)
         {
@@ -450,8 +450,10 @@ public partial class InventoryGridViewModel : ObservableObject
         }
 
         // Supercharge colors
-        string superchargeColor = "#FFD700"; // gold
-        string superchargeBorderColor = "#FFD700";
+        // Supercharged slots reuse the S-class amber so the highlight follows the theme
+        // instead of staying a fixed gold that goes muddy on the light variant.
+        string superchargeColor = "NmseClassSBrush";
+        string superchargeBorderColor = "NmseClassSBrush";
 
         return new InventorySlotViewModel
         {

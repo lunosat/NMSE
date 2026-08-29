@@ -111,6 +111,11 @@
     <Compile Include="..\Core\SaveContext.cs" Link="Core\SaveContext.cs" />
   </ItemGroup>
 
+  <!-- UI helpers with logic worth testing directly (no Avalonia controls involved) -->
+  <ItemGroup>
+    <Compile Include="..\UI\Localization\LocaleManager.cs" Link="UI\Localization\LocaleManager.cs" />
+  </ItemGroup>
+
   <!-- Config (application settings - no WinForms dependency) -->
   <ItemGroup>
     <Compile Include="..\Config\AppConfig.cs" Link="Config\AppConfig.cs" />

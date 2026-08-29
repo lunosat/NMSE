@@ -69,7 +69,7 @@
 		<AvaloniaResource Include="Resources\app\NMSGeoSans_Kerned.ttf" />
 		<AvaloniaResource Include="Resources\app\NMS_Glyphs_Mono.ttf" />
 		<AvaloniaResource Include="Resources\app\NMSE.ico" />
-		<AvaloniaResource Include="UI\Styles\**\*" />
+		
 		<AvaloniaResource Include="UI\Themes\**\*" />
 	</ItemGroup>
 
