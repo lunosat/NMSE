@@ -225,6 +225,9 @@ public partial class MainWindowViewModel : ViewModelBase
             string wordsPath = Path.Combine(jsonPath, "Words.json");
             _wordDatabase.LoadFromFile(wordsPath);
 
+            // The catalogue's word list comes from here rather than the item database.
+            Discovery.WordDb = _wordDatabase;
+
             string langDir = Path.Combine(jsonPath, "lang");
             _localisationService.SetLangDirectory(langDir);
 

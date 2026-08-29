@@ -9,10 +9,15 @@ namespace NMSE.UI.ViewModels.Panels;
 
 public partial class ConfigFieldViewModel : ObservableObject
 {
-    [ObservableProperty] private string _label = "";
     [ObservableProperty] private string _value = "";
 
+    /// <summary>Stable identifier for the row, independent of the displayed language.</summary>
     public string Key { get; init; } = "";
+
+    /// <summary>String-table key for the row's label.</summary>
+    public string LabelKey { get; init; } = "";
+
+    public string Label => string.IsNullOrEmpty(LabelKey) ? Key : UiStrings.Get(LabelKey);
 }
 
 public partial class ExportConfigViewModel : PanelViewModelBase
@@ -33,7 +38,7 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         "Frigate", "Squadron",
         "Exocraft", "Exocraft Cargo", "Exocraft Tech",
         "Companion", "Base", "Chest", "Storage",
-        "Discovery", "Settlement", "ByteBeat"
+        "Discovery", "Settlement", "ByteBeat", "Outfit"
     ];
 
     private static readonly string[] TemplateLabels =
@@ -45,51 +50,81 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         "Frigate", "Squadron",
         "Exocraft", "Exocraft Cargo", "Exocraft Tech",
         "Companion", "Base", "Chest", "Storage",
-        "Discovery", "Settlement", "ByteBeat"
+        "Discovery", "Settlement", "ByteBeat", "Outfit"
     ];
 
-    public static string HelpText { get; } = """
-        Template Variables:
+    /// <summary>
+    /// Help for the naming templates, assembled from the string table so it follows the
+    /// selected language instead of being a fixed English block.
+    /// </summary>
+    public static string HelpText
+    {
+        get
+        {
+            string[] variableKeys =
+            [
+                "export_config.help_var_player_name", "export_config.help_var_ship_name",
+                "export_config.help_var_multitool_name", "export_config.help_var_freighter_name",
+                "export_config.help_var_frigate_name", "export_config.help_var_vehicle_name",
+                "export_config.help_var_vehicle_type", "export_config.help_var_settlement_name",
+                "export_config.help_var_base_name", "export_config.help_var_name",
+                "export_config.help_var_type", "export_config.help_var_class",
+                "export_config.help_var_seed", "export_config.help_var_rank",
+                "export_config.help_var_race", "export_config.help_var_species",
+                "export_config.help_var_creature_seed", "export_config.help_var_chest_number",
+                "export_config.help_var_timestamp",
+            ];
 
-            {player_name}       - Player name
-            {ship_name}         - Ship / freighter name
-            {multitool_name}    - Multi-tool name
-            {type}              - Type display name (ship type, frigate type, etc.)
-            {class}             - Class letter (S/A/B/C)
-            {race}              - NPC race
-            {rank}              - Pilot rank
-            {seed}              - Seed value
-            {name}              - Generic name
-            {species}           - Companion species
-            {creature_seed}     - Companion creature seed
-            {vehicle_name}      - Exocraft name
-            {vehicle_type}      - Exocraft type
-            {base_name}         - Base name
-            {chest_number}      - Chest slot number
-            {timestamp}         - Epoch timestamp
-            {frigate_name}      - Frigate name
-            {freighter_name}    - Freighter name
-            {settlement_name}   - Settlement name
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(UiStrings.Get("export_config.help_heading")).AppendLine();
+            foreach (string key in variableKeys)
+                sb.Append("    ").AppendLine(UiStrings.Get(key));
 
-        File Extensions:
-
-            Extensions must start with a dot (e.g. ".nmsship").
-            These are used for Save/Open file dialogs alongside
-            standard .json and all-files filters.
-
-            The naming template is combined with the extension to
-            produce the default filename shown in export dialogs.
-            Invalid filename characters are automatically removed.
-        """;
+            sb.AppendLine().AppendLine(UiStrings.Get("export_config.help_extensions_heading"));
+            sb.AppendLine(UiStrings.Get("export_config.help_extensions_info"));
+            return sb.ToString();
+        }
+    }
 
     public ExportConfigViewModel()
     {
-        foreach (var label in ExtensionLabels)
-            ExtensionFields.Add(new ConfigFieldViewModel { Label = label, Key = label });
+        foreach (var key in ExtensionLabels)
+            ExtensionFields.Add(new ConfigFieldViewModel { Key = key, LabelKey = LabelKeyFor(key) });
 
-        foreach (var label in TemplateLabels)
-            TemplateFields.Add(new ConfigFieldViewModel { Label = label, Key = label });
+        foreach (var key in TemplateLabels)
+            TemplateFields.Add(new ConfigFieldViewModel { Key = key, LabelKey = LabelKeyFor(key) });
     }
+
+    /// <summary>Maps a row's stable key to its string-table label key.</summary>
+    private static string LabelKeyFor(string key) => key switch
+    {
+        "Exosuit" => "export_config.template_exosuit",
+        "Multi-tool" => "export_config.template_multitool",
+        "Starship" => "export_config.template_starship",
+        "Corvette" => "export_config.template_corvette",
+        "Corvette Snapshot" => "export_config.template_corvette_snapshot",
+        "Starship Cargo" => "export_config.template_starship_cargo",
+        "Starship Tech" => "export_config.template_starship_tech",
+        "Freighter" => "export_config.template_freighter",
+        "Freighter Cargo" => "export_config.template_freighter_cargo",
+        "Freighter Tech" => "export_config.template_freighter_tech",
+        "Frigate" => "export_config.template_frigate",
+        "Squadron" => "export_config.template_squadron",
+        "Exocraft" => "export_config.template_exocraft",
+        "Exocraft Cargo" => "export_config.template_exocraft_cargo",
+        "Exocraft Tech" => "export_config.template_exocraft_tech",
+        "Companion" => "export_config.template_companion",
+        "Base" => "export_config.template_base",
+        "Chest" => "export_config.template_chest",
+        "Storage" => "export_config.template_storage",
+        "Discovery" => "export_config.template_discovery",
+        "Settlement" => "export_config.template_settlement",
+        "ByteBeat" => "export_config.template_bytebeat",
+        "Exosuit Cargo" => "export_config.template_exosuit_cargo",
+        "Exosuit Tech" => "export_config.template_exosuit_tech",
+        "Outfit" => "export_config.template_outfit",
+        _ => "",
+    };
 
     public void LoadConfig()
     {
@@ -117,6 +152,7 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         SetExt("Discovery", cfg.DiscoveryExt);
         SetExt("Settlement", cfg.SettlementExt);
         SetExt("ByteBeat", cfg.ByteBeatExt);
+        SetExt("Outfit", cfg.OutfitExt);
 
         SetTpl("Exosuit Cargo", cfg.ExosuitCargoTemplate);
         SetTpl("Exosuit Tech", cfg.ExosuitTechTemplate);
@@ -141,6 +177,7 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         SetTpl("Discovery", cfg.DiscoveryTemplate);
         SetTpl("Settlement", cfg.SettlementTemplate);
         SetTpl("ByteBeat", cfg.ByteBeatTemplate);
+        SetTpl("Outfit", cfg.OutfitTemplate);
     }
 
     private void ApplyConfig()
@@ -169,6 +206,7 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         cfg.DiscoveryExt = GetExt("Discovery", cfg.DiscoveryExt);
         cfg.SettlementExt = GetExt("Settlement", cfg.SettlementExt);
         cfg.ByteBeatExt = GetExt("ByteBeat", cfg.ByteBeatExt);
+        cfg.OutfitExt = GetExt("Outfit", cfg.OutfitExt);
 
         cfg.ExosuitCargoTemplate = GetTpl("Exosuit Cargo", cfg.ExosuitCargoTemplate);
         cfg.ExosuitTechTemplate = GetTpl("Exosuit Tech", cfg.ExosuitTechTemplate);
@@ -193,6 +231,7 @@ public partial class ExportConfigViewModel : PanelViewModelBase
         cfg.DiscoveryTemplate = GetTpl("Discovery", cfg.DiscoveryTemplate);
         cfg.SettlementTemplate = GetTpl("Settlement", cfg.SettlementTemplate);
         cfg.ByteBeatTemplate = GetTpl("ByteBeat", cfg.ByteBeatTemplate);
+        cfg.OutfitTemplate = GetTpl("Outfit", cfg.OutfitTemplate);
     }
 
     [RelayCommand]
@@ -225,12 +264,18 @@ public partial class ExportConfigViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void ResetDefaults()
+    private async Task ResetDefaultsAsync()
     {
+        // Discarding every custom extension and template deserves a confirmation.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("export_config.reset_title"),
+                UiStrings.Get("export_config.reset_confirm"), Services.DialogIcon.Warning))
+            return;
+
         ExportConfig.SetInstance(new ExportConfig());
         LoadConfig();
         IsStatusSuccess = true;
-        StatusText = "Settings reset to defaults.";
+        StatusText = UiStrings.Get("export_config.status_reset");
     }
 
     private List<string> ValidateExtensions()

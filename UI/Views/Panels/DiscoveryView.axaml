@@ -114,6 +114,77 @@
                     </DockPanel>
                 </TabItem>
 
+                <!-- Known Specials -->
+                <TabItem Header="{loc:Locale discovery.tab_specials}">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                            <TextBox Text="{Binding SpecialFilter}"
+                                     Watermark="{loc:Locale discovery.filter_placeholder}" Width="250" />
+                            <Button Content="{loc:Locale common.remove_selected}" Command="{Binding RemoveSpecialCommand}" />
+                            <Button Content="{loc:Locale discovery.add_special}" Command="{Binding AddSpecialCommand}" />
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding KnownSpecials}" SelectedItem="{Binding SelectedSpecial}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_name}" Binding="{Binding Name}" Width="*" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_category}" Binding="{Binding Category}" Width="160" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_id}" Binding="{Binding Id}" Width="220" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
+                <!-- Words. A word can belong to several races, each tracking it
+                     separately, so the race selector decides which flag is shown. -->
+                <TabItem Header="{loc:Locale discovery.tab_words}">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                            <ComboBox ItemsSource="{Binding WordRaces}"
+                                      SelectedIndex="{Binding SelectedWordRaceIndex}" MinWidth="140" />
+                            <TextBox Text="{Binding WordFilter}"
+                                     Watermark="{loc:Locale discovery.filter_words}" Width="250" />
+                            <Button Content="{loc:Locale discovery.learn_selected}" Command="{Binding LearnAllWordsCommand}" />
+                            <Button Content="{loc:Locale discovery.unlearn_selected}" Command="{Binding UnlearnAllWordsCommand}" />
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding Words}" AutoGenerateColumns="False" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="{loc:Locale discovery.col_known}"
+                                                        Binding="{Binding IsKnown}" Width="70" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_word}"
+                                                    Binding="{Binding Text}" Width="*" IsReadOnly="True" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_word_id}"
+                                                    Binding="{Binding Id}" Width="240" IsReadOnly="True" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
+                <!-- Locations: the teleport endpoints the save records, which is every
+                     place the player can travel back to. -->
+                <TabItem Header="{loc:Locale discovery.tab_locations}">
+                    <DockPanel Margin="8">
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
+                            <TextBox Text="{Binding LocationFilter}"
+                                     Watermark="{loc:Locale discovery.filter_locations}" Width="250" />
+                            <Button Content="{loc:Locale discovery.travel_to_system}"
+                                    Classes="primary" Command="{Binding TravelToSystemCommand}" />
+                            <Button Content="{loc:Locale discovery.delete_selected}" Classes="danger"
+                                    Command="{Binding DeleteLocationCommand}" />
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding Locations}" SelectedItem="{Binding SelectedLocation}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_index}" Binding="{Binding Index}" Width="60" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_type}" Binding="{Binding TypeName}" Width="180" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_galaxy}" Binding="{Binding Galaxy}" Width="160" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_portal_hex}" Binding="{Binding PortalHex}" Width="160" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_portal_dec}" Binding="{Binding PortalDec}" Width="200" />
+                                <DataGridTextColumn Header="{loc:Locale discovery.col_signal_booster}" Binding="{Binding SignalBooster}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </TabItem>
+
                 <!-- Recipes -->
                 <TabItem Header="{loc:Locale recipe.title}">
                     <views:RecipeView DataContext="{Binding Recipe}" />
