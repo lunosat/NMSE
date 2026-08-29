@@ -134,7 +134,14 @@
                             <Button Content="{loc:Locale common.apply}" Command="{Binding SaveFrigateChangesCommand}" />
                             <Button Content="{loc:Locale frigate.repair}" Command="{Binding RepairFrigateCommand}" />
                             <Button Content="{loc:Locale frigate.copy}" Command="{Binding CopyFrigateCommand}" />
-                            <Button Content="{loc:Locale frigate.delete}" Command="{Binding DeleteFrigateCommand}" />
+                            <Button Content="{loc:Locale frigate.delete}" Classes="danger"
+                                    Command="{Binding DeleteFrigateCommand}" />
+                            <!-- Sets the frigate one run short of its next level, so it
+                                 ticks over on the next success rather than jumping. -->
+                            <Button Content="{loc:Locale frigate.fast_forward}"
+                                    Command="{Binding FastForwardLevelCommand}" />
+                            <Button Content="{loc:Locale frigate.finish_expedition}"
+                                    Command="{Binding FinishExpeditionCommand}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

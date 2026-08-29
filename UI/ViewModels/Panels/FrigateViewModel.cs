@@ -249,8 +249,24 @@ public partial class FrigateViewModel : PanelViewModelBase
     }
 
     [RelayCommand]
-    private void DeleteFrigate()
+    private async Task DeleteFrigateAsync()
     {
+        if (Dialogs is not null)
+        {
+            // A frigate away on an expedition leaves the expedition pointing at a slot
+            // that no longer holds it.
+            int state = SelectedFrigate?.Data is { } f && _expeditions is not null
+                ? FrigateLogic.GetFrigateState(f, SelectedFrigate.Index, _expeditions) : 0;
+
+            string message = state == 1
+                ? UiStrings.Get("frigate.delete_on_mission")
+                : UiStrings.Get("frigate.delete_confirm");
+
+            if (!await Dialogs.ConfirmAsync(UiStrings.Get("frigate.delete_title"), message,
+                    Services.DialogIcon.Warning))
+                return;
+        }
+
         if (_frigates == null || SelectedFrigate == null) return;
         int idx = SelectedFrigate.Index;
 
@@ -276,6 +292,114 @@ public partial class FrigateViewModel : PanelViewModelBase
         _frigates.Add(clone);
         RefreshList();
         SelectedFrigate = FrigateList[^1];
+    }
+
+    // ================================= Expeditions =================================
+
+    /// <summary>
+    /// Sets the frigate one expedition short of its next level, so the level ticks over
+    /// on the next successful run rather than jumping straight there.
+    /// </summary>
+    [RelayCommand]
+    private void FastForwardLevel()
+    {
+        var frigate = SelectedFrigate?.Data;
+        if (frigate is null) return;
+
+        try
+        {
+            int completed = frigate.GetInt("TotalNumberOfExpeditions");
+            foreach (int threshold in FrigateLogic.LevelVictoriesRequired)
+            {
+                if (completed >= threshold) continue;
+
+                frigate.Set("TotalNumberOfExpeditions", threshold - 1);
+                TotalExpeditions = threshold - 1;
+                LevelUpIn = FrigateLogic.GetLevelUpIn(threshold - 1)
+                    .ToString(CultureInfo.CurrentCulture);
+                LevelsRemaining = FrigateLogic.GetLevelUpsRemaining(threshold - 1)
+                    .ToString(CultureInfo.CurrentCulture);
+                return;
+            }
+
+            LevelUpIn = UiStrings.Get("frigate.max_reached");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Completes the frigate's current expedition: every event succeeds, no frigate is
+    /// damaged or destroyed, and the fleet is repaired.
+    /// </summary>
+    [RelayCommand]
+    private void FinishExpedition()
+    {
+        var expeditions = _expeditions;
+        int frigateIndex = SelectedFrigate?.Index ?? -1;
+        if (expeditions is null || frigateIndex < 0) return;
+
+        int expIndex = FrigateLogic.FindExpeditionIndex(frigateIndex, expeditions);
+        if (expIndex < 0)
+        {
+            MissionType = UiStrings.Get("frigate.no_frigates_found");
+            return;
+        }
+
+        try
+        {
+            var expedition = expeditions.GetObject(expIndex);
+
+            Clear(expedition.GetArray("DamagedFrigateIndices"));
+            Clear(expedition.GetArray("DestroyedFrigateIndices"));
+
+            // Everyone who set out is still active.
+            var all = expedition.GetArray("AllFrigateIndices");
+            var active = expedition.GetArray("ActiveFrigateIndices");
+            if (all is not null && active is not null)
+            {
+                Clear(active);
+                for (int i = 0; i < all.Length; i++) active.Add(all.GetInt(i));
+            }
+
+            var events = expedition.GetArray("Events");
+            if (events is not null)
+            {
+                int total = events.Length;
+                expedition.Set("NextEventToTrigger", total);
+                try { expedition.Set("NumberOfSuccessfulEventsThisExpedition", total); } catch { }
+                try { expedition.Set("NumberOfFailedEventsThisExpedition", 0); } catch { }
+                for (int i = 0; i < total; i++)
+                {
+                    try { events.GetObject(i).Set("Success", true); } catch { }
+                }
+            }
+
+            try { expedition.Set("PauseTime", 0); } catch { }
+
+            // Repair every frigate that took part.
+            if (all is not null && _frigates is not null)
+            {
+                for (int i = 0; i < all.Length; i++)
+                {
+                    int index = all.GetInt(i);
+                    if (index < 0 || index >= _frigates.Length) continue;
+                    try { _frigates.GetObject(index).Set("Damage", 0); } catch { }
+                }
+            }
+
+            RefreshList();
+            DamageText = UiStrings.Get("frigate.no_damage");
+        }
+        catch (Exception ex)
+        {
+            MissionType = UiStrings.Format("common.error", ex.Message);
+        }
+
+        static void Clear(JsonArray? array)
+        {
+            if (array is null) return;
+            for (int i = array.Length - 1; i >= 0; i--) array.RemoveAt(i);
+        }
     }
 
     [RelayCommand]
