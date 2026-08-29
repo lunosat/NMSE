@@ -9,6 +9,22 @@
              force a font stack of its own over the one in NmseTokens. -->
         <semi:SemiTheme />
         <StyleInclude Source="avares://Semi.Avalonia.DataGrid/Index.axaml" />
+        <!-- AvaloniaEdit ships its control template in a theme of its own. Without
+             this include the TextEditor has no template and renders nothing at all. -->
+        <StyleInclude Source="avares://AvaloniaEdit/Themes/Fluent/AvaloniaEdit.xaml" />
         <StyleInclude Source="avares://NMSE/UI/Themes/NmseTheme.axaml" />
     </Application.Styles>
+
+    <!-- The design tokens live at application scope rather than inside the theme's
+         Styles.Resources. DynamicResource resolves either way, but code that looks a
+         brush up by key - the JSON tree's per-type colouring - can only reach
+         Application.Resources. -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://NMSE/UI/Themes/NmseTokens.axaml" />
+                <ResourceInclude Source="avares://NMSE/UI/Themes/AvaloniaEditCompat.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
 </Application>

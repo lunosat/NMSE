@@ -1,51 +1,121 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:NMSE.UI.ViewModels.Panels"
+             xmlns:conv="using:NMSE.UI.Converters"
              xmlns:loc="using:NMSE.UI.Localization"
+             xmlns:edit="using:AvaloniaEdit"
              x:Class="NMSE.UI.Views.Panels.RawJsonView"
              x:DataType="vm:RawJsonViewModel">
+
+    <UserControl.Resources>
+        <conv:JsonNodeKindToBrushConverter x:Key="KindToBrush" />
+    </UserControl.Resources>
 
     <Border Classes="card" Padding="16" Margin="4">
         <DockPanel>
             <TextBlock Text="{loc:Locale raw_json.title}" Classes="sectionHeader"
                        DockPanel.Dock="Top" Margin="0,0,0,12" />
 
-            <!-- Toolbar -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
-                <Button Content="{loc:Locale raw_json.tree_view}" Command="{Binding SwitchToTreeViewCommand}" />
-                <Button Content="{loc:Locale raw_json.text_view}" Command="{Binding SwitchToTextViewCommand}" />
-                <Separator Width="1" Background="{DynamicResource NmseBorderBrush}" Margin="4,4" />
-                <Button Content="{loc:Locale raw_json.format}" Command="{Binding FormatJsonCommand}" />
-                <Button Content="{loc:Locale raw_json.validate}" Command="{Binding ValidateJsonCommand}" />
-                <Separator Width="1" Background="{DynamicResource NmseBorderBrush}" Margin="4,4" />
-                <Button Content="{loc:Locale raw_json.expand_all}" Command="{Binding ExpandAllCommand}" />
-                <Button Content="{loc:Locale raw_json.collapse_all}" Command="{Binding CollapseAllCommand}" />
-                <Separator Width="1" Background="{DynamicResource NmseBorderBrush}" Margin="4,4" />
-                <TextBox Text="{Binding SearchQuery}" Watermark="{loc:Locale raw_json.search_placeholder}" Width="200" />
+            <!-- Toolbar. Tree and text each have their own tools, so the two groups
+                 swap rather than sitting side by side greyed out. -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6"
+                        Margin="0,0,0,12">
+                <Button Content="{loc:Locale raw_json.tree_view}"
+                        Command="{Binding SwitchToTreeViewCommand}"
+                        IsEnabled="{Binding !IsTreeView}" />
+                <Button Content="{loc:Locale raw_json.text_view}"
+                        Command="{Binding SwitchToTextViewCommand}"
+                        IsEnabled="{Binding IsTreeView}" />
+
+                <Rectangle Width="1" Height="20" Margin="4,0"
+                           Fill="{DynamicResource NmseBorderBrush}" />
+
+                <!-- Tree tools -->
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding IsTreeView}">
+                    <Button Content="{loc:Locale raw_json.expand_all}" Command="{Binding ExpandAllCommand}" />
+                    <Button Content="{loc:Locale raw_json.collapse_all}" Command="{Binding CollapseAllCommand}" />
+                    <Rectangle Width="1" Height="20" Margin="4,0" Fill="{DynamicResource NmseBorderBrush}" />
+                    <TextBox Text="{Binding SearchQuery}" Width="200"
+                             Watermark="{loc:Locale raw_json.search_placeholder}">
+                        <TextBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+                            <KeyBinding Gesture="Shift+Enter" Command="{Binding SearchBackCommand}" />
+                        </TextBox.KeyBindings>
+                    </TextBox>
+                    <Button Content="◀" Command="{Binding SearchBackCommand}"
+                            ToolTip.Tip="{loc:Locale raw_json.search_previous}" />
+                    <Button Content="▶" Command="{Binding SearchCommand}"
+                            ToolTip.Tip="{loc:Locale raw_json.search_next}" />
+                    <Button Content="✕" Command="{Binding ClearSearchCommand}"
+                            ToolTip.Tip="{loc:Locale raw_json.search_clear}" />
+                </StackPanel>
+
+                <!-- Text tools -->
+                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsTreeView}">
+                    <Button Content="{loc:Locale raw_json.format}" Command="{Binding FormatJsonCommand}" />
+                    <Button Content="{loc:Locale raw_json.validate}" Command="{Binding ValidateJsonCommand}" />
+                </StackPanel>
+
+                <Rectangle Width="1" Height="20" Margin="4,0" Fill="{DynamicResource NmseBorderBrush}" />
+                <Button Content="{loc:Locale raw_json.export}" Command="{Binding ExportCommand}" />
+                <Button Content="{loc:Locale raw_json.import}" Command="{Binding ImportCommand}" />
+
+                <CheckBox Content="{loc:Locale raw_json.account_data}" Margin="8,0,0,0"
+                          IsChecked="{Binding IsShowingAccountData}"
+                          IsVisible="{Binding HasAccountData}" />
             </StackPanel>
 
-            <!-- Status Bar -->
             <Border DockPanel.Dock="Bottom" Padding="8,4" Margin="0,8,0,0"
                     Background="{DynamicResource NmseBg2Brush}" CornerRadius="4">
-                <TextBlock Text="{Binding StatusText}" FontSize="12" />
+                <TextBlock Text="{Binding StatusText}" Classes="label" />
             </Border>
 
-            <!-- Tree View -->
-            <TreeView ItemsSource="{Binding TreeNodes}" IsVisible="{Binding IsTreeView}">
+            <!-- Both views occupy the same area and swap by visibility. In the
+                 DockPanel they were siblings, where the tree docked left and only the
+                 editor filled, so the editor never got a usable size. -->
+            <Panel>
+            <TreeView x:Name="JsonTree"
+                      ItemsSource="{Binding TreeNodes}"
+                      SelectedItem="{Binding SelectedNode}"
+                      IsVisible="{Binding IsTreeView}"
+                      DoubleTapped="OnTreeDoubleTapped">
+                <TreeView.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{loc:Locale raw_json.edit_value}" Command="{Binding EditValueCommand}" />
+                        <MenuItem Header="{loc:Locale raw_json.copy_value}" Command="{Binding CopyValueCommand}" />
+                        <Separator />
+                        <MenuItem Header="{loc:Locale raw_json.delete_node}" Command="{Binding DeleteNodeCommand}" />
+                    </ContextMenu>
+                </TreeView.ContextMenu>
+                <TreeView.Styles>
+                    <!-- Two-way IsExpanded is what drives the lazy child build: the node
+                         materialises its children the moment the user opens it. -->
+                    <Style Selector="TreeViewItem" x:DataType="vm:JsonTreeNodeViewModel">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    </Style>
+                </TreeView.Styles>
                 <TreeView.ItemTemplate>
                     <TreeDataTemplate ItemsSource="{Binding Children}" x:DataType="vm:JsonTreeNodeViewModel">
                         <TextBlock Text="{Binding DisplayText}"
-                                   Foreground="{DynamicResource NmseAccentBrush}"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="800" />
+                                   Foreground="{Binding Kind, Converter={StaticResource KindToBrush}}"
+                                   FontFamily="{DynamicResource NmseMonoFont}"
+                                   TextTrimming="CharacterEllipsis" />
                     </TreeDataTemplate>
                 </TreeView.ItemTemplate>
             </TreeView>
 
-            <!-- Text View -->
-            <TextBox Text="{Binding JsonText}" IsVisible="{Binding !IsTreeView}"
-                     AcceptsReturn="True" AcceptsTab="True"
-                     FontFamily="Consolas,Courier New,monospace" FontSize="13"
-                     TextWrapping="NoWrap" />
+            <!-- Text view. AvaloniaEdit brings line numbers, virtualised rendering for a
+                 multi-megabyte document, and the JSON highlighting the WinForms build
+                 hand-rolled in JsonSyntaxTextBox. -->
+            <edit:TextEditor x:Name="JsonEditor"
+                             IsVisible="{Binding !IsTreeView}"
+                             ShowLineNumbers="True"
+                             WordWrap="False"
+                             FontFamily="{DynamicResource NmseMonoFont}"
+                             FontSize="13"
+                             Background="{DynamicResource NmseBg0Brush}"
+                             Foreground="{DynamicResource NmseText0Brush}" />
+            </Panel>
         </DockPanel>
     </Border>
 </UserControl>

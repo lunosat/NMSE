@@ -186,6 +186,18 @@
     <SolidColorBrush x:Key="NmseClassBBrush" Color="{DynamicResource NmseClassB}" />
     <SolidColorBrush x:Key="NmseClassCBrush" Color="{DynamicResource NmseClassC}" />
 
+    <SolidColorBrush x:Key="NmseCodeBgBrush"          Color="{DynamicResource NmseCodeBg}" />
+    <SolidColorBrush x:Key="NmseCodeTextBrush"        Color="{DynamicResource NmseCodeText}" />
+    <SolidColorBrush x:Key="NmseCodeKeyBrush"         Color="{DynamicResource NmseCodeKey}" />
+    <SolidColorBrush x:Key="NmseCodeStringBrush"      Color="{DynamicResource NmseCodeString}" />
+    <SolidColorBrush x:Key="NmseCodeNumberBrush"      Color="{DynamicResource NmseCodeNumber}" />
+    <SolidColorBrush x:Key="NmseCodeLiteralBrush"     Color="{DynamicResource NmseCodeLiteral}" />
+    <SolidColorBrush x:Key="NmseCodePunctBrush"       Color="{DynamicResource NmseCodePunct}" />
+    <SolidColorBrush x:Key="NmseCodeGutterBgBrush"    Color="{DynamicResource NmseCodeGutterBg}" />
+    <SolidColorBrush x:Key="NmseCodeGutterTextBrush"  Color="{DynamicResource NmseCodeGutterText}" />
+    <SolidColorBrush x:Key="NmseCodeCurrentLineBrush" Color="{DynamicResource NmseCodeCurrentLine}" />
+    <SolidColorBrush x:Key="NmseCodeSelectionBrush"   Color="{DynamicResource NmseCodeSelection}" />
+
     <!-- Type. GeoSans is the game's own face; Inter carries the dense data views,
          where GeoSans' wide caps cost too much horizontal room. -->
     <FontFamily x:Key="NmseDisplayFont">avares://NMSE/Resources/app/NMSGeoSans_Kerned.ttf#NMS GeoSans</FontFamily>

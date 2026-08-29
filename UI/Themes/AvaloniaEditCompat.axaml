@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        AvaloniaEdit's control theme is written against Avalonia's own FluentTheme and
+        pulls its metrics and brushes from that theme's resource keys. NMSE uses
+        Semi.Avalonia instead, which does not define all of them, so the editor's
+        template throws KeyNotFoundException while it is being applied.
+
+        These are the Fluent keys the editor template resolves, mapped onto the NMSE
+        tokens. Supplying a key the template never asks for costs nothing, so the set
+        is deliberately generous.
+    -->
+    <x:Double x:Key="ControlContentThemeFontSize">13</x:Double>
+    <x:Double x:Key="FontSizeNormal">13</x:Double>
+    <x:Double x:Key="FontSizeSmall">12</x:Double>
+    <x:Double x:Key="FontSizeLarge">15</x:Double>
+    <FontFamily x:Key="ContentControlThemeFontFamily">monospace</FontFamily>
+
+    <SolidColorBrush x:Key="ThemeBackgroundBrush"      Color="{DynamicResource NmseCodeBg}" />
+    <SolidColorBrush x:Key="ThemeForegroundBrush"      Color="{DynamicResource NmseCodeText}" />
+    <SolidColorBrush x:Key="ThemeBorderMidBrush"       Color="{DynamicResource NmseBorder}" />
+    <SolidColorBrush x:Key="ThemeBorderLowBrush"       Color="{DynamicResource NmseBorder}" />
+    <SolidColorBrush x:Key="ThemeBorderHighBrush"      Color="{DynamicResource NmseBorderStrong}" />
+    <SolidColorBrush x:Key="ThemeControlMidBrush"      Color="{DynamicResource NmseBg2}" />
+    <SolidColorBrush x:Key="ThemeControlLowBrush"      Color="{DynamicResource NmseBg1}" />
+    <SolidColorBrush x:Key="ThemeControlHighBrush"     Color="{DynamicResource NmseBg3}" />
+    <SolidColorBrush x:Key="ThemeAccentBrush"          Color="{DynamicResource NmseAccent}" />
+    <SolidColorBrush x:Key="ThemeAccentBrush2"         Color="{DynamicResource NmseAccentHover}" />
+    <SolidColorBrush x:Key="ThemeAccentBrush3"         Color="{DynamicResource NmseAccentPressed}" />
+    <SolidColorBrush x:Key="ThemeAccentBrush4"         Color="{DynamicResource NmseAccentMuted}" />
+
+    <SolidColorBrush x:Key="TextControlBackground"                 Color="{DynamicResource NmseCodeBg}" />
+    <SolidColorBrush x:Key="TextControlForeground"                 Color="{DynamicResource NmseCodeText}" />
+    <SolidColorBrush x:Key="TextControlBorderBrush"                Color="{DynamicResource NmseBorder}" />
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground"      Color="{DynamicResource NmseText2}" />
+    <SolidColorBrush x:Key="TextControlSelectionHighlightColor"    Color="{DynamicResource NmseCodeSelection}" />
+
+    <SolidColorBrush x:Key="SystemControlForegroundBaseHighBrush"  Color="{DynamicResource NmseCodeText}" />
+    <SolidColorBrush x:Key="SystemControlForegroundBaseMediumBrush" Color="{DynamicResource NmseText1}" />
+    <SolidColorBrush x:Key="SystemControlBackgroundAltHighBrush"   Color="{DynamicResource NmseCodeBg}" />
+    <SolidColorBrush x:Key="ControlFillColorDefaultBrush"          Color="{DynamicResource NmseBg2}" />
+    <SolidColorBrush x:Key="ControlStrokeColorDefaultBrush"        Color="{DynamicResource NmseBorder}" />
+
+    <Thickness x:Key="TextControlThemePadding">4,2</Thickness>
+    <Thickness x:Key="TextControlBorderThemeThickness">0</Thickness>
+    <CornerRadius x:Key="ControlCornerRadius">3</CornerRadius>
+</ResourceDictionary>

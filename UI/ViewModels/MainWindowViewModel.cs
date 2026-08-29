@@ -649,6 +649,11 @@ public partial class MainWindowViewModel : ViewModelBase
         if (value == 15 && _currentSaveData != null)
         {
             SyncAllPanelData();
+
+            // The raw editor can also edit accountdata.hg, and uses the save path to
+            // seed the export dialog's file name.
+            RawJson.SetAccountData(Account.AccountData);
+            RawJson.SetSaveFilePath(_currentFilePath);
             RawJson.RefreshTree();
         }
     }

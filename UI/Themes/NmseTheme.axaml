@@ -7,13 +7,8 @@
         repaint them with the tokens in NmseTokens.axaml.
     -->
 
-    <Styles.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceInclude Source="avares://NMSE/UI/Themes/NmseTokens.axaml" />
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
-    </Styles.Resources>
+    <!-- Tokens are merged at application scope in App.axaml; including them here as
+         well would give every lookup two copies to choose from. -->
 
     <!-- =============================== Window shell =============================== -->
 
@@ -300,6 +295,20 @@
 
     <Style Selector="TabItem:selected /template/ Border#PART_SelectedPipe">
         <Setter Property="Background" Value="{DynamicResource NmseAccentBrush}" />
+    </Style>
+
+    <!-- ================================= Trees =================================== -->
+
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentMutedBrush}" />
+    </Style>
+
+    <Style Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource NmseBg3Brush}" />
+    </Style>
+
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource NmseAccentMutedBrush}" />
     </Style>
 
     <!-- ============================ Popups and flyouts ============================ -->
