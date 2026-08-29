@@ -109,7 +109,18 @@
 
                 <!-- Chests Tab -->
                 <TabItem Header="{loc:Locale base.tab_chests}">
-                    <TabControl ItemsSource="{Binding ChestGrids}">
+                  <DockPanel Margin="8">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                        <TextBlock Text="{loc:Locale base.chest_name_label}" Classes="label" />
+                        <TextBox Text="{Binding ChestName}" Width="240"
+                                 Watermark="{loc:Locale base.chest_name_placeholder}" />
+                        <Button Content="{loc:Locale base.chest_rename}" Command="{Binding RenameChestCommand}" />
+                        <Button Content="{loc:Locale base.chest_clear_name}" Command="{Binding ClearChestNameCommand}"
+                                ToolTip.Tip="{loc:Locale base.chest_clear_name}" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Bottom" Text="{loc:Locale base.chest_warning}"
+                               Classes="hint" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TabControl SelectedIndex="{Binding SelectedChestIndex}" ItemsSource="{Binding ChestGrids}">
                         <TabControl.ItemTemplate>
                             <DataTemplate x:DataType="cvm:InventoryGridViewModel">
                                 <TextBlock Text="{Binding InventoryGroup, FallbackValue='Chest'}" />
@@ -121,6 +132,7 @@
                             </DataTemplate>
                         </TabControl.ContentTemplate>
                     </TabControl>
+                  </DockPanel>
                 </TabItem>
 
                 <!-- Storage Tab -->
@@ -133,7 +145,13 @@
                         </TabControl.ItemTemplate>
                         <TabControl.ContentTemplate>
                             <DataTemplate x:DataType="vm:StorageTabViewModel">
-                                <controls:InventoryGridControl DataContext="{Binding Grid}" />
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="{Binding Warning}"
+                                               Foreground="{DynamicResource NmseWarningBrush}"
+                                               TextWrapping="Wrap" Margin="8,8,8,4"
+                                               IsVisible="{Binding Warning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                    <controls:InventoryGridControl DataContext="{Binding Grid}" />
+                                </DockPanel>
                             </DataTemplate>
                         </TabControl.ContentTemplate>
                     </TabControl>

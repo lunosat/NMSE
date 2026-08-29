@@ -38,6 +38,10 @@ public partial class BaseViewModel : PanelViewModelBase
     [ObservableProperty] private string _objectFilter = "";
     [ObservableProperty] private string _objectDetails = "";
 
+    /// <summary>Chest currently shown, used by the rename box.</summary>
+    [ObservableProperty] private int _selectedChestIndex;
+    [ObservableProperty] private string _chestName = "";
+
     partial void OnSelectedBaseChanged(BaseInfoViewModel? value)
     {
         HasBaseSelection = value != null;
@@ -126,7 +130,12 @@ public partial class BaseViewModel : PanelViewModelBase
         var npcWorkers = playerState.GetArray("NPCWorkers");
         if (npcWorkers == null) return;
 
-        string[] workerNames = { "Armorer", "Farmer", "Overseer", "Technician", "Scientist" };
+        // The five roles are positional; anything beyond them falls back to a number.
+        string[] workerKeys =
+        {
+            "base.worker_armorer", "base.worker_farmer", "base.worker_overseer",
+            "base.worker_technician", "base.worker_scientist",
+        };
 
         for (int i = 0; i < npcWorkers.Length && i < 5; i++)
         {
@@ -139,7 +148,9 @@ public partial class BaseViewModel : PanelViewModelBase
                 {
                     NpcWorkers.Add(new NpcWorkerViewModel
                     {
-                        Name = workerNames[i],
+                        Name = i < workerKeys.Length
+                            ? UiStrings.Get(workerKeys[i])
+                            : UiStrings.Format("base.worker_n", i.ToString(CultureInfo.CurrentCulture)),
                         Data = npc,
                         Index = i
                     });
@@ -162,7 +173,10 @@ public partial class BaseViewModel : PanelViewModelBase
             var grid = new InventoryGridViewModel();
             grid.SetIsCargoInventory(true);
             grid.SetInventoryOwnerType("Chest");
-            grid.SetInventoryGroup($"Chest {i + 1}");
+            // A chest can be renamed in game; the tab shows that name when set.
+            string chestName = BaseLogic.GetChestName(inv);
+            grid.SetInventoryGroup(BaseLogic.FormatChestTabTitle(
+                UiStrings.Format("base.chest_tab", (i + 1).ToString(CultureInfo.CurrentCulture)), chestName));
             grid.SetSuperchargeDisabled(true);
             if (_database != null) grid.SetDatabase(_database);
             grid.SetIconManager(_iconManager);
@@ -174,20 +188,23 @@ public partial class BaseViewModel : PanelViewModelBase
 
     private void LoadStorage(JsonObject playerState)
     {
-        (string Label, string Key)[] storageKeys =
+        (string LabelKey, string Key, string WarningKey)[] storageKeys =
         {
-            ("Ingredient Storage", "CookingIngredientsInventory"),
-            ("Corvette Parts", "CorvetteStorageInventory"),
-            ("Salvage Capsule", "ChestMagicInventory"),
-            ("Rocket Locker", "RocketLockerInventory"),
-            ("Fishing Platform", "FishPlatformInventory"),
-            ("Fish Bait Box", "FishBaitBoxInventory"),
-            ("Food Unit", "FoodUnitInventory"),
-            ("Freighter Refund", "ChestMagic2Inventory"),
+            ("base.storage_ingredient",        "CookingIngredientsInventory", ""),
+            ("base.storage_corvette_parts",    "CorvetteStorageInventory",    ""),
+            ("base.storage_salvage_capsule",   "ChestMagicInventory",         ""),
+            ("base.storage_rocket",            "RocketLockerInventory",       ""),
+            ("base.storage_fishing_platform",  "FishPlatformInventory",       ""),
+            ("base.storage_fish_bait",         "FishBaitBoxInventory",        ""),
+            ("base.storage_food_unit",         "FoodUnitInventory",           ""),
+            // Present in the save but unused by the game, so it carries a warning.
+            ("base.storage_freighter_refund",  "ChestMagic2Inventory",
+                "base.storage_freighter_refund_warning"),
         };
 
-        foreach (var (label, key) in storageKeys)
+        foreach (var (labelKey, key, warningKey) in storageKeys)
         {
+            string label = UiStrings.Get(labelKey);
             var inv = playerState.GetObject(key);
             var grid = new InventoryGridViewModel();
             grid.SetIsCargoInventory(true);
@@ -201,6 +218,7 @@ public partial class BaseViewModel : PanelViewModelBase
             StorageTabs.Add(new StorageTabViewModel
             {
                 Label = label,
+                Warning = warningKey.Length > 0 ? UiStrings.Get(warningKey) : "",
                 Grid = grid
             });
         }
@@ -217,6 +235,9 @@ public partial class BaseViewModel : PanelViewModelBase
             var objects = SelectedBase.Data.GetArray("Objects");
             if (objects == null || objects.Length == 0)
             {
+                if (Dialogs is not null)
+                    await Dialogs.ShowMessageAsync(UiStrings.Get("base.move_basecomp_title"),
+                        UiStrings.Get("base.move_basecomp_no_objects"));
                 return;
             }
 
@@ -256,39 +277,76 @@ public partial class BaseViewModel : PanelViewModelBase
                 catch { }
             }
 
-            if (baseFlag == null) return;
-
-            BaseLogic.SwapPositions(baseFlag, target.data);
-
-            int objectCount = 0;
-            try
+            if (baseFlag == null)
             {
-                var objs = SelectedBase.Data.GetArray("Objects");
-                if (objs != null) objectCount = objs.Length;
+                if (Dialogs is not null)
+                    await Dialogs.ShowMessageAsync(UiStrings.Get("base.move_basecomp_title"),
+                        UiStrings.Get("base.move_basecomp_not_found"), Services.DialogIcon.Warning);
+                return;
             }
-            catch { }
-            BaseItemCount = objectCount.ToString(CultureInfo.InvariantCulture);
+
+            // Swapping the two objects' positions is what moves the computer, since the
+            // base is anchored to wherever the BASE_FLAG object sits.
+            BaseLogic.SwapPositions(baseFlag, target.data);
+            RefreshObjects();
+
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("base.move_basecomp_success_title"),
+                    UiStrings.Get("base.move_basecomp_success"));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("base.move_basecomp_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
     private async Task ExportBase()
     {
         if (SelectedBase?.Data == null || SaveFilePickerFunc == null) return;
+
         var cfg = ExportConfig.Instance;
-        string? path = await SaveFilePickerFunc("Backup Base", "json",
-            "NMS Base Backup (*.json)|*.json|All Files (*.*)|*.*");
+        var vars = new Dictionary<string, string>
+        {
+            ["base_name"] = string.IsNullOrWhiteSpace(BaseName)
+                ? UiStrings.Get("base.fallback_base_name") : BaseName,
+        };
+
+        string? path = await SaveFilePickerFunc(UiStrings.Get("base.export_title"),
+            cfg.BaseExt.TrimStart('.'),
+            ExportConfig.BuildFileName(cfg.BaseTemplate, cfg.BaseExt, vars));
         if (string.IsNullOrEmpty(path)) return;
-        try { SelectedBase.Data.ExportToFile(path); } catch { }
+
+        try
+        {
+            SelectedBase.Data.ExportToFile(path);
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("base.export_title"),
+                    UiStrings.Format("base.export_success", Path.GetFileName(path)));
+        }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("base.export_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
     private async Task ImportBase()
     {
         if (SelectedBase?.Data == null || OpenFilePickerFunc == null) return;
-        string? path = await OpenFilePickerFunc("Restore Base",
-            "NMS Base Backup (*.json)|*.json|All Files (*.*)|*.*");
+
+        // Importing replaces the base's objects wholesale, so it asks first.
+        if (Dialogs is not null &&
+            !await Dialogs.ConfirmAsync(UiStrings.Get("base.confirm_import_title"),
+                UiStrings.Get("base.import_confirm"), Services.DialogIcon.Warning))
+            return;
+
+        string? path = await OpenFilePickerFunc(UiStrings.Get("base.import_title"),
+            ExportConfig.Instance.BaseExt);
         if (string.IsNullOrEmpty(path)) return;
         try
         {
@@ -312,8 +370,18 @@ public partial class BaseViewModel : PanelViewModelBase
             }
             catch { }
             BaseItemCount = objectCount.ToString(CultureInfo.InvariantCulture);
+            RefreshObjects();
+
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("base.import_title"),
+                    UiStrings.Format("base.import_success", Path.GetFileName(path)));
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (Dialogs is not null)
+                await Dialogs.ShowMessageAsync(UiStrings.Get("common.error"),
+                    UiStrings.Format("base.import_failed", ex.Message), Services.DialogIcon.Error);
+        }
     }
 
     [RelayCommand]
@@ -575,6 +643,45 @@ public partial class BaseViewModel : PanelViewModelBase
         SelectedObject = null;
     }
 
+    // ================================ Chest naming =================================
+
+    partial void OnSelectedChestIndexChanged(int value) => ChestName = ReadChestName(value);
+
+    private string ReadChestName(int index)
+    {
+        if (_playerState is null || index < 0 || index >= BaseLogic.ChestInventoryKeys.Length) return "";
+        return BaseLogic.GetChestName(_playerState.GetObject(BaseLogic.ChestInventoryKeys[index]));
+    }
+
+    /// <summary>Renames the visible chest, which the game shows on the container itself.</summary>
+    [RelayCommand]
+    private void RenameChest() => WriteChestName(ChestName);
+
+    [RelayCommand]
+    private void ClearChestName()
+    {
+        ChestName = "";
+        WriteChestName(null);
+    }
+
+    private void WriteChestName(string? name)
+    {
+        if (_playerState is null) return;
+        int index = SelectedChestIndex;
+        if (index < 0 || index >= BaseLogic.ChestInventoryKeys.Length) return;
+
+        var inventory = _playerState.GetObject(BaseLogic.ChestInventoryKeys[index]);
+        BaseLogic.SetChestName(inventory, name);
+
+        // The tab title carries the name, so it has to be rebuilt.
+        if (index < ChestGrids.Count)
+        {
+            ChestGrids[index].SetInventoryGroup(BaseLogic.FormatChestTabTitle(
+                UiStrings.Format("base.chest_tab", (index + 1).ToString(CultureInfo.CurrentCulture)),
+                BaseLogic.GetChestName(inventory)));
+        }
+    }
+
     public override void SaveData(JsonObject saveData)
     {
         if (SelectedBase?.Data != null && !string.IsNullOrEmpty(BaseName))
@@ -602,6 +709,9 @@ public partial class NpcWorkerViewModel : ObservableObject
 public partial class StorageTabViewModel : ObservableObject
 {
     [ObservableProperty] private string _label = "";
+
+    /// <summary>Shown above the grid when the inventory needs one; empty otherwise.</summary>
+    [ObservableProperty] private string _warning = "";
     [ObservableProperty] private InventoryGridViewModel _grid = new();
 }
 
@@ -613,8 +723,53 @@ public partial class BaseObjectViewModel : ObservableObject
     public JsonObject? Data { get; set; }
     public int Index { get; set; }
 
-    /// <summary>Formatted JSON of the object, for the details pane.</summary>
-    public string Details => Data?.ToFormattedString() ?? "";
+    /// <summary>
+    /// The object's fields, labelled. The raw JSON is still reachable through the raw
+    /// editor; this pane names the ones that mean something.
+    /// </summary>
+    public string Details
+    {
+        get
+        {
+            if (Data is null) return "";
+
+            var sb = new System.Text.StringBuilder();
+            void Row(string key, string? value)
+            {
+                if (!string.IsNullOrEmpty(value))
+                    sb.AppendLine(CultureInfo.CurrentCulture, $"{UiStrings.Get(key)} {value}");
+            }
+            string? Str(string name) { try { return Data.GetString(name); } catch { return null; } }
+            string? Num(string name)
+            {
+                try { return Data.GetInt(name).ToString(CultureInfo.CurrentCulture); } catch { return null; }
+            }
+            string? Arr(string name)
+            {
+                try
+                {
+                    var a = Data.GetArray(name);
+                    if (a is null) return null;
+                    var parts = new List<string>();
+                    for (int i = 0; i < a.Length; i++)
+                        parts.Add(a.GetDouble(i).ToString("F3", CultureInfo.InvariantCulture));
+                    return string.Join(", ", parts);
+                }
+                catch { return null; }
+            }
+
+            Row("base.obj_detail_object_id", Str("ObjectID"));
+            Row("base.obj_detail_timestamp", Num("Timestamp"));
+            Row("base.obj_detail_position", Arr("Position"));
+            Row("base.obj_detail_up", Arr("Up"));
+            Row("base.obj_forward", Arr("At"));
+            Row("base.obj_detail_user_data", Num("UserData"));
+            Row("base.obj_auto_power", Str("AutoPower"));
+            Row("base.obj_region_seed", Str("RegionSeed"));
+
+            return sb.ToString();
+        }
+    }
 
     public override string ToString() => Label;
 }
